@@ -90,3 +90,19 @@ class LogFileSnippetViewSet(SnippetViewSet):
     list_filter = ("status", "collection")
     search_fields = ("file",)
 
+
+class LogProcessedRowSnippetViewSet(SnippetViewSet):
+    model = LogProcessedRow
+    menu_label = _("Log Processed Row")
+    icon = "folder"
+    menu_order = 500
+
+    list_display = (
+        "action_name",
+        "server_time",
+        "created", 
+        "log_file",
+    )
+    list_filter = ("log_file__collection", "browser_name")
+    search_fields = ("action_name",)
+
