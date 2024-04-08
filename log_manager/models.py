@@ -87,3 +87,73 @@ class ApplicationConfig(CommonControlField):
     
     def __str__(self):
         return f'{self.value}'
+
+
+class CollectionConfig(CommonControlField):
+    collection = models.ForeignKey(
+        Collection, 
+        verbose_name=_('Collection'), 
+        on_delete=models.DO_NOTHING, 
+        null=False, 
+        blank=False,
+    )
+
+    config_type = models.CharField(
+        verbose_name=_('Type'),
+        choices=choices.COLLECTION_CONFIG_TYPE,
+        max_length=3,
+        null=False,
+        blank=False,
+    )
+
+    value = models.CharField(
+        verbose_name=_("Value"),
+        max_length=255, 
+        null=False, 
+        blank=False,
+    )
+
+    is_enabled = models.BooleanField(
+        verbose_name=_("Enabled"),
+        default=True,
+    )
+
+    start_date = models.DateField(
+        verbose_name=_('Start Date'),
+        null=False,
+        blank=False,
+    )
+
+    end_date = models.DateField(
+        verbose_name=_("End Date"),
+        null=True,
+        blank=True
+    )
+
+    base_form_class = CoreAdminModelForm
+
+    panels = [
+        FieldPanel('collection'),
+        FieldPanel('config_type'),
+        FieldPanel('value'),
+        FieldPanel('start_date'),
+        FieldPanel('end_date'),
+        FieldPanel('is_enabled'),
+    ]
+
+    class Meta:
+        ordering = ['collection', 'value']
+        unique_together = ('config_type', 'value',)
+        verbose_name = _("Collection Configuration")
+        verbose_name_plural = _("Collection Configurations")
+
+    @classmethod
+    def get(cls, collection_acron2, config_type, is_enabled=True):
+        return cls.objects.filter(
+            collection__acron2=collection_acron2, 
+            config_type=config_type, 
+            is_enabled=is_enabled
+        )
+    
+    def __str__(self):
+        return f'{self.value}'
