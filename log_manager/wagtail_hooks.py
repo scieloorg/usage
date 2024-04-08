@@ -56,3 +56,21 @@ class CollectionConfigSnippetViewSet(SnippetViewSet):
     search_fields = (
         "value",
     )
+
+
+class LogFileDateSet(SnippetViewSet):
+    model = LogFileDate
+    menu_label = _("Log File Dates")
+    icon = "folder"
+    menu_order = 300
+
+    list_display = (
+        "date",
+        "log_file",
+    )
+    list_filter = (
+        "date",
+        "log_file__collection",
+    )
+    search_fields = ()
+

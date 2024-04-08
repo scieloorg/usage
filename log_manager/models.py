@@ -157,3 +157,49 @@ class CollectionConfig(CommonControlField):
     
     def __str__(self):
         return f'{self.value}'
+
+
+class LogFileDate(CommonControlField):
+    date = models.DateField(
+        verbose_name=_("Date"),
+        null=False,
+        blank=False,
+    )
+
+    log_file = models.ForeignKey(
+        'LogFile',
+        verbose_name=_('Log File'),
+        blank=True,
+        on_delete=models.DO_NOTHING,
+    )
+
+    base_form_class = CoreAdminModelForm
+
+    panel = [
+        FieldPanel('date'),
+        FieldPanel('log_file')
+    ]
+
+    class Meta:
+        ordering = ['-date']
+        verbose_name = _("Log File Date")
+        verbose_name_plural = _("Log File Dates")
+        unique_together = (
+            'date',
+            'log_file',
+        )
+
+    @classmethod
+    def create(cls, user, log_file, date):
+        obj = cls()
+
+        obj.creator = user
+        obj.created = datetime.utcnow()
+        obj.log_file = log_file
+        obj.date = date
+        obj.save()
+        
+        return obj
+        
+    def __str__(self):
+        return f'{self.log_file.path}-{self.date}'
