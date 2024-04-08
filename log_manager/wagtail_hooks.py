@@ -74,3 +74,19 @@ class LogFileDateSet(SnippetViewSet):
     )
     search_fields = ()
 
+
+class LogFileSnippetViewSet(SnippetViewSet):
+    model = LogFile
+    menu_label = _("Log File")
+    icon = "folder"
+    menu_order = 400
+    list_display = (
+        "path",
+        "stat_result",
+        "collection", 
+        "status", 
+        "hash"
+    )
+    list_filter = ("status", "collection")
+    search_fields = ("file",)
+
