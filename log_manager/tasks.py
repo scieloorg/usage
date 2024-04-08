@@ -139,3 +139,101 @@ def task_validate_log(self, log_file_hash, user_id=None, username=None):
         log_file.status = choices.LOG_FILE_STATUS_INVALIDATED
 
     log_file.save()
+@celery_app.task(bind=True, name=_('Parse Logs'), timelimit=-1)
+def task_parse_logs(self, collection_acron2, user_id=None, username=None):
+    """
+    Parses log files associated with a given collection. 
+    It retrieves necessary configuration details such as paths for Counter Robots and Geolocation MMDB files,
+    checks their existence, and iterates through queued log files for parsing.
+
+    Args:
+        collection_acron2 (str): Acronym associated with the collection for which logs are being parsed.
+        user_id
+        username
+
+    Raises:
+        UndefinedCollectionConfigError: If necessary configuration details are missing for Counter Robots or Geolocation MMDB files.
+
+    Returns:
+        None.
+    """
+    ac_robots = models.ApplicationConfig.get(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_ROBOTS)
+    if not ac_robots or not os.path.exists(ac_robots.value) or not os.path.isfile(ac_robots.value):
+        raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration for the Counter Robots text file path.")
+    
+    ac_mmdb = models.ApplicationConfig.get(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB)
+    if not ac_mmdb or not os.path.exists(ac_mmdb.value) or not os.path.isfile(ac_mmdb.value):
+        raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration fot the Geolocation MMDB file path.")
+    
+    for lf in models.LogFile.objects.filter(status=choices.LOG_FILE_STATUS_QUEUED, collection__acron2=collection_acron2):
+        logging.info(f'PARSING file {lf.path}')
+        task_parse_log.apply_async(args=(
+                lf.hash,
+                ac_robots.value, 
+                ac_mmdb.value,
+                user_id,
+                username,
+            )
+        )
+        
+
+@celery_app.task(bind=True, name=_('Parse Log'), timelimit=-1)
+def task_parse_log(self, log_file_hash, path_robots, path_mmdb, user_id=None, username=None):
+    """
+    Parses a log file, extracts relevant information, and creates processed log records in the database.
+
+    Args:
+        log_file_hash (str): Hash representing the log file to be parsed.
+        path_robots (str): File path to the Counter Robots text file.
+        path_mmdb (str): File path to the Geolocation MMDB file.
+        user_id
+        username
+
+    Returns:
+        None.
+    """
+    if username:
+        user = User.objects.get(username=username)
+    if user_id:
+        user = User.objects.get(pk=user_id)
+
+    log_file = models.LogFile.get(hash=log_file_hash)
+    log_file.status = choices.LOG_FILE_STATUS_PARSING
+    log_file.save()
+
+    try:
+        for row in utils.parse_file(
+            path_mmdb,
+            path_robots,
+            log_file.path,
+        ):
+            '''
+            hit.local_datetime
+            hit.client_name
+            hit.client_version
+            hit.ip
+            hit.geolocation
+            hit.action
+            '''
+            st, bn, bv, ip, latlong, action = row
+
+            # FIXME: It depends on the counter-access library to become more flexible.
+            lat, long = latlong.split('\t')
+
+            models.LogProcessedRow.create(
+                user=user,
+                log_file=log_file,
+                server_time=st,
+                browser_name=bn,
+                browser_version=bv,
+                ip=ip,
+                latitude=float(lat),
+                longitude=float(long),
+                action_name=action,
+            )
+    except:
+        log_file.status = choices.LOG_FILE_STATUS_QUEUED
+    else:
+        log_file.status = choices.LOG_FILE_STATUS_PROCESSED
+        
+    log_file.save()
