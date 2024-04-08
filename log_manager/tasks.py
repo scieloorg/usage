@@ -107,3 +107,35 @@ def task_create_log_file(self, collection, path, user_id=None, username=None):
         hash=utils.hash_file(path),
     )
 
+
+@celery_app.task(bind=True, name=_('Validate Logs'), timelimit=-1)
+def task_validate_logs(self, collection_acron2, user_id=None, username=None):
+    for lf in models.LogFile.objects.filter(status=choices.LOG_FILE_STATUS_CREATED, collection__acron2=collection_acron2):
+        logging.info(f'VALIDATING file {lf.path}')
+        task_validate_log.apply_async(args=(lf.hash, user_id, username))
+
+
+@celery_app.task(bind=True, name=_('Validate Log'), timelimit=-1)
+def task_validate_log(self, log_file_hash, user_id=None, username=None):
+    if username:
+        user = User.objects.get(username=username)
+    if user_id:
+        user = User.objects.get(pk=user_id)
+
+    log_file = models.LogFile.get(hash=log_file_hash)
+
+    val_results = utils.validate_file(path=log_file.path)
+
+    if val_results.get('is_valid', {}).get('all', False):
+        probably_date = val_results.get('probably_date', '')
+
+        models.LogFileDate.create(
+            user=user,
+            log_file=log_file,
+            date=probably_date,
+        )
+        log_file.status = choices.LOG_FILE_STATUS_QUEUED
+    else:
+        log_file.status = choices.LOG_FILE_STATUS_INVALIDATED
+
+    log_file.save()
