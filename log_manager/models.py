@@ -273,3 +273,79 @@ class LogFile(CommonControlField):
         
     def __str__(self):
         return f'{self.path}'
+
+
+class LogProcessedRow(CommonControlField):
+    log_file = models.ForeignKey(
+        LogFile,
+        verbose_name=_("LogFile"),
+        on_delete=models.DO_NOTHING,
+        null=False,
+        blank=False,
+    )
+    server_time = models.DateTimeField(_("Server Time"), null=False, blank=False)
+    browser_name = models.CharField(_("Browser Name"), null=False, blank=False)
+    browser_version = models.CharField(_("Browser Version"), null=False, blank=False)
+    ip = models.CharField(_("IP"), null=False, blank=False)
+    latitude = models.FloatField(_("Latitude"), null=False, blank=False)
+    longitude = models.FloatField(_("Longitude"), null=False, blank=False)
+    action_name = models.CharField(_("Action Name"), null=False, blank=False)
+
+    base_form_class = CoreAdminModelForm
+
+    panels = [
+        FieldPanel('log_file'),
+        FieldPanel('server_time'),
+        FieldPanel('browser_name'),
+        FieldPanel('browser_version'),
+        FieldPanel('ip'),
+        FieldPanel('latitude'),
+        FieldPanel('longitude'),
+        FieldPanel('action_name'),
+    ]
+
+    class Meta:
+        unique_together = (
+            'server_time',
+            'browser_name', 
+            'browser_version',
+            'ip',
+            'latitude',
+            'longitude',
+            'action_name',
+        )
+        verbose_name = _("Log Processed Row")
+        verbose_name_plural = _("Log Processed Rows")
+        indexes = [
+            models.Index(fields=['server_time']),
+            models.Index(fields=['browser_name']),
+            models.Index(fields=['browser_version']),
+            models.Index(fields=['ip']),
+            models.Index(fields=['latitude']),
+            models.Index(fields=['longitude']),
+            models.Index(fields=['action_name']),
+        ]
+
+    @classmethod
+    def create(cls, user, log_file, server_time, browser_name, browser_version, ip, latitude, longitude, action_name):
+        obj = cls()
+        obj.creator = user
+        obj.created = datetime.utcnow()
+
+        obj.log_file = log_file
+        obj.server_time = server_time
+        obj.browser_name = browser_name
+        obj.browser_version = browser_version
+        obj.ip = ip
+        obj.latitude = latitude
+        obj.longitude = longitude
+        obj.action_name = action_name
+    
+        try:
+            obj.save()
+            return obj        
+        except IntegrityError:
+            ...
+
+    def __str__(self):
+        return f'{self.action_name}'
