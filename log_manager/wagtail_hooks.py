@@ -32,3 +32,27 @@ class ApplicationConfigSnippetViewSet(SnippetViewSet):
     search_fields = (
         "value",
     )
+
+
+class CollectionConfigSnippetViewSet(SnippetViewSet):
+    model = CollectionConfig
+    menu_label = _("Collection Configuration")
+    icon = "folder"
+    menu_order = 200
+
+    list_display = (
+        "collection",
+        "config_type",
+        "value",
+        "start_date",
+        "end_date",
+        "is_enabled",
+    )
+    list_filter = (
+        "collection", 
+        "config_type",
+        "is_enabled",
+    )
+    search_fields = (
+        "value",
+    )
