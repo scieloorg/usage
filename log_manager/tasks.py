@@ -237,3 +237,28 @@ def task_parse_log(self, log_file_hash, path_robots, path_mmdb, user_id=None, us
         log_file.status = choices.LOG_FILE_STATUS_PROCESSED
         
     log_file.save()
+
+
+@celery_app.task(bind=True, name=_('Download Supplies'))
+def task_download_supplies(self, url_robots, url_mmdb, user_id=None, username=None):
+    if user_id:
+        user = User.objects.get(pk=user_id)
+    if username:
+        user = User.objects.get(username=username)
+
+    supplies_directory = models.ApplicationConfig.get(choices.APPLICATION_CONFIG_TYPE_DIRECTORY_SUPPLIES).value
+
+    robots_path, mmdb_path = utils.download_supplies(supplies_directory, url_robots, url_mmdb)
+
+    models.ApplicationConfig.create(
+        user,
+        choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_ROBOTS,
+        robots_path,
+    )
+
+    models.ApplicationConfig.create(
+        user,
+        choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB,
+        mmdb_path,
+    )
+   
