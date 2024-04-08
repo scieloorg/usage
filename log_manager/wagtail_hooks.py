@@ -106,3 +106,18 @@ class LogProcessedRowSnippetViewSet(SnippetViewSet):
     list_filter = ("log_file__collection", "browser_name")
     search_fields = ("action_name",)
 
+
+class LogSnippetViewSetGroup(SnippetViewSetGroup):
+    menu_label = _("Log Manager")
+    menu_icon = "folder-open-inverse"
+    menu_order = 1
+    items = (
+        ApplicationConfigSnippetViewSet, 
+        CollectionConfigSnippetViewSet,
+        LogFileDateSet,
+        LogFileSnippetViewSet, 
+        LogProcessedRowSnippetViewSet, 
+    )
+
+
+register_snippet(LogSnippetViewSetGroup)
