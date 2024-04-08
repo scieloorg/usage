@@ -78,3 +78,32 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
 
                 if not (temporal_reference or from_date) or file_ctime > obj_from_date:
                     task_create_log_file(col, file_path, user_id, username)
+
+
+@celery_app.task(bind=True, name=_('Create Log File'))
+def task_create_log_file(self, collection, path, user_id=None, username=None):
+    """
+    Task to create a log file record in the database.
+
+    Args:
+        collection: Collection object associated with the log file.
+        path (str): File path of the log file.
+        user_id
+        username
+
+    Returns:
+        None.
+    """
+    if username:
+        user = User.objects.get(username=username)
+    if user_id:
+        user = User.objects.get(pk=user_id)
+
+    models.LogFile.create(
+        user=user,
+        collection=collection,
+        path=path,
+        stat_result=os.stat(path),
+        hash=utils.hash_file(path),
+    )
+
