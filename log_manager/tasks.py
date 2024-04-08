@@ -139,6 +139,14 @@ def task_validate_log(self, log_file_hash, user_id=None, username=None):
         log_file.status = choices.LOG_FILE_STATUS_INVALIDATED
 
     log_file.save()
+
+# TODO: 
+#   Create a method that get all log files related to a collection and a period of time (start and end dates)
+#   In detail:
+#       Look at the LogFileDate table to get all the log_file,date pairs about that collection and dates
+#       Look at the CollectionConfig table to get the number of valid log files expected per day
+#       Generate a report informing the dates that there are missing files
+
 @celery_app.task(bind=True, name=_('Parse Logs'), timelimit=-1)
 def task_parse_logs(self, collection_acron2, user_id=None, username=None):
     """
