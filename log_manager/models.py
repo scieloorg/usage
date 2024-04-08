@@ -203,3 +203,73 @@ class LogFileDate(CommonControlField):
         
     def __str__(self):
         return f'{self.log_file.path}-{self.date}'
+
+
+class LogFile(CommonControlField):
+    hash = models.CharField(_("Hash MD5"), max_length=32, null=True, blank=True, unique=True)
+
+    path = models.CharField(_("Name"), max_length=255, null=False, blank=False)
+
+    stat_result = models.JSONField(_("OS Stat Result"), null=False, blank=False)
+
+    status = models.CharField(
+        _("Status"), 
+        choices=choices.LOG_FILE_STATUS, 
+        max_length=3, 
+        blank=False, 
+        null=False,
+    )
+
+    collection = models.ForeignKey(
+        Collection,
+        verbose_name=_("Collection"),
+        on_delete=models.DO_NOTHING,
+        null=False,
+        blank=False,
+    )
+
+    panels = [
+        FieldPanel('hash'),
+        FieldPanel('path'),
+        FieldPanel('stat_result'),
+        FieldPanel('status'),
+        FieldPanel('collection'),
+    ]
+
+    base_form_class = CoreAdminModelForm
+
+    class Meta:
+        verbose_name = _("Log File")
+        verbose_name_plural = _("Log Files")
+
+    @classmethod
+    def get(cls, hash):
+        return cls.objects.get(hash=hash)
+
+    @classmethod
+    def create(cls, user, collection, path, stat_result, hash, status=None):
+        try:
+            obj = cls.objects.get(hash=hash)
+            UnexpectedEvent.create(
+                LogFileAlreadyExistsError,
+                detail={
+                    'Error': _('File hash is already registered.'),
+                    'Action': _('No action required from the user.'),
+                    'Result': _('The file has been ignored.'),
+                    'Hash': hash,
+                })
+            return 
+        except cls.DoesNotExist:
+            obj = cls()
+            obj.creator = user
+            obj.created = datetime.utcnow()
+            obj.collection = collection
+            obj.path = path
+            obj.stat_result = stat_result
+            obj.hash = hash
+            obj.status = status or choices.LOG_FILE_STATUS_CREATED
+            obj.save()
+            return obj
+        
+    def __str__(self):
+        return f'{self.path}'
