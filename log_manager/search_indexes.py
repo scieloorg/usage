@@ -4,6 +4,8 @@ import reverse_geocode
 from haystack import indexes
 
 from .models import LogProcessedRow
+
+
 class LogProcessedRowIndex(indexes.SearchIndex, indexes.Indexable):
     text = indexes.CharField(document=True, use_template=True, null=True)
 
