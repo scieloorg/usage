@@ -1,3 +1,7 @@
+# Solr
+index/usage/data
+index/data/usage/data/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
