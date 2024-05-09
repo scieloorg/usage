@@ -4,6 +4,7 @@ import os
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext as _
 
+from core.utils.utils import _get_user
 from config import celery_app
 from collection.models import Collection
 
@@ -94,7 +95,7 @@ def task_create_log_file(self, collection, path, user_id=None, username=None):
     Returns:
         None.
     """
-    if username:
+    user = _get_user(self.request, username=username, user_id=user_id)
         user = User.objects.get(username=username)
     if user_id:
         user = User.objects.get(pk=user_id)
@@ -117,10 +118,7 @@ def task_validate_logs(self, collection_acron2, user_id=None, username=None):
 
 @celery_app.task(bind=True, name=_('Validate Log'), timelimit=-1)
 def task_validate_log(self, log_file_hash, user_id=None, username=None):
-    if username:
-        user = User.objects.get(username=username)
-    if user_id:
-        user = User.objects.get(pk=user_id)
+    user = _get_user(self.request, username=username, user_id=user_id)
 
     log_file = models.LogFile.get(hash=log_file_hash)
 
@@ -200,10 +198,7 @@ def task_parse_log(self, log_file_hash, path_robots, path_mmdb, user_id=None, us
     Returns:
         None.
     """
-    if username:
-        user = User.objects.get(username=username)
-    if user_id:
-        user = User.objects.get(pk=user_id)
+    user = _get_user(self.request, username=username, user_id=user_id)
 
     log_file = models.LogFile.get(hash=log_file_hash)
     log_file.status = choices.LOG_FILE_STATUS_PARSING
@@ -249,12 +244,9 @@ def task_parse_log(self, log_file_hash, path_robots, path_mmdb, user_id=None, us
 
 @celery_app.task(bind=True, name=_('Download Supplies'))
 def task_download_supplies(self, url_robots, url_mmdb, user_id=None, username=None):
-    if user_id:
-        user = User.objects.get(pk=user_id)
-    if username:
-        user = User.objects.get(username=username)
+    user = _get_user(self.request, username=username, user_id=user_id)
 
-    supplies_directory = models.ApplicationConfig.get(choices.APPLICATION_CONFIG_TYPE_DIRECTORY_SUPPLIES).value
+    supplies_directory = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_DIRECTORY_SUPPLIES).value
 
     robots_path, mmdb_path = utils.download_supplies(supplies_directory, url_robots, url_mmdb)
 
