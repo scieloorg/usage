@@ -250,7 +250,7 @@ class LogFile(CommonControlField):
     @classmethod
     def create(cls, user, collection, path, stat_result, hash, status=None):
         try:
-            obj = cls.objects.get(hash=hash)
+            obj = cls.get(hash=hash)
             UnexpectedEvent.create(
                 LogFileAlreadyExistsError,
                 detail={
