@@ -4,6 +4,7 @@ from django.db import models
 from django.db.utils import IntegrityError
 from django.utils.translation import gettext_lazy as _
 from wagtail.admin.panels import FieldPanel
+from wagtailautocomplete.edit_handlers import AutocompletePanel
 
 from collection.models import Collection
 from core.forms import CoreAdminModelForm
@@ -133,7 +134,7 @@ class CollectionConfig(CommonControlField):
     base_form_class = CoreAdminModelForm
 
     panels = [
-        FieldPanel('collection'),
+        AutocompletePanel('collection'),
         FieldPanel('config_type'),
         FieldPanel('value'),
         FieldPanel('start_date'),
@@ -177,7 +178,7 @@ class LogFileDate(CommonControlField):
 
     panel = [
         FieldPanel('date'),
-        FieldPanel('log_file')
+        AutocompletePanel('log_file')
     ]
 
     class Meta:
@@ -233,7 +234,7 @@ class LogFile(CommonControlField):
         FieldPanel('path'),
         FieldPanel('stat_result'),
         FieldPanel('status'),
-        FieldPanel('collection'),
+        AutocompletePanel('collection'),
     ]
 
     base_form_class = CoreAdminModelForm
@@ -294,7 +295,7 @@ class LogProcessedRow(CommonControlField):
     base_form_class = CoreAdminModelForm
 
     panels = [
-        FieldPanel('log_file'),
+        AutocompletePanel('log_file'),
         FieldPanel('server_time'),
         FieldPanel('browser_name'),
         FieldPanel('browser_version'),
