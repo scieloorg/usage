@@ -78,7 +78,7 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
                 file_ctime = utils.timestamp_to_datetime(os.stat(file_path).st_ctime)
 
                 if not (temporal_reference or from_date) or file_ctime > obj_from_date:
-                    task_create_log_file(col, file_path, user_id, username)
+                    task_create_log_file.apply_async(args=(collection_acron2, file_path, user_id, username))
 
 
 @celery_app.task(bind=True, name=_('Create Log File'))
