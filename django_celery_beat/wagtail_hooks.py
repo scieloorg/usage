@@ -23,6 +23,8 @@ from django_celery_beat.models import (
 )
 from django_celery_beat.utils import is_database_scheduler
 
+from config.menu import get_menu_order
+
 from .button_helper import PeriodicTaskHelper
 
 
@@ -191,7 +193,7 @@ class SolarScheduleAdmin(ModelAdmin):
 class TasksModelsAdminGroup(ModelAdminGroup):
     menu_label = _("Tasks")
     menu_icon = "cogs"
-    menu_order = 1000
+    menu_order = get_menu_order("tasks")
     items = (
         PeriodicTaskAdmin,
         CrontabScheduleAdmin,

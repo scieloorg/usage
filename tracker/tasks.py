@@ -1,25 +1,18 @@
 # tasks.py
+from datetime import datetime
+
 import logging
 import sys
-from datetime import datetime
 
 from django.contrib.auth import get_user_model
 
 from config import celery_app
+from core.utils.utils import _get_user
+
 from .models import UnexpectedEvent, Hello
 
 
 User = get_user_model()
-
-
-def _get_user(request, username=None, user_id=None):
-    try:
-        return User.objects.get(pk=request.user.id)
-    except AttributeError:
-        if user_id:
-            return User.objects.get(pk=user_id)
-        if username:
-            return User.objects.get(username=username)
 
 
 @celery_app.task(bind=True, name="cleanup_unexpected_events")
@@ -27,6 +20,7 @@ def delete_unexpected_events(self, exception_type, start_date=None, end_date=Non
     """
     Delete UnexpectedEvent records based on exception type and optional date range.
     """
+    user = _get_user(self.request, username=username, user_id=user_id)
 
     if exception_type == '__all__':
         UnexpectedEvent.objects.all().delete()
@@ -44,10 +38,12 @@ def delete_unexpected_events(self, exception_type, start_date=None, end_date=Non
 
 
 @celery_app.task(bind=True)
-def hello(self, user_id=None):
+def hello(self, user_id=None, username=None):
     """
     Register Hello records
     """
+    user = _get_user(self.request, username=username, user_id=user_id)
+
     try:
         logging.info("Hello!")
         Hello.create()

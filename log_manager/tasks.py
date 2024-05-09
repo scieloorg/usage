@@ -82,12 +82,12 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
 
 
 @celery_app.task(bind=True, name=_('Create Log File'))
-def task_create_log_file(self, collection, path, user_id=None, username=None):
+def task_create_log_file(self, collection_acron2, path, user_id=None, username=None):
     """
     Task to create a log file record in the database.
 
     Args:
-        collection: Collection object associated with the log file.
+        collection_acron2 (str): Acronym of the collection.
         path (str): File path of the log file.
         user_id
         username
@@ -96,13 +96,11 @@ def task_create_log_file(self, collection, path, user_id=None, username=None):
         None.
     """
     user = _get_user(self.request, username=username, user_id=user_id)
-        user = User.objects.get(username=username)
-    if user_id:
-        user = User.objects.get(pk=user_id)
+    col = Collection.objects.get(acron2=collection_acron2)
 
     models.LogFile.create(
         user=user,
-        collection=collection,
+        collection=col,
         path=path,
         stat_result=os.stat(path),
         hash=utils.hash_file(path),

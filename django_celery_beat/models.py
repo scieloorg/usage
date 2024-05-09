@@ -2,6 +2,7 @@
 from datetime import timedelta
 
 import timezone_field
+
 from celery import current_app, schedules
 from django.conf import settings
 from django.core.exceptions import MultipleObjectsReturned, ValidationError
@@ -12,9 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from wagtail.admin.panels import (
     FieldPanel,
     HelpPanel,
-    MultiFieldPanel,
     ObjectList,
-    PageChooserPanel,
     TabbedInterface,
 )
 
