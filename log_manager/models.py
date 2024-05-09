@@ -69,10 +69,10 @@ class ApplicationConfig(CommonControlField):
     
     @classmethod
     def create(cls, user, config_type, value, is_enabled=True, version_number=None):
-        try:
-            last_config = cls.objects.filter(config_type=config_type).order_by('-version_number').first()
+        last_config = cls.objects.filter(config_type=config_type).order_by('-version_number').first()
+        if last_config is not None:
             last_version_number = last_config.version_number
-        except cls.DoesNotExist:
+        else:
             last_version_number = 0
 
         obj = cls()
