@@ -1,28 +1,20 @@
-from django.http import HttpResponseRedirect
 from django.utils.translation import gettext as _
-from wagtail.contrib.modeladmin.options import ModelAdmin, modeladmin_register
-from wagtail.contrib.modeladmin.views import CreateView
+from wagtail.snippets.views.snippets import SnippetViewSet
+from wagtail.snippets.models import register_snippet
+
+from config.menu import get_menu_order
 
 from .models import Collection
 
 
-class CollectionCreateView(CreateView):
-    def form_valid(self, form):
-        self.object = form.save_all(self.request.user)
-        return HttpResponseRedirect(self.get_success_url())
-
-
-class CollectionAdmin(ModelAdmin):
+class CollectionSnippetViewSet(SnippetViewSet):
     model = Collection
-    create_view_class = CollectionCreateView
-    inspect_view_enabled = True
-    menu_label = _("Collection")
-    menu_icon = "folder-open-inverse"
-    menu_order = 1
-    add_to_settings_menu = False
-    exclude_from_explorer = (
-        False
-    )
+    icon = "folder-open-inverse"
+    menu_name = 'collection'
+    menu_label = _("Collection")    
+    menu_order = get_menu_order("collection")
+    add_to_admin_menu = True
+
     list_display = (
         "main_name",
         "acron3",
@@ -66,4 +58,4 @@ class CollectionAdmin(ModelAdmin):
     export_filename = "collections"
 
 
-modeladmin_register(CollectionAdmin)
+register_snippet(CollectionSnippetViewSet)
