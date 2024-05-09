@@ -58,7 +58,7 @@ class ApplicationConfig(CommonControlField):
         verbose_name_plural = _("Application Configs")
 
     @classmethod
-    def get(cls, config_type, sorting_field='-version_number'):
+    def filter_by_config_type(cls, config_type, sorting_field='-version_number'):
         return cls.objects.filter(
             config_type=config_type,
         ).order_by(sorting_field).first()
@@ -149,7 +149,7 @@ class CollectionConfig(CommonControlField):
         verbose_name_plural = _("Collection Configurations")
 
     @classmethod
-    def get(cls, collection_acron2, config_type, is_enabled=True):
+    def filter_by_collection_and_config_type(cls, collection_acron2, config_type, is_enabled=True):
         return cls.objects.filter(
             collection__acron2=collection_acron2, 
             config_type=config_type, 

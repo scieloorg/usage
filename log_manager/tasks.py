@@ -42,7 +42,7 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
     """
     col = Collection.objects.get(acron2=collection_acron2)
 
-    col_configs_dirs = models.CollectionConfig.get(
+    col_configs_dirs = models.CollectionConfig.filter_by_collection_and_config_type(
         collection_acron2=collection_acron2, 
         config_type=choices.COLLECTION_CONFIG_TYPE_DIRECTORY_LOGS,
         is_enabled=is_enabled,
@@ -161,11 +161,11 @@ def task_parse_logs(self, collection_acron2, user_id=None, username=None):
     Returns:
         None.
     """
-    ac_robots = models.ApplicationConfig.get(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_ROBOTS)
+    ac_robots = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_ROBOTS)
     if not ac_robots or not os.path.exists(ac_robots.value) or not os.path.isfile(ac_robots.value):
         raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration for the Counter Robots text file path.")
     
-    ac_mmdb = models.ApplicationConfig.get(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB)
+    ac_mmdb = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB)
     if not ac_mmdb or not os.path.exists(ac_mmdb.value) or not os.path.isfile(ac_mmdb.value):
         raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration fot the Geolocation MMDB file path.")
     
