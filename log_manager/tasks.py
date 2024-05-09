@@ -258,4 +258,3 @@ def task_download_supplies(self, url_robots, url_mmdb, user_id=None, username=No
         choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB,
         mmdb_path,
     )
-   
