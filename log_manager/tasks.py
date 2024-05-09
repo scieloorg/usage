@@ -40,7 +40,6 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
     Returns:
         None.
     """
-    # col = Collection.objects.get(acron2=collection_acron2)
     col_configs_dirs = models.CollectionConfig.filter_by_collection_and_config_type(
         collection_acron2=collection_acron2, 
         config_type=choices.COLLECTION_CONFIG_TYPE_DIRECTORY_LOGS,
