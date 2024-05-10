@@ -3,6 +3,8 @@ from django.utils.translation import gettext_lazy as _
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 from wagtail.snippets.models import register_snippet
 
+from config.menu import get_menu_order
+
 from log_manager.models import (
     ApplicationConfig,
     CollectionConfig,
@@ -108,9 +110,10 @@ class LogProcessedRowSnippetViewSet(SnippetViewSet):
 
 
 class LogSnippetViewSetGroup(SnippetViewSetGroup):
+    menu_name = 'log_manager'
     menu_label = _("Log Manager")
     menu_icon = "folder-open-inverse"
-    menu_order = 1
+    menu_order = get_menu_order("log_manager")
     items = (
         ApplicationConfigSnippetViewSet, 
         CollectionConfigSnippetViewSet,

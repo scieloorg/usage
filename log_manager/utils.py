@@ -21,9 +21,9 @@ from .choices import (
 
 
 def temporal_reference_to_datetime(text):
-    text = text.lower()
-
     if text:
+        text = text.lower()
+
         if text == TEMPORAL_REFERENCE_YESTERDAY:
             return datetime.now() - timedelta(days=1)
                 

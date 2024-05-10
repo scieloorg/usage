@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: ./compose/production/django/Dockerfile
-    image: core_production_django
+    image: scielo_usage_production_django
     platform: linux/x86_64
     depends_on:
       - postgres
@@ -37,7 +37,7 @@ services:
     build:
       context: .
       dockerfile: ./compose/production/postgres/Dockerfile
-    image: core_production_postgres
+    image: scielo_usage_production_postgres
     volumes:
       - ../scms_data/scielo_core/data_prod:/var/lib/postgresql/data:Z
       - ../scms_data/scielo_core/data_prod_backup:/backups:z
@@ -61,7 +61,7 @@ services:
     build:
       context: .
       dockerfile: ./compose/production/traefik/Dockerfile
-    image: core_production_traefik
+    image: scielo_usage_production_traefik
     depends_on:
       - django
     volumes:
@@ -78,7 +78,7 @@ services:
 
   celeryworker:
     <<: *django
-    image: core_production_celeryworker
+    image: scielo_usage_production_celeryworker
     depends_on:
       - redis
       - postgres
@@ -86,7 +86,7 @@ services:
 
   celerybeat:
     <<: *django
-    image: core_production_celerybeat
+    image: scielo_usage_production_celerybeat
     depends_on:
       - redis
       - postgres
@@ -94,5 +94,5 @@ services:
 
   flower:
     <<: *django
-    image: core_production_flower
+    image: scielo_usage_production_flower
     command: /start-flower
