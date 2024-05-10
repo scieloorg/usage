@@ -9,8 +9,6 @@ from wagtail.admin import urls as wagtailadmin_urls
 from wagtail.documents import urls as wagtaildocs_urls
 from wagtailautocomplete.urls.admin import urlpatterns as autocomplete_admin_urls
 
-from core.api.wagtail.api import api_router
-
 
 urlpatterns = [
     path("admin/autocomplete/", include(autocomplete_admin_urls)),

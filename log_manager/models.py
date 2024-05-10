@@ -4,6 +4,7 @@ from django.db import models
 from django.db.utils import IntegrityError
 from django.utils.translation import gettext_lazy as _
 from wagtail.admin.panels import FieldPanel
+from wagtailautocomplete.edit_handlers import AutocompletePanel
 
 from collection.models import Collection
 from core.forms import CoreAdminModelForm
@@ -57,7 +58,7 @@ class ApplicationConfig(CommonControlField):
         verbose_name_plural = _("Application Configs")
 
     @classmethod
-    def get(cls, config_type, sorting_field='-version_number'):
+    def filter_by_config_type(cls, config_type, sorting_field='-version_number'):
         return cls.objects.filter(
             config_type=config_type,
         ).order_by(sorting_field).first()
@@ -68,10 +69,10 @@ class ApplicationConfig(CommonControlField):
     
     @classmethod
     def create(cls, user, config_type, value, is_enabled=True, version_number=None):
-        try:
-            last_config = cls.objects.filter(config_type=config_type).order_by('-version_number').first()
+        last_config = cls.objects.filter(config_type=config_type).order_by('-version_number').first()
+        if last_config is not None:
             last_version_number = last_config.version_number
-        except cls.DoesNotExist:
+        else:
             last_version_number = 0
 
         obj = cls()
@@ -133,7 +134,7 @@ class CollectionConfig(CommonControlField):
     base_form_class = CoreAdminModelForm
 
     panels = [
-        FieldPanel('collection'),
+        AutocompletePanel('collection'),
         FieldPanel('config_type'),
         FieldPanel('value'),
         FieldPanel('start_date'),
@@ -148,7 +149,7 @@ class CollectionConfig(CommonControlField):
         verbose_name_plural = _("Collection Configurations")
 
     @classmethod
-    def get(cls, collection_acron2, config_type, is_enabled=True):
+    def filter_by_collection_and_config_type(cls, collection_acron2, config_type, is_enabled=True):
         return cls.objects.filter(
             collection__acron2=collection_acron2, 
             config_type=config_type, 
@@ -177,7 +178,7 @@ class LogFileDate(CommonControlField):
 
     panel = [
         FieldPanel('date'),
-        FieldPanel('log_file')
+        AutocompletePanel('log_file')
     ]
 
     class Meta:
@@ -233,7 +234,7 @@ class LogFile(CommonControlField):
         FieldPanel('path'),
         FieldPanel('stat_result'),
         FieldPanel('status'),
-        FieldPanel('collection'),
+        AutocompletePanel('collection'),
     ]
 
     base_form_class = CoreAdminModelForm
@@ -249,7 +250,7 @@ class LogFile(CommonControlField):
     @classmethod
     def create(cls, user, collection, path, stat_result, hash, status=None):
         try:
-            obj = cls.objects.get(hash=hash)
+            obj = cls.get(hash=hash)
             UnexpectedEvent.create(
                 LogFileAlreadyExistsError,
                 detail={
@@ -294,7 +295,7 @@ class LogProcessedRow(CommonControlField):
     base_form_class = CoreAdminModelForm
 
     panels = [
-        FieldPanel('log_file'),
+        AutocompletePanel('log_file'),
         FieldPanel('server_time'),
         FieldPanel('browser_name'),
         FieldPanel('browser_version'),

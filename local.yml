@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: ./compose/local/django/Dockerfile
-    image: scielo_core_local_django
-    container_name: scielo_core_local_django
+    image: scielo_usage_local_django
+    container_name: scielo_usage_local_django
     depends_on:
       - redis
       - postgres
@@ -29,7 +29,7 @@ services:
 
   pgbouncer:
     image: edoburu/pgbouncer:1.14.0
-    container_name: scielo_core_local_pgbouncer
+    container_name: scielo_usage_local_pgbouncer
     environment:
       - DATABASE_URL=postgres://GVRFlLmcCNfGLhsFvSnCioYOPJPYpyfj:BQ4hSUL4rdj5WZLdR8ilDLRQMvCtzo0caMaXDO0olGsmycQjlcZlTVK9DepZR8kk@postgres/scielo_core
       - MAX_CLIENT_CONN=100
@@ -42,7 +42,7 @@ services:
 
   solr:
     image: solr:9.3
-    container_name: scielo_core_local_solr
+    container_name: scielo_usage_local_solr
     ports:
       - "8983:8983"
     volumes:
@@ -53,7 +53,7 @@ services:
 
   minio:
     image: 'minio/minio:RELEASE.2024-03-21T23-13-43Z'
-    container_name: scielo_core_local_minio
+    container_name: scielo_usage_local_minio
     ports:
       - '9000:9000'
       - '9001:9001'
@@ -67,8 +67,8 @@ services:
     build:
       context: .
       dockerfile: ./compose/production/postgres/Dockerfile
-    image: scielo_core_local_postgres
-    container_name: scielo_core_local_postgres
+    image: scielo_usage_local_postgres
+    container_name: scielo_usage_local_postgres
     volumes:
       - ../scms_data/usage/postgresql:/var/lib/postgresql/data:Z
       - ../scms_data/usage/postgresql_backup:/backups:z
@@ -79,26 +79,26 @@ services:
 
   adminer:
     image: adminer
-    container_name: scielo_core_local_adminer
+    container_name: scielo_usage_local_adminer
     ports:
       - "8089:8080"
 
   mailhog:
     image: mailhog/mailhog:v1.0.0
-    container_name: scielo_core_local_mailhog
+    container_name: scielo_usage_local_mailhog
     ports:
       - "8029:8025"
 
   redis:
     image: redis:6
-    container_name: scielo_core_local_redis
+    container_name: scielo_usage_local_redis
     ports:
       - "6399:6379"
 
   celeryworker:
     <<: *django
-    image: scielo_core_local_celeryworker
-    container_name: scielo_core_local_celeryworker
+    image: scielo_usage_local_celeryworker
+    container_name: scielo_usage_local_celeryworker
     depends_on:
       - redis
       - postgres
@@ -108,8 +108,8 @@ services:
 
   celerybeat:
     <<: *django
-    image: scielo_core_local_celerybeat
-    container_name: scielo_core_local_celerybeat
+    image: scielo_usage_local_celerybeat
+    container_name: scielo_usage_local_celerybeat
     depends_on:
       - redis
       - postgres
@@ -119,8 +119,8 @@ services:
 
   flower:
     <<: *django
-    image: scielo_core_local_flower
-    container_name: scielo_core_local_flower
+    image: scielo_usage_local_flower
+    container_name: scielo_usage_local_flower
     ports:
       - "5559:5555"
     command: /start-flower

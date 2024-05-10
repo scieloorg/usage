@@ -4,6 +4,7 @@ import os
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext as _
 
+from core.utils.utils import _get_user
 from config import celery_app
 from collection.models import Collection
 
@@ -39,9 +40,7 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
     Returns:
         None.
     """
-    col = Collection.objects.get(acron2=collection_acron2)
-
-    col_configs_dirs = models.CollectionConfig.get(
+    col_configs_dirs = models.CollectionConfig.filter_by_collection_and_config_type(
         collection_acron2=collection_acron2, 
         config_type=choices.COLLECTION_CONFIG_TYPE_DIRECTORY_LOGS,
         is_enabled=is_enabled,
@@ -77,16 +76,16 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
                 file_ctime = utils.timestamp_to_datetime(os.stat(file_path).st_ctime)
 
                 if not (temporal_reference or from_date) or file_ctime > obj_from_date:
-                    task_create_log_file(col, file_path, user_id, username)
+                    task_create_log_file.apply_async(args=(collection_acron2, file_path, user_id, username))
 
 
 @celery_app.task(bind=True, name=_('Create Log File'))
-def task_create_log_file(self, collection, path, user_id=None, username=None):
+def task_create_log_file(self, collection_acron2, path, user_id=None, username=None):
     """
     Task to create a log file record in the database.
 
     Args:
-        collection: Collection object associated with the log file.
+        collection_acron2 (str): Acronym of the collection.
         path (str): File path of the log file.
         user_id
         username
@@ -94,14 +93,12 @@ def task_create_log_file(self, collection, path, user_id=None, username=None):
     Returns:
         None.
     """
-    if username:
-        user = User.objects.get(username=username)
-    if user_id:
-        user = User.objects.get(pk=user_id)
+    user = _get_user(self.request, username=username, user_id=user_id)
+    col = Collection.objects.get(acron2=collection_acron2)
 
     models.LogFile.create(
         user=user,
-        collection=collection,
+        collection=col,
         path=path,
         stat_result=os.stat(path),
         hash=utils.hash_file(path),
@@ -117,10 +114,7 @@ def task_validate_logs(self, collection_acron2, user_id=None, username=None):
 
 @celery_app.task(bind=True, name=_('Validate Log'), timelimit=-1)
 def task_validate_log(self, log_file_hash, user_id=None, username=None):
-    if username:
-        user = User.objects.get(username=username)
-    if user_id:
-        user = User.objects.get(pk=user_id)
+    user = _get_user(self.request, username=username, user_id=user_id)
 
     log_file = models.LogFile.get(hash=log_file_hash)
 
@@ -165,11 +159,11 @@ def task_parse_logs(self, collection_acron2, user_id=None, username=None):
     Returns:
         None.
     """
-    ac_robots = models.ApplicationConfig.get(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_ROBOTS)
+    ac_robots = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_ROBOTS)
     if not ac_robots or not os.path.exists(ac_robots.value) or not os.path.isfile(ac_robots.value):
         raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration for the Counter Robots text file path.")
     
-    ac_mmdb = models.ApplicationConfig.get(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB)
+    ac_mmdb = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB)
     if not ac_mmdb or not os.path.exists(ac_mmdb.value) or not os.path.isfile(ac_mmdb.value):
         raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration fot the Geolocation MMDB file path.")
     
@@ -200,10 +194,7 @@ def task_parse_log(self, log_file_hash, path_robots, path_mmdb, user_id=None, us
     Returns:
         None.
     """
-    if username:
-        user = User.objects.get(username=username)
-    if user_id:
-        user = User.objects.get(pk=user_id)
+    user = _get_user(self.request, username=username, user_id=user_id)
 
     log_file = models.LogFile.get(hash=log_file_hash)
     log_file.status = choices.LOG_FILE_STATUS_PARSING
@@ -249,12 +240,9 @@ def task_parse_log(self, log_file_hash, path_robots, path_mmdb, user_id=None, us
 
 @celery_app.task(bind=True, name=_('Download Supplies'))
 def task_download_supplies(self, url_robots, url_mmdb, user_id=None, username=None):
-    if user_id:
-        user = User.objects.get(pk=user_id)
-    if username:
-        user = User.objects.get(username=username)
+    user = _get_user(self.request, username=username, user_id=user_id)
 
-    supplies_directory = models.ApplicationConfig.get(choices.APPLICATION_CONFIG_TYPE_DIRECTORY_SUPPLIES).value
+    supplies_directory = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_DIRECTORY_SUPPLIES).value
 
     robots_path, mmdb_path = utils.download_supplies(supplies_directory, url_robots, url_mmdb)
 
@@ -269,4 +257,3 @@ def task_download_supplies(self, url_robots, url_mmdb, user_id=None, username=No
         choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB,
         mmdb_path,
     )
-   
