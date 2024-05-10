@@ -12,3 +12,6 @@ class UndefinedApplicationConfigError(Exception):
 
 class UndefinedCollectionConfigError(Exception):
     ...
+
+class MultipleCollectionConfigError(Exception):
+    ...
