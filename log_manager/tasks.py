@@ -1,6 +1,7 @@
 import logging
 import os
 
+from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext as _
 
@@ -140,6 +141,24 @@ def task_validate_log(self, log_file_hash, user_id=None, username=None):
 #       Look at the LogFileDate table to get all the log_file,date pairs about that collection and dates
 #       Look at the CollectionConfig table to get the number of valid log files expected per day
 #       Generate a report informing the dates that there are missing files
+@celery_app.task(bind=True, name=_('Send message'))
+def task_send_message(self, subject, message, collection_acron2, user_id=None, username=None):
+    col_configs = models.CollectionConfig.filter_by_collection_and_config_type(
+        collection_acron2=collection_acron2,
+        config_type=choices.COLLECTION_CONFIG_TYPE_EMAIL,
+    )
+    if col_configs.count() == 0:
+        raise exceptions.UndefinedCollectionConfigError("ERROR. Please, add an Application Configuration for the EMAIL attribute.")
+
+    recipient_list = [cc.value for cc in col_configs]
+    
+    send_mail(
+        subject=subject,
+        message=message,
+        from_email='log_manager@scielo.org',
+        recipient_list=recipient_list
+    )
+
 
 @celery_app.task(bind=True, name=_('Parse Logs'), timelimit=-1)
 def task_parse_logs(self, collection_acron2, user_id=None, username=None):
