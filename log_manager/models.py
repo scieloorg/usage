@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from django.db import models
+from django.db.models import Q
 from django.db.utils import IntegrityError
 from django.utils.translation import gettext_lazy as _
 from wagtail.admin.panels import FieldPanel
@@ -201,6 +202,17 @@ class LogFileDate(CommonControlField):
         obj.save()
         
         return obj
+    
+    @classmethod
+    def filter_by_collection_and_date(cls, collection_acron2, date):
+        return cls.objects.filter(
+            ~Q(log_file__status__in=[
+                choices.LOG_FILE_STATUS_CREATED, 
+                choices.LOG_FILE_STATUS_INVALIDATED
+            ]),
+            log_file__collection__acron2=collection_acron2,
+            date=date,
+        )
         
     def __str__(self):
         return f'{self.log_file.path}-{self.date}'
