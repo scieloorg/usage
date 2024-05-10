@@ -58,7 +58,7 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
         try:
             obj_from_date = utils.temporal_reference_to_datetime(temporal_reference)
         except ValueError:
-            raise exceptions.InvalidTemporaReferenceError('ERROR. The supported temporal references are: yesterday, last week, and last month.')
+            raise exceptions.InvalidTemporaReferenceError('ERROR. The supported temporal references are: two days ago, yesterday, last week, and last month.')
     elif from_date:
         try:
             obj_from_date = utils.formatted_text_to_datetime(from_date)

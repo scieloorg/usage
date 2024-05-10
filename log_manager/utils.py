@@ -15,6 +15,7 @@ from app.proc import (
 )
 
 from .choices import (
+    TEMPORAL_REFERENCE_TWO_DAYS_AGO,
     TEMPORAL_REFERENCE_YESTERDAY,
     TEMPORAL_REFERENCE_LAST_WEEK,
 )
@@ -23,6 +24,8 @@ from .choices import (
 def temporal_reference_to_datetime(text):
     if text:
         text = text.lower()
+        if text == TEMPORAL_REFERENCE_TWO_DAYS_AGO:
+            return datetime.now() - timedelta(days=2)
 
         if text == TEMPORAL_REFERENCE_YESTERDAY:
             return datetime.now() - timedelta(days=1)
