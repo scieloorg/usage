@@ -33,7 +33,7 @@ EMAIL_PORT = 1025
 # ADMIN
 # ------------------------------------------------------------------------------
 # https://docs.wagtail.org/en/stable/reference/settings.html#wagtailadmin-base-url
-WAGTAILADMIN_BASE_URL = 'https://usage.scielo.org'
+WAGTAILADMIN_BASE_URL = 'http://0.0.0.0:8009'
 
 # WhiteNoise
 # ------------------------------------------------------------------------------
