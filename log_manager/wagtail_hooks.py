@@ -1,5 +1,5 @@
+from django import forms
 from django.utils.translation import gettext_lazy as _
-
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 from wagtail.snippets.models import register_snippet
 
@@ -8,6 +8,7 @@ from config.menu import get_menu_order
 from log_manager.models import (
     ApplicationConfig,
     CollectionConfig,
+    CollectionLogFileDateCount,
     LogFile,
     LogFileDate,
     LogProcessedRow,
@@ -77,11 +78,34 @@ class LogFileDateSet(SnippetViewSet):
     search_fields = ()
 
 
+class CollectionLogFileDateCountSet(SnippetViewSet):
+    model = CollectionLogFileDateCount
+    menu_label = _("Collection Log File Date Count")
+    icon = "folder"
+    menu_order = 400
+
+    list_display = (
+        "collection",
+        "date",
+        "year",
+        "month",
+        "existing_log_files",
+        "required_log_files",
+        "status",
+    )
+    list_filter = (
+        "collection",
+        "status",
+        "year",
+        "month"
+    )
+
+
 class LogFileSnippetViewSet(SnippetViewSet):
     model = LogFile
     menu_label = _("Log File")
     icon = "folder"
-    menu_order = 400
+    menu_order = 500
     list_display = (
         "path",
         "stat_result",
@@ -97,7 +121,7 @@ class LogProcessedRowSnippetViewSet(SnippetViewSet):
     model = LogProcessedRow
     menu_label = _("Log Processed Row")
     icon = "folder"
-    menu_order = 500
+    menu_order = 600
 
     list_display = (
         "action_name",
@@ -118,6 +142,7 @@ class LogSnippetViewSetGroup(SnippetViewSetGroup):
         ApplicationConfigSnippetViewSet, 
         CollectionConfigSnippetViewSet,
         LogFileDateSet,
+        CollectionLogFileDateCountSet,
         LogFileSnippetViewSet, 
         LogProcessedRowSnippetViewSet, 
     )
