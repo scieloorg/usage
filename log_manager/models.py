@@ -156,6 +156,23 @@ class CollectionConfig(CommonControlField):
             config_type=config_type, 
             is_enabled=is_enabled
         )
+        
+    @classmethod
+    def get_number_of_required_files_by_day(cls, collection_acron2, date, is_enabled=True):
+        files_by_day = cls.objects.filter(
+            collection__acron2=collection_acron2,
+            start_date__lte=date,
+            config_type=choices.COLLECTION_CONFIG_TYPE_FILES_PER_DAY,
+            is_enabled=is_enabled,
+        )
+
+        if files_by_day.count() > 1:
+            raise MultipleCollectionConfigError("ERROR. Please, keep only one configuration enabled for the FILES_BY_DAY attribute.")
+
+        if files_by_day.count() == 0:
+            raise UndefinedCollectionConfigError("ERROR. Please, add an Application Configuration for the FILES_BY_DAY attribute.")
+        
+        return int(files_by_day.get().value)
     
     def __str__(self):
         return f'{self.value}'
