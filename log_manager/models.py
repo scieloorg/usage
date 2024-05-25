@@ -13,7 +13,11 @@ from core.models import CommonControlField
 from tracker.models import UnexpectedEvent
 
 from . import choices
-from .exceptions import LogFileAlreadyExistsError
+from .exceptions import (
+    LogFileAlreadyExistsError, 
+    MultipleCollectionConfigError,
+    UndefinedCollectionConfigError,
+)
 
 
 class ApplicationConfig(CommonControlField):
@@ -343,6 +347,7 @@ class CollectionLogFileDateCount(CommonControlField):
         FieldPanel('required_log_files'),
         FieldPanel('status'),
     ]
+
 
 class LogFile(CommonControlField):
     hash = models.CharField(_("Hash MD5"), max_length=32, null=True, blank=True, unique=True)
