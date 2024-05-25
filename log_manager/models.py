@@ -246,6 +246,104 @@ class LogFileDate(CommonControlField):
         return f'{self.log_file.path}-{self.date}'
 
 
+class CollectionLogFileDateCount(CommonControlField):
+    collection = models.ForeignKey(
+        Collection, 
+        verbose_name=_('Collection'), 
+        on_delete=models.DO_NOTHING, 
+        null=False, 
+        blank=False,
+    )
+
+    date = models.DateField(
+        _('Date'),
+        null=False,
+        blank=False,
+    )
+    
+    year = models.IntegerField(
+        _('Year'),
+        max_length=4,
+        null=False,
+        blank=False,
+    )
+    
+    month = models.IntegerField(
+        _('Month'),
+        max_length=2,
+        null=False,
+        blank=False,
+    )
+
+    existing_log_files = models.IntegerField(
+        verbose_name=_('Number of Existing Valid Log Files'), 
+        max_length=8,
+        default=0,
+    )
+
+    required_log_files = models.IntegerField(
+        verbose_name=_('Number of Required Valid Log Files'),
+        max_length=8,
+        blank=True,
+        null=True,
+    )
+    
+    status = models.CharField(
+        verbose_name=_('Status'),
+        choices=choices.COLLECTION_LOG_FILE_DATE_COUNT,
+        max_length=3,
+    )
+    
+    @classmethod
+    def create_or_update(cls, user, collection, date, required_log_files, existing_log_files):
+        obj, created = cls.objects.get_or_create(
+            collection=collection, 
+            date=date,
+            month=date.month,
+            year=date.year,
+        )
+
+        if not created:
+            obj.updated_by = user
+            obj.updated = datetime.utcnow()
+        else:
+            obj.creator = user
+            obj.created = datetime.utcnow()
+
+        obj.required_log_files = required_log_files            
+        obj.existing_log_files = existing_log_files
+        
+        if existing_log_files < required_log_files:
+            obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES
+        elif existing_log_files > required_log_files:
+            obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES
+        else:
+            obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_OK 
+        
+        try:
+            obj.save()
+            return obj        
+        except IntegrityError:
+            ...
+    
+    class Meta:
+        ordering = ['-date']
+        verbose_name = _("Collection Log File Date Count")
+        unique_together = (
+            'collection',
+            'date',
+        )
+
+    panels = [
+        AutocompletePanel('collection'),
+        FieldPanel('date'),
+        FieldPanel('year'),
+        FieldPanel('month'),
+        FieldPanel('existing_log_files'),
+        FieldPanel('required_log_files'),
+        FieldPanel('status'),
+    ]
+
 class LogFile(CommonControlField):
     hash = models.CharField(_("Hash MD5"), max_length=32, null=True, blank=True, unique=True)
 
