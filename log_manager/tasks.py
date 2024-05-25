@@ -133,43 +133,58 @@ def task_validate_log(self, log_file_hash, user_id=None, username=None):
     log_file.save()
 
 
-@celery_app.task(bind=True, name=_('Check missing logs'))
-def task_check_missing_logs(self, collection_acron2, temporal_reference=None, date=None, user_id=None, username=None):
-    if temporal_reference:
-        try:
-            obj_date = utils.temporal_reference_to_datetime(temporal_reference)
-        except ValueError:
-            raise exceptions.InvalidTemporaReferenceError('ERROR. The supported temporal references are: two days ago, yesterday, last week, and last month.')
-    elif date:
-        try:
-            obj_date = utils.formatted_text_to_datetime(date)
-        except ValueError:
-            raise exceptions.InvalidDateFormatError('ERROR. Please, use a valid date format (YYYY-MM-DD).')
-
-    files_by_day = models.CollectionConfig.objects.filter(
-        collection__acron2=collection_acron2,
-        config_type=choices.COLLECTION_CONFIG_TYPE_FILES_PER_DAY,
-        start_date__lte=obj_date,
-        is_enabled=True,
+@celery_app.task(bind=True, name=_('Check Missing Logs for Date'))
+def task_check_missing_logs_for_date(self, collection_acron2, date, user_id=None, username=None):
+    user = _get_user(self.request, username=username, user_id=user_id)
+    collection = models.Collection.objects.get(acron2=collection_acron2)
+    n_required_files = models.CollectionConfig.get_number_of_required_files_by_day(collection_acron2=collection_acron2, date=date)
+    n_existing_logs = models.LogFileDate.get_number_of_existing_files_for_date(collection_acron2=collection_acron2, date=date)
+        
+    models.CollectionLogFileDateCount.create_or_update(
+        user=user,
+        collection=collection,
+        date=date,
+        required_log_files=n_required_files,
+        existing_log_files=n_existing_logs,
     )
 
-    if files_by_day.count() > 1:
-        raise exceptions.MultipleCollectionConfigError("ERROR. Please, keep only one configuration enabled for the FILES_BY_DAY attribute.")
 
-    if files_by_day.count() == 0:
-        raise exceptions.UndefinedCollectionConfigError("ERROR. Please, add an Application Configuration for the FILES_BY_DAY attribute.")
+@celery_app.task(bind=True, name=_('Check Missing Logs for Date Range'))
+def task_check_missing_logs_for_date_range(self, start_date, end_date, collection_acron2=None, user_id=None, username=None):
+    acron2_list = [c.acron2 for c in models.Collection.objects.iterator()] if not collection_acron2 else [c.strip() for c in collection_acron2.split(',')]
+    
+    for acron2 in acron2_list:
+        for date in utils.date_range(start_date, end_date):
+            logging.info(f'CHECKING missings logs for collection {acron2} and date {date}')
+            task_check_missing_logs_for_date.apply_async(args=(acron2, date, user_id, username))
 
-    files_by_day = int(files_by_day.get().value)
 
-    log_count = models.LogFileDate.filter_by_collection_and_date(
-        collection_acron2=collection_acron2,
-        date=date,
-    ).count()
+@celery_app.task(bind=True, name=_('Log Files Count Status Report'))
+def task_log_files_count_status_report(self, collection_acron2, user_id=None, username=None):
+    col = models.Collection.objects.get(acron2=collection_acron2)
+    subject = _(f'Log Files Report for {col.main_name}')
+    
+    message = _(f'Dear collection {col.main_name},\n\nThis message is to inform you of the results of the Usage Log Validation service.\n\nHere are the results:\n\n')
+    
+    missing = models.CollectionLogFileDateCount.objects.filter(status=choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES)
+    extra = models.CollectionLogFileDateCount.objects.filter(status=choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES)
+    ok = models.CollectionLogFileDateCount.objects.filter(status=choices.COLLECTION_LOG_FILE_DATE_COUNT_OK)
 
-    if log_count != files_by_day:
-        subject = _(f'Daily Log Report ({collection_acron2})')
-        message = _(f'There are missing log files for date {obj_date.strftime("%Y-%m-%d")}.\nPlease check the script that shares the logs.')
-        task_send_message.apply_async(args=(subject, message, collection_acron2, user_id, username))
+    if ok.exists() > 0:
+        message += _(f'There are {ok.count()} dates with correct log files.\n')
+        
+    if missing.exists() > 0:
+        message += _(f'There are {missing.count()} missing log files.\n')
+        
+    if extra.exists() > 0:
+        message += _(f'There are {extra.count()} extra log files.\n')
+        
+    if missing.exists() > 0 or extra.exists() > 0:
+        message += _(f'Please check the script that shares the logs.\n')
+        
+    message += _(f'You can view the complete report results at {settings.WAGTAILADMIN_BASE_URL}/admin/snippets/log_manager/collectionlogfiledatecount/?collection={col.pk}>.')
+        
+    task_send_message.apply_async(args=(subject, message, collection_acron2, user_id, username))
 
 
 @celery_app.task(bind=True, name=_('Send message'))
