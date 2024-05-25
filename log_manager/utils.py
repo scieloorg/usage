@@ -43,6 +43,19 @@ def formatted_text_to_datetime(text, format="%Y-%m-%d"):
         raise
 
 
+def date_range(start, end):
+    if not isinstance(start, datetime):
+        start = datetime.strptime(start, "%Y-%m-%d").date()
+        
+    if not isinstance(end, datetime):
+        end = datetime.strptime(end, "%Y-%m-%d").date()
+
+    current = start
+    while current <= end:
+        yield current
+        current += timedelta(days=1)
+        
+
 def timestamp_to_datetime(timestamp):
     return datetime.fromtimestamp(timestamp)
 
