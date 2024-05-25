@@ -231,6 +231,17 @@ class LogFileDate(CommonControlField):
             date=date,
         )
         
+    @classmethod
+    def get_number_of_existing_files_for_date(cls, collection_acron2, date):
+        return cls.objects.filter(
+            ~Q(log_file__status__in=[
+                choices.LOG_FILE_STATUS_CREATED, 
+                choices.LOG_FILE_STATUS_INVALIDATED
+            ]),
+            log_file__collection__acron2=collection_acron2,
+            date=date,
+        ).count()
+        
     def __str__(self):
         return f'{self.log_file.path}-{self.date}'
 
