@@ -21,21 +21,20 @@ User = get_user_model()
 
 
 @celery_app.task(bind=True, name=_('Discover Logs'))
-def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=None, from_date=None, user_id=None, username=None):
+def task_discover(self, collection_acron2, is_enabled=True, days_to_go_back=None, from_date=None, user_id=None, username=None):
     """
     Task to discover logs.
 
     Parameters:
         collection_acron2 (str): Acronym of the collection.
         is_enabled (boolean)
-        temporal_reference (str, optional): Temporal reference for filtering logs (e.g., 'yesterday', 'last week', 'last month').
+        days_to_go_back (int, optional): Number of days to count backward from the current date (e.g., 1 for yesterday, 7 for a week ago).
         from_date (str, optional): Specific date from which logs should be considered (format: 'YYYY-MM-DD').
         user_id
         username
 
     Raises:
         UndefinedCollectionConfigError: If there is no configuration for the logs directory.
-        InvalidTemporaReferenceError: If the provided temporal reference is invalid.
         InvalidDateFormatError: If the provided date format is invalid.
     
     Returns:
@@ -55,11 +54,8 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
     if len(app_config_log_file_formats) == 0:
         raise exceptions.UndefinedApplicationConfigError('ERROR. Please, add a Application Config for each of the supported log file formats.')
 
-    if temporal_reference:
-        try:
-            obj_from_date = utils.temporal_reference_to_datetime(temporal_reference)
-        except ValueError:
-            raise exceptions.InvalidTemporaReferenceError('ERROR. The supported temporal references are: two days ago, yesterday, last week, and last month.')
+    if days_to_go_back:
+        obj_from_date = utils.get_date_offset_from_today(days=days_to_go_back)
     elif from_date:
         try:
             obj_from_date = utils.formatted_text_to_datetime(from_date)
@@ -76,7 +72,7 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
                 file_path = os.path.join(root, name)
                 file_ctime = utils.timestamp_to_datetime(os.stat(file_path).st_ctime)
 
-                if not (temporal_reference or from_date) or file_ctime > obj_from_date:
+                if not (days_to_go_back or from_date) or file_ctime > obj_from_date:
                     task_create_log_file.apply_async(args=(collection_acron2, file_path, user_id, username))
 
 
