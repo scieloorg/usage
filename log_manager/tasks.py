@@ -64,9 +64,9 @@ def task_discover(self, collection_acron2, is_enabled=True, days_to_go_back=None
             raise exceptions.InvalidDateFormatError('ERROR. Please, use a valid date format (YYYY-MM-DD).')
     
     for cd in col_configs_dirs:
-        for root, _, files in os.walk(cd.value):
+        for root, _sub_dirs, files in os.walk(cd.value):
             for name in files:
-                _, extension = os.path.splitext(name)
+                _name, extension = os.path.splitext(name)
                 if extension.lower() not in app_config_log_file_formats:
                     continue
 
