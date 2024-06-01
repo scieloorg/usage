@@ -24,7 +24,7 @@ services:
     image: edoburu/pgbouncer:1.14.0
     restart: always
     environment:
-      - DATABASE_URL=postgres://GVRFlLmcCNfGLhsFvSnCioYOPJPYpyfj:DAkWfpsnPHcAxMeQk2QmPOIZuz4BXG5qGFWi2hCCQE6kvndJHTuzz8SjnxOJY5qj@postgres/core
+      - DATABASE_URL=postgres://GVRFlLmcCNfGLhsFvSnCioYOPJPYpyfj:DAkWfpsnPHcAxMeQk2QmPOIZuz4BXG5qGFWi2hCCQE6kvndJHTuzz8SjnxOJY5qj@postgres/scielo_usage
       - MAX_CLIENT_CONN=100
     ports:
       - 6434:5432
@@ -39,8 +39,8 @@ services:
       dockerfile: ./compose/production/postgres/Dockerfile
     image: scielo_usage_production_postgres
     volumes:
-      - ../scms_data/scielo_core/data_prod:/var/lib/postgresql/data:Z
-      - ../scms_data/scielo_core/data_prod_backup:/backups:z
+      - ../scms_data/scielo_usage/data_prod:/var/lib/postgresql/data:Z
+      - ../scms_data/scielo_usage/data_prod_backup:/backups:z
     ports:
       - "5432:5432"
     env_file:
@@ -65,7 +65,7 @@ services:
     depends_on:
       - django
     volumes:
-      - ../scms_data/scielo_core/traefik:/etc/traefik/acme:z
+      - ../scms_data/scielo_usage/traefik:/etc/traefik/acme:z
     ports:
       - "0.0.0.0:80:80"
       - "0.0.0.0:443:443"
