@@ -1,4 +1,5 @@
 import pytest
+
 from django.urls import resolve, reverse
 
 from core.users.models import User
