@@ -27,7 +27,7 @@ DEBUG = env.bool("DJANGO_DEBUG", False)
 # In Windows, this must be set to your system time zone.
 TIME_ZONE = "UTC"
 # https://docs.djangoproject.com/en/dev/ref/settings/#language-code
-LANGUAGE_CODE = "pt-BR"
+LANGUAGE_CODE = "pt-br"
 # https://docs.djangoproject.com/en/dev/ref/settings/#site-id
 SITE_ID = 1
 # https://docs.djangoproject.com/en/dev/ref/settings/#use-i18n
@@ -364,7 +364,7 @@ WAGTAIL_SITE_NAME = "SciELO Usage Framework"
 LANGUAGES = [
     ("en", "English"),
     ("es", "Spanish"),
-    ("pt-BR", "Portuguese"),
+    ("pt-br", "Portuguese"),
 ]
 
 WAGTAIL_I18N_ENABLED = True
@@ -372,7 +372,7 @@ WAGTAIL_I18N_ENABLED = True
 WAGTAIL_CONTENT_LANGUAGES = [
     ("en", "English"),
     ("es", "Spanish"),
-    ("pt-BR", "Portuguese"),
+    ("pt-br", "Portuguese"),
 ]
 
 NOCAPTCHA = True
