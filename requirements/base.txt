@@ -31,7 +31,7 @@ wagtail==5.2.5  # https://github.com/wagtail/wagtail
 
 # Wagtail Recaptcha
 # ------------------------------------------------------------------------------
-django-recaptcha==3.0.0
+django-recaptcha==4.0.0
 wagtail-django-recaptcha==1.0
 
 # Wagtail Menu
