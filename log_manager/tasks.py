@@ -1,6 +1,7 @@
 import logging
 import os
 
+from django.db.models import Count
 from django.conf import settings
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
@@ -170,16 +171,19 @@ def task_log_files_count_status_report(self, collection_acron2, user_id=None, us
     extra = models.CollectionLogFileDateCount.objects.filter(status=choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES)
     ok = models.CollectionLogFileDateCount.objects.filter(status=choices.COLLECTION_LOG_FILE_DATE_COUNT_OK)
 
-    if ok.exists() > 0:
-        message += _(f'There are {ok.count()} dates with correct log files.\n')
+    items = models.CollectionLogFileDateCount.objects.values('status', 'collection').annotate(total=Count('id'))
+
+    for i in items:
+        if i['status'] == choices.COLLECTION_LOG_FILE_DATE_COUNT_OK:
+            message += _(f'There are {ok.count()} dates with correct log files.\n')
         
-    if missing.exists() > 0:
-        message += _(f'There are {missing.count()} missing log files.\n')
+        if i['status'] == choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES:
+            message += _(f'There are {missing.count()} missing log files.\n')
         
-    if extra.exists() > 0:
-        message += _(f'There are {extra.count()} extra log files.\n')
+        if i['status'] == choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES:
+            message += _(f'There are {extra.count()} extra log files.\n')
         
-    if missing.exists() > 0 or extra.exists() > 0:
+    if any(i['status'] in [choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES, choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES] for i in items):
         message += _(f'Please check the script that shares the logs.\n')
         
     message += _(f'You can view the complete report results at {settings.WAGTAILADMIN_BASE_URL}/admin/snippets/log_manager/collectionlogfiledatecount/?collection={col.pk}>.')
