@@ -49,12 +49,12 @@ def task_discover(self, collection_acron2, is_enabled=True, days_to_go_back=None
     )
 
     if len(col_configs_dirs) == 0:
-        raise exceptions.UndefinedCollectionConfigError('ERROR. Please, add a Collection Config for the Logs Directory.')
+        raise exceptions.UndefinedCollectionConfigError(_('ERROR. Please, add a Collection Config for the Logs Directory.'))
 
     app_config_log_file_formats = models.ApplicationConfig.get_field_values(config_type=choices.APPLICATION_CONFIG_TYPE_LOG_FILE_FORMAT)
 
     if len(app_config_log_file_formats) == 0:
-        raise exceptions.UndefinedApplicationConfigError('ERROR. Please, add a Application Config for each of the supported log file formats.')
+        raise exceptions.UndefinedApplicationConfigError(_('ERROR. Please, add a Application Config for each of the supported log file formats.'))
 
     if days_to_go_back:
         obj_from_date = utils.get_date_offset_from_today(days=days_to_go_back)
@@ -62,7 +62,7 @@ def task_discover(self, collection_acron2, is_enabled=True, days_to_go_back=None
         try:
             obj_from_date = utils.formatted_text_to_datetime(from_date)
         except ValueError:
-            raise exceptions.InvalidDateFormatError('ERROR. Please, use a valid date format (YYYY-MM-DD).')
+            raise exceptions.InvalidDateFormatError(_('ERROR. Please, use a valid date format (YYYY-MM-DD).'))
     
     for cd in col_configs_dirs:
         for root, _sub_dirs, files in os.walk(cd.value):
@@ -198,7 +198,7 @@ def task_send_message(self, subject, message, collection_acron2, user_id=None, u
         config_type=choices.COLLECTION_CONFIG_TYPE_EMAIL,
     )
     if col_configs.count() == 0:
-        raise exceptions.UndefinedCollectionConfigError("ERROR. Please, add an Application Configuration for the EMAIL attribute.")
+        raise exceptions.UndefinedCollectionConfigError(_("ERROR. Please, add an Application Configuration for the EMAIL attribute."))
 
     recipient_list = [cc.value for cc in col_configs]
     
@@ -230,11 +230,11 @@ def task_parse_logs(self, collection_acron2, user_id=None, username=None):
     """
     ac_robots = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_ROBOTS)
     if not ac_robots or not os.path.exists(ac_robots.value) or not os.path.isfile(ac_robots.value):
-        raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration for the Counter Robots text file path.")
+        raise exceptions.UndefinedApplicationConfigError(_("ERROR. Please, add an Application Configuration for the Counter Robots text file path."))
     
     ac_mmdb = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB)
     if not ac_mmdb or not os.path.exists(ac_mmdb.value) or not os.path.isfile(ac_mmdb.value):
-        raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration fot the Geolocation MMDB file path.")
+        raise exceptions.UndefinedApplicationConfigError(_("ERROR. Please, add an Application Configuration fot the Geolocation MMDB file path."))
     
     for lf in models.LogFile.objects.filter(status=choices.LOG_FILE_STATUS_QUEUED, collection__acron2=collection_acron2):
         logging.info(f'PARSING file {lf.path}')
