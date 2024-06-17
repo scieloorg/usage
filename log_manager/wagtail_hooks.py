@@ -89,8 +89,8 @@ class CollectionLogFileDateCountSet(SnippetViewSet):
         "date",
         "year",
         "month",
-        "existing_log_files",
-        "required_log_files",
+        "found_log_files",
+        "expected_log_files",
         "status",
     )
     list_filter = (

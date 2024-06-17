@@ -138,15 +138,15 @@ def task_validate_log(self, log_file_hash, user_id=None, username=None):
 def task_check_missing_logs_for_date(self, collection_acron2, date, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
     collection = models.Collection.objects.get(acron2=collection_acron2)
-    n_required_files = models.CollectionConfig.get_number_of_required_files_by_day(collection_acron2=collection_acron2, date=date)
-    n_existing_logs = models.LogFileDate.get_number_of_existing_files_for_date(collection_acron2=collection_acron2, date=date)
+    n_expected_files = models.CollectionConfig.get_number_of_expected_files_by_day(collection_acron2=collection_acron2, date=date)
+    n_found_logs = models.LogFileDate.get_number_of_found_files_for_date(collection_acron2=collection_acron2, date=date)
         
     models.CollectionLogFileDateCount.create_or_update(
         user=user,
         collection=collection,
         date=date,
-        expected_log_files=n_required_files,
-        found_log_files=n_existing_logs,
+        expected_log_files=n_expected_files,
+        found_log_files=n_found_logs,
     )
 
 
