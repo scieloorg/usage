@@ -149,7 +149,7 @@ class CollectionConfig(CommonControlField):
 
     class Meta:
         ordering = ['collection', 'value']
-        unique_together = ('config_type', 'value',)
+        unique_together = ('collection', 'config_type', 'start_date', 'end_date', 'value',)
         verbose_name = _("Collection Configuration")
         verbose_name_plural = _("Collection Configurations")
 
@@ -162,12 +162,13 @@ class CollectionConfig(CommonControlField):
         )
         
     @classmethod
-    def get_number_of_required_files_by_day(cls, collection_acron2, date, is_enabled=True):
+    def get_number_of_expected_files_by_day(cls, collection_acron2, date, is_enabled=True):
         files_by_day = cls.objects.filter(
-            collection__acron2=collection_acron2,
-            start_date__lte=date,
-            config_type=choices.COLLECTION_CONFIG_TYPE_FILES_PER_DAY,
-            is_enabled=is_enabled,
+            Q(collection__acron2=collection_acron2) &
+            Q(start_date__lte=date) &
+            (Q(end_date__gte=date) | Q(end_date__isnull=True)) &
+            Q(config_type=choices.COLLECTION_CONFIG_TYPE_FILES_PER_DAY) &
+            Q(is_enabled=is_enabled)
         )
 
         if files_by_day.count() > 1:
