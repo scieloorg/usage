@@ -144,8 +144,8 @@ def task_check_missing_logs_for_date(self, collection_acron2, date, user_id=None
         user=user,
         collection=collection,
         date=date,
-        required_log_files=n_required_files,
-        existing_log_files=n_existing_logs,
+        expected_log_files=n_required_files,
+        found_log_files=n_existing_logs,
     )
 
 
