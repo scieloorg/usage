@@ -29,6 +29,8 @@ CACHES = {
 EMAIL_HOST = env("EMAIL_HOST", default="mailhog")
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-port
 EMAIL_PORT = 1025
+# https://docs.djangoproject.com/en/dev/ref/settings/#email-host-user
+EMAIL_HOST_USER = env.str("DJANGO_EMAIL_HOST_USER", default="dev@scielo.org")
 
 # ADMIN
 # ------------------------------------------------------------------------------

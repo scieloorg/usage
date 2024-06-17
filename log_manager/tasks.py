@@ -203,7 +203,7 @@ def task_send_message(self, subject, message, collection_acron2, user_id=None, u
     send_mail(
         subject=subject,
         message=message,
-        from_email='log_manager@scielo.org',
+        from_email=settings.EMAIL_HOST_USER,
         recipient_list=recipient_list
     )
 
