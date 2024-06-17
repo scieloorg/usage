@@ -279,14 +279,14 @@ class CollectionLogFileDateCount(CommonControlField):
         blank=False,
     )
 
-    existing_log_files = models.IntegerField(
-        verbose_name=_('Number of Existing Valid Log Files'), 
+    found_log_files = models.IntegerField(
+        verbose_name=_('Number of Found Valid Log Files'), 
         max_length=8,
         default=0,
     )
 
-    required_log_files = models.IntegerField(
-        verbose_name=_('Number of Required Valid Log Files'),
+    expected_log_files = models.IntegerField(
+        verbose_name=_('Number of Expected Valid Log Files'),
         max_length=8,
         blank=True,
         null=True,
@@ -299,7 +299,7 @@ class CollectionLogFileDateCount(CommonControlField):
     )
     
     @classmethod
-    def create_or_update(cls, user, collection, date, required_log_files, existing_log_files):
+    def create_or_update(cls, user, collection, date, expected_log_files, found_log_files):
         obj, created = cls.objects.get_or_create(
             collection=collection, 
             date=date,
@@ -314,12 +314,12 @@ class CollectionLogFileDateCount(CommonControlField):
             obj.creator = user
             obj.created = datetime.utcnow()
 
-        obj.required_log_files = required_log_files            
-        obj.existing_log_files = existing_log_files
+        obj.expected_log_files = expected_log_files            
+        obj.found_log_files = found_log_files
         
-        if existing_log_files < required_log_files:
+        if found_log_files < expected_log_files:
             obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES
-        elif existing_log_files > required_log_files:
+        elif found_log_files > expected_log_files:
             obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES
         else:
             obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_OK 
@@ -343,8 +343,8 @@ class CollectionLogFileDateCount(CommonControlField):
         FieldPanel('date'),
         FieldPanel('year'),
         FieldPanel('month'),
-        FieldPanel('existing_log_files'),
-        FieldPanel('required_log_files'),
+        FieldPanel('found_log_files'),
+        FieldPanel('expected_log_files'),
         FieldPanel('status'),
     ]
 
