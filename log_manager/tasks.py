@@ -1,6 +1,9 @@
 import logging
 import os
 
+from django.db.models import Count
+from django.conf import settings
+from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext as _
 
@@ -20,21 +23,20 @@ User = get_user_model()
 
 
 @celery_app.task(bind=True, name=_('Discover Logs'))
-def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=None, from_date=None, user_id=None, username=None):
+def task_discover(self, collection_acron2, is_enabled=True, days_to_go_back=None, from_date=None, user_id=None, username=None):
     """
     Task to discover logs.
 
     Parameters:
         collection_acron2 (str): Acronym of the collection.
         is_enabled (boolean)
-        temporal_reference (str, optional): Temporal reference for filtering logs (e.g., 'yesterday', 'last week', 'last month').
+        days_to_go_back (int, optional): Number of days to count backward from the current date (e.g., 1 for yesterday, 7 for a week ago).
         from_date (str, optional): Specific date from which logs should be considered (format: 'YYYY-MM-DD').
         user_id
         username
 
     Raises:
         UndefinedCollectionConfigError: If there is no configuration for the logs directory.
-        InvalidTemporaReferenceError: If the provided temporal reference is invalid.
         InvalidDateFormatError: If the provided date format is invalid.
     
     Returns:
@@ -47,23 +49,20 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
     )
 
     if len(col_configs_dirs) == 0:
-        raise exceptions.UndefinedCollectionConfigError('ERROR. Please, add a Collection Config for the Logs Directory.')
+        raise exceptions.UndefinedCollectionConfigError(_('ERROR. Please, add a Collection Config for the Logs Directory.'))
 
     app_config_log_file_formats = models.ApplicationConfig.get_field_values(config_type=choices.APPLICATION_CONFIG_TYPE_LOG_FILE_FORMAT)
 
     if len(app_config_log_file_formats) == 0:
-        raise exceptions.UndefinedApplicationConfigError('ERROR. Please, add a Application Config for each of the supported log file formats.')
+        raise exceptions.UndefinedApplicationConfigError(_('ERROR. Please, add a Application Config for each of the supported log file formats.'))
 
-    if temporal_reference:
-        try:
-            obj_from_date = utils.temporal_reference_to_datetime(temporal_reference)
-        except ValueError:
-            raise exceptions.InvalidTemporaReferenceError('ERROR. The supported temporal references are: yesterday, last week, and last month.')
+    if days_to_go_back:
+        obj_from_date = utils.get_date_offset_from_today(days=days_to_go_back)
     elif from_date:
         try:
             obj_from_date = utils.formatted_text_to_datetime(from_date)
         except ValueError:
-            raise exceptions.InvalidDateFormatError('ERROR. Please, use a valid date format (YYYY-MM-DD).')
+            raise exceptions.InvalidDateFormatError(_('ERROR. Please, use a valid date format (YYYY-MM-DD).'))
     
     for cd in col_configs_dirs:
         for root, _sub_dirs, files in os.walk(cd.value):
@@ -75,7 +74,7 @@ def task_discover(self, collection_acron2, is_enabled=True, temporal_reference=N
                 file_path = os.path.join(root, name)
                 file_ctime = utils.timestamp_to_datetime(os.stat(file_path).st_ctime)
 
-                if not (temporal_reference or from_date) or file_ctime > obj_from_date:
+                if not (days_to_go_back or from_date) or file_ctime > obj_from_date:
                     task_create_log_file.apply_async(args=(collection_acron2, file_path, user_id, username))
 
 
@@ -134,12 +133,80 @@ def task_validate_log(self, log_file_hash, user_id=None, username=None):
 
     log_file.save()
 
-# TODO: 
-#   Create a method that get all log files related to a collection and a period of time (start and end dates)
-#   In detail:
-#       Look at the LogFileDate table to get all the log_file,date pairs about that collection and dates
-#       Look at the CollectionConfig table to get the number of valid log files expected per day
-#       Generate a report informing the dates that there are missing files
+
+@celery_app.task(bind=True, name=_('Check Missing Logs for Date'))
+def task_check_missing_logs_for_date(self, collection_acron2, date, user_id=None, username=None):
+    user = _get_user(self.request, username=username, user_id=user_id)
+    collection = models.Collection.objects.get(acron2=collection_acron2)
+    n_expected_files = models.CollectionConfig.get_number_of_expected_files_by_day(collection_acron2=collection_acron2, date=date)
+    n_found_logs = models.LogFileDate.get_number_of_found_files_for_date(collection_acron2=collection_acron2, date=date)
+        
+    models.CollectionLogFileDateCount.create_or_update(
+        user=user,
+        collection=collection,
+        date=date,
+        expected_log_files=n_expected_files,
+        found_log_files=n_found_logs,
+    )
+
+
+@celery_app.task(bind=True, name=_('Check Missing Logs for Date Range'))
+def task_check_missing_logs_for_date_range(self, start_date, end_date, collection_acron2_list=[], user_id=None, username=None):
+    for acron2 in collection_acron2_list or Collection().acron2_list:
+        for date in utils.date_range(start_date, end_date):
+            logging.info(f'CHECKING missings logs for collection {acron2} and date {date}')
+            task_check_missing_logs_for_date.apply_async(args=(acron2, date, user_id, username))
+
+
+@celery_app.task(bind=True, name=_('Log Files Count Status Report'))
+def task_log_files_count_status_report(self, collection_acron2, user_id=None, username=None):
+    col = models.Collection.objects.get(acron2=collection_acron2)
+    subject = _(f'Log Files Report for {col.main_name}')
+    
+    message = _(f'Dear collection {col.main_name},\n\nThis message is to inform you of the results of the Usage Log Validation service.\n\nHere are the results:\n\n')
+    
+    missing = models.CollectionLogFileDateCount.objects.filter(status=choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES)
+    extra = models.CollectionLogFileDateCount.objects.filter(status=choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES)
+    ok = models.CollectionLogFileDateCount.objects.filter(status=choices.COLLECTION_LOG_FILE_DATE_COUNT_OK)
+
+    items = models.CollectionLogFileDateCount.objects.values('status', 'collection').annotate(total=Count('id'))
+
+    for i in items:
+        if i['status'] == choices.COLLECTION_LOG_FILE_DATE_COUNT_OK:
+            message += _(f'There are {ok.count()} dates with correct log files.\n')
+        
+        if i['status'] == choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES:
+            message += _(f'There are {missing.count()} missing log files.\n')
+        
+        if i['status'] == choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES:
+            message += _(f'There are {extra.count()} extra log files.\n')
+        
+    if any(i['status'] in [choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES, choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES] for i in items):
+        message += _(f'Please check the script that shares the logs.\n')
+        
+    message += _(f'You can view the complete report results at {settings.WAGTAILADMIN_BASE_URL}/admin/snippets/log_manager/collectionlogfiledatecount/?collection={col.pk}>.')
+        
+    task_send_message.apply_async(args=(subject, message, collection_acron2, user_id, username))
+
+
+@celery_app.task(bind=True, name=_('Send message'))
+def task_send_message(self, subject, message, collection_acron2, user_id=None, username=None):
+    col_configs = models.CollectionConfig.filter_by_collection_and_config_type(
+        collection_acron2=collection_acron2,
+        config_type=choices.COLLECTION_CONFIG_TYPE_EMAIL,
+    )
+    if col_configs.count() == 0:
+        raise exceptions.UndefinedCollectionConfigError(_("ERROR. Please, add an Application Configuration for the EMAIL attribute."))
+
+    recipient_list = [cc.value for cc in col_configs]
+    
+    send_mail(
+        subject=subject,
+        message=message,
+        from_email=settings.EMAIL_HOST_USER,
+        recipient_list=recipient_list
+    )
+
 
 @celery_app.task(bind=True, name=_('Parse Logs'), timelimit=-1)
 def task_parse_logs(self, collection_acron2, user_id=None, username=None):
@@ -161,11 +228,11 @@ def task_parse_logs(self, collection_acron2, user_id=None, username=None):
     """
     ac_robots = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_ROBOTS)
     if not ac_robots or not os.path.exists(ac_robots.value) or not os.path.isfile(ac_robots.value):
-        raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration for the Counter Robots text file path.")
+        raise exceptions.UndefinedApplicationConfigError(_("ERROR. Please, add an Application Configuration for the Counter Robots text file path."))
     
     ac_mmdb = models.ApplicationConfig.filter_by_config_type(choices.APPLICATION_CONFIG_TYPE_PATH_SUPPLY_MMDB)
     if not ac_mmdb or not os.path.exists(ac_mmdb.value) or not os.path.isfile(ac_mmdb.value):
-        raise exceptions.UndefinedApplicationConfigError("ERROR. Please, add an Application Configuration fot the Geolocation MMDB file path.")
+        raise exceptions.UndefinedApplicationConfigError(_("ERROR. Please, add an Application Configuration fot the Geolocation MMDB file path."))
     
     for lf in models.LogFile.objects.filter(status=choices.LOG_FILE_STATUS_QUEUED, collection__acron2=collection_acron2):
         logging.info(f'PARSING file {lf.path}')
