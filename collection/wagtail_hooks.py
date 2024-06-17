@@ -18,6 +18,7 @@ class CollectionSnippetViewSet(SnippetViewSet):
     list_display = (
         "main_name",
         "acron3",
+        "acron2",
         "code",
         "status",
         "collection_type",
