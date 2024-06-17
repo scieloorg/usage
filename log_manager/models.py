@@ -172,10 +172,10 @@ class CollectionConfig(CommonControlField):
         )
 
         if files_by_day.count() > 1:
-            raise MultipleCollectionConfigError("ERROR. Please, keep only one configuration enabled for the FILES_BY_DAY attribute.")
+            raise MultipleCollectionConfigError(_("ERROR. Please, keep only one configuration enabled for the FILES_BY_DAY attribute."))
 
         if files_by_day.count() == 0:
-            raise UndefinedCollectionConfigError("ERROR. Please, add an Application Configuration for the FILES_BY_DAY attribute.")
+            raise UndefinedCollectionConfigError(_("ERROR. Please, add an Application Configuration for the FILES_BY_DAY attribute."))
         
         return int(files_by_day.get().value)
     
