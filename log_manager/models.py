@@ -237,7 +237,7 @@ class LogFileDate(CommonControlField):
         )
         
     @classmethod
-    def get_number_of_existing_files_for_date(cls, collection_acron2, date):
+    def get_number_of_found_files_for_date(cls, collection_acron2, date):
         return cls.objects.filter(
             ~Q(log_file__status__in=[
                 choices.LOG_FILE_STATUS_CREATED, 
