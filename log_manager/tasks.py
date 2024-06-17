@@ -151,10 +151,8 @@ def task_check_missing_logs_for_date(self, collection_acron2, date, user_id=None
 
 
 @celery_app.task(bind=True, name=_('Check Missing Logs for Date Range'))
-def task_check_missing_logs_for_date_range(self, start_date, end_date, collection_acron2=None, user_id=None, username=None):
-    acron2_list = [c.acron2 for c in models.Collection.objects.iterator()] if not collection_acron2 else [c.strip() for c in collection_acron2.split(',')]
-    
-    for acron2 in acron2_list:
+def task_check_missing_logs_for_date_range(self, start_date, end_date, collection_acron2_list=[], user_id=None, username=None):
+    for acron2 in collection_acron2_list or Collection().acron2_list:
         for date in utils.date_range(start_date, end_date):
             logging.info(f'CHECKING missings logs for collection {acron2} and date {date}')
             task_check_missing_logs_for_date.apply_async(args=(acron2, date, user_id, username))
