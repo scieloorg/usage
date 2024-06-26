@@ -50,4 +50,4 @@ class LogProcessedRowIndex(indexes.SearchIndex, indexes.Indexable):
         return LogProcessedRow
 
     def index_queryset(self, using=None):
-        return self.get_model().objects.filter(log_file__collection__acron2='wi').all()
+        return self.get_model().objects.all()
