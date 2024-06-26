@@ -268,27 +268,23 @@ class CollectionLogFileDateCount(CommonControlField):
     
     year = models.IntegerField(
         _('Year'),
-        max_length=4,
         null=False,
         blank=False,
     )
     
     month = models.IntegerField(
         _('Month'),
-        max_length=2,
         null=False,
         blank=False,
     )
 
     found_log_files = models.IntegerField(
         verbose_name=_('Number of Found Valid Log Files'), 
-        max_length=8,
         default=0,
     )
 
     expected_log_files = models.IntegerField(
         verbose_name=_('Number of Expected Valid Log Files'),
-        max_length=8,
         blank=True,
         null=True,
     )
