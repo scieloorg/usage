@@ -4,7 +4,7 @@ from wagtail.snippets.models import register_snippet
 
 from config.menu import get_menu_order
 
-from metrics.models import (
+from .models import (
     Top100Articles,
 )
 
