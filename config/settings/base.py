@@ -118,6 +118,7 @@ LOCAL_APPS = [
     "collection",
     "core",
     "log_manager",
+    "metrics",
     "tracker",
 ]
 
@@ -403,7 +404,21 @@ SIMPLE_JWT = {
 HAYSTACK_CONNECTIONS = {
     "default": {
         "ENGINE": "haystack.backends.solr_backend.SolrEngine",
-        "URL": "%s%s" % (env("SOLR_URL", default="http://solr:8983/solr/"), "usage"),
+        "URL": "%s%s" % (env("SOLR_URL", default="http://solr:8983/solr/"), "metrics"),
+        "ADMIN_URL": "http://solr:8983/solr/admin/cores",
+        "SILENTLY_FAIL": False,
+        "SOLR_TIMEOUT": 10,
+    },
+    "metrics": {
+        "ENGINE": "haystack.backends.solr_backend.SolrEngine",
+        "URL": "%s%s" % (env("SOLR_URL", default="http://solr:8983/solr/"), "metrics"),
+        "ADMIN_URL": "http://solr:8983/solr/admin/cores",
+        "SILENTLY_FAIL": False,
+        "SOLR_TIMEOUT": 10,
+    },
+    "log_manager": {
+        "ENGINE": "haystack.backends.solr_backend.SolrEngine",
+        "URL": "%s%s" % (env("SOLR_URL", default="http://solr:8983/solr/"), "log_manager"),
         "ADMIN_URL": "http://solr:8983/solr/admin/cores",
         "SILENTLY_FAIL": False,
         "SOLR_TIMEOUT": 10,
@@ -421,10 +436,10 @@ if USE_SOLR:
 
 SEARCH_PAGINATION_ITEMS_PER_PAGE = 10
 
-SEARCH_FACET_ITEMS_PER_MORE = 5
+# SEARCH_FACET_ITEMS_PER_MORE = 5
 
-SEARCH_FACET_LIST = [
-    "server_time",
-    "action_name",
-    "browser_name",
-]
+# SEARCH_FACET_LIST = [
+#     "server_time",
+#     "action_name",
+#     "browser_name",
+# ]
