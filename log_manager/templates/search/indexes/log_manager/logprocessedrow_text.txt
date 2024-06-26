@@ -1,2 +1,7 @@
-{{ object.title }}
-{{ object.body }}
+{{server_time}}
+{{browser_name}}
+{{browser_version}}
+{{ip}}
+{{latitude}}
+{{longitude}}
+{{action_name}}
