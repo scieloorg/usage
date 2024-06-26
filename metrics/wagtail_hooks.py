@@ -4,9 +4,7 @@ from wagtail.snippets.models import register_snippet
 
 from config.menu import get_menu_order
 
-from .models import (
-    Top100Articles,
-)
+from metrics.models import Top100Articles
 
 
 class Top100Articles(SnippetViewSet):

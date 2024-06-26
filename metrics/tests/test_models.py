@@ -2,7 +2,7 @@ from django.db.utils import IntegrityError
 from django.test import TestCase
 
 from core.models import User
-from .models import Top100Articles
+from metrics.models import Top100Articles
 
 
 class Top100ArticlesModelTestCase(TestCase):
