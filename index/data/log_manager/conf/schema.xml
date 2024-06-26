@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<schema name="congre" version="1.5">
+<schema name="log_manager" version="1.5">
 
   <types>
     <fieldType name="string" class="solr.StrField" sortMissingLast="true" />
