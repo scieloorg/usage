@@ -233,3 +233,7 @@ class Collection(CommonControlField, ClusterableModel):
     @property
     def name(self):
         return CollectionName.objects.filter(collection=self).iterator()
+
+    @property
+    def acron2_list(self):
+        return [col.acron2 for col in Collection.objects.iterator()]

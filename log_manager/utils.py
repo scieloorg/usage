@@ -14,23 +14,9 @@ from app.proc import (
     download_robots,
 )
 
-from .choices import (
-    TEMPORAL_REFERENCE_YESTERDAY,
-    TEMPORAL_REFERENCE_LAST_WEEK,
-)
 
-
-def temporal_reference_to_datetime(text):
-    if text:
-        text = text.lower()
-
-        if text == TEMPORAL_REFERENCE_YESTERDAY:
-            return datetime.now() - timedelta(days=1)
-                
-        if text == TEMPORAL_REFERENCE_LAST_WEEK:
-            return datetime.now() - timedelta(weeks=1)
-        
-    raise ValueError()
+def get_date_offset_from_today(days=1):
+    return (datetime.now() - timedelta(days=days)).date()
 
 
 def formatted_text_to_datetime(text, format="%Y-%m-%d"):
@@ -39,6 +25,19 @@ def formatted_text_to_datetime(text, format="%Y-%m-%d"):
     except ValueError:
         raise
 
+
+def date_range(start, end):
+    if not isinstance(start, datetime):
+        start = datetime.strptime(start, "%Y-%m-%d").date()
+        
+    if not isinstance(end, datetime):
+        end = datetime.strptime(end, "%Y-%m-%d").date()
+
+    current = start
+    while current <= end:
+        yield current
+        current += timedelta(days=1)
+        
 
 def timestamp_to_datetime(timestamp):
     return datetime.fromtimestamp(timestamp)
