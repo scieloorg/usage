@@ -29,11 +29,13 @@ CACHES = {
 EMAIL_HOST = env("EMAIL_HOST", default="mailhog")
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-port
 EMAIL_PORT = 1025
+# https://docs.djangoproject.com/en/dev/ref/settings/#email-host-user
+EMAIL_HOST_USER = env.str("DJANGO_EMAIL_HOST_USER", default="dev@scielo.org")
 
 # ADMIN
 # ------------------------------------------------------------------------------
 # https://docs.wagtail.org/en/stable/reference/settings.html#wagtailadmin-base-url
-WAGTAILADMIN_BASE_URL = 'https://usage.scielo.org'
+WAGTAILADMIN_BASE_URL = 'http://0.0.0.0:8009'
 
 # WhiteNoise
 # ------------------------------------------------------------------------------
