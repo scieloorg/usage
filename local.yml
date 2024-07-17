@@ -19,7 +19,7 @@ services:
       - solr
     volumes:
       - .:/app:z
-      - ../scms_data/usage/log_manager:/data
+      - ../scms_data/usage/data:/data
     env_file:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
@@ -60,7 +60,7 @@ services:
     env_file:
       - ./.envs/.local/.minio
     volumes:
-      - ../scms_data/usage/minio:/data
+      - ../scms_data/minio:/data
     command: server --console-address ":9001" /data
 
   postgres:
@@ -70,8 +70,8 @@ services:
     image: scielo_usage_local_postgres
     container_name: scielo_usage_local_postgres
     volumes:
-      - ../scms_data/usage/postgresql:/var/lib/postgresql/data:Z
-      - ../scms_data/usage/postgresql_backup:/backups:z
+      - ../scms_data/postgresql:/var/lib/postgresql/data:Z
+      - ../scms_data/postgresql_backup:/backups:z
     ports:
       - "5439:5432"
     env_file:
