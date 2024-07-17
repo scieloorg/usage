@@ -1,0 +1,10 @@
+{{ object.collection }}
+{{ object.key_issn }}
+{{ object.pid }}
+{{ object.yop }}
+{{ object.language }}
+{{ object.country }}
+{{ object.total_item_requests }}
+{{ object.total_item_investigations }}
+{{ object.unique_item_requests }}
+{{ object.unique_item_investigations }}
