@@ -80,4 +80,47 @@ class Top100Articles(CommonControlField):
         cls.objects.bulk_update(objs=objects, fields=fields)
 
     def __str__(self):
-        return f'{self.key_issn}, {self.pid}, {self.total_item_requests}'
+        return f'{self.pid_issn}, {self.pid}, {self.total_item_requests}'
+
+
+class Top100ArticlesFile(CommonControlField):
+    class Meta:
+        verbose_name_plural = _("Top 100 Articles Files")
+        verbose_name = _("Top 100 Articles File")
+
+    class Status(models.TextChoices):
+        QUEUED = "QUE", _("Queued")
+        PARSING = "PAR", _("Parsing")
+        PROCESSED = "PRO", _("Processed")
+        INVALIDATED = "INV", _("Invalidated")
+    
+    attachment = models.ForeignKey(
+        "wagtaildocs.Document",
+        verbose_name=_("Attachment"),
+        null=True,
+        blank=False,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+
+    status = models.CharField(max_length=5, choices=Status.choices, default=Status.QUEUED)
+
+    def get_status_display(self):
+        return self.Status(self.status).label
+    
+    get_status_display.admin_order_field = "status"
+    get_status_display.short_description = "Status"
+
+    @property
+    def filename(self):
+        return os.path.basename(self.attachment.filename)
+
+    panels = [
+        FieldPanel("attachment"),
+        FieldPanel("status"),
+    ]
+    
+    base_form_class = Top100ArticlesFileForm
+
+    def __str__(self):
+        return f'{self.filename}'
