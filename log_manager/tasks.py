@@ -23,8 +23,15 @@ from . import (
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name=_('Discover Logs'))
-def task_discover(self, collection_acron2, is_enabled=True, days_to_go_back=None, from_date=None, user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Discover logs for a list of collections'))
+def task_discover_logs_bulk(self, collections=[], is_enabled=True, days_to_go_back=None, from_date=None, user_id=None, username=None):
+    for col in collections or Collection().acron2_list:
+        logging.info(f'Discovering logs for collection {col}.')
+        task_discover_logs.apply_async(args=(col, is_enabled, days_to_go_back, from_date, user_id, username))
+
+
+@celery_app.task(bind=True, name=_('Discover logs for one collection'))
+def task_discover_logs(self, collection_acron2, is_enabled=True, days_to_go_back=None, from_date=None, user_id=None, username=None):
     """
     Task to discover logs.
 
