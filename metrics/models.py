@@ -55,42 +55,29 @@ class Top100Articles(CommonControlField):
         ]
 
     @classmethod
-    def create(
-        cls, 
-        user, 
-        key_issn, 
-        year_month_day, 
-        print_issn, 
-        online_issn, 
-        collection, 
-        pid, 
-        yop, 
-        total_item_requests, 
-        total_item_investigations, 
-        unique_item_requests, 
-        unique_item_investigations,
-    ):
-        obj = cls()
-        obj.creator = user
-        obj.created = datetime.utcnow()
-        
-        obj.key_issn = key_issn
-        obj.year_month_day = year_month_day
-        obj.print_issn = print_issn
-        obj.online_issn = online_issn
-        obj.collection = collection
-        obj.pid = pid
-        obj.yop = yop
-        obj.total_item_requests = total_item_requests
-        obj.total_item_investigations = total_item_investigations
-        obj.unique_item_requests = unique_item_requests
-        obj.unique_item_investigations = unique_item_investigations
-
-        try:
+    def create_or_update(cls, user, save=True, **data):
+        defaults = {**data, 'updated_by': user, 'updated': datetime.utcnow()}
+        obj, created = cls.objects.update_or_create(
+            collection=data.get('collection'),
+            pid_issn=data.get('pid_issn'),
+            pid=data.get('pid'),
+            year_month_day=data.get('year_month_day'),
+            defaults=defaults
+        )
+        if created:
+            obj.creator = user
+            obj.created = datetime.utcnow()
+        if save:
             obj.save()
-            return obj
-        except IntegrityError:
-            raise
+        return obj, created
+    
+    @classmethod
+    def bulk_create(cls, objects, ignore_conflicts=True):
+        cls.objects.bulk_create(objs=objects, ignore_conflicts=ignore_conflicts)
+
+    @classmethod
+    def bulk_update(cls, objects, fields=['print_issn', 'online_issn', 'yop', 'total_item_requests', 'total_item_investigations', 'unique_item_requests', 'unique_item_investigations', 'updated', 'updated_by']):
+        cls.objects.bulk_update(objs=objects, fields=fields)
 
     def __str__(self):
         return f'{self.key_issn}, {self.pid}, {self.total_item_requests}'
