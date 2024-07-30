@@ -97,17 +97,17 @@ def task_process_file(self, file_id, update, bulk_size, user_id=None, username=N
     obj_file.save()
 
 
-@celery_app.task(bind=True, name=_('Rebuild Top100 Article Metrics Index'), timelimit=-1)
-def rebuild_top100_article_index(self, user_id=None, username=None):
-    """Celery task to rebuild the index for Top 100 article metrics."""
+@celery_app.task(bind=True, name=_('Rebuild Metrics Index'), timelimit=-1)
+def rebuild_metrics_index(self, user_id=None, username=None):
+    """Celery task to rebuild the index for metrics."""
     
     user = _get_user(self.request, username=username, user_id=user_id)
-    rebuild_index.Command().handle(interactive=False)
+    rebuild_index.Command().handle(interactive=False, using='metrics')
 
 
-@celery_app.task(bind=True, name=_('Update Top100 Article Metrics Index'), timelimit=-1)
-def update_top100_article_index(self, user_id=None, username=None):
-    """Celery task to update the index for Top 100 article metrics."""
+@celery_app.task(bind=True, name=_('Update Metrics Index'), timelimit=-1)
+def update_metrics_index(self, user_id=None, username=None):
+    """Celery task to update the index for metrics."""
     
     user = _get_user(self.request, username=username, user_id=user_id)
-    update_index.Command().handle(interactive=False)
+    update_index.Command().handle(interactive=False, using='metrics')
