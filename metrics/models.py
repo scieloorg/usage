@@ -48,7 +48,7 @@ class Top100Articles(CommonControlField):
             'pid',
             'year_month_day',
         )
-        verbose_name = _('Top 100 Articles')
+        verbose_name_plural = _('Top 100 Articles')
         indexes = [
             models.Index(fields=['pid_issn']),
             models.Index(fields=['year_month_day']),
