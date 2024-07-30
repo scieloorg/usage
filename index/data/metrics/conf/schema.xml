@@ -86,7 +86,7 @@
     <field name="collection" type="string" indexed="true" stored="true" multiValued="false"/>    
 
     <!-- journal -->
-    <field name="key_issn" type="string" indexed="true" stored="true" multiValued="false"/>
+    <field name="pid_issn" type="string" indexed="true" stored="true" multiValued="false"/>
 
     <!-- document identifier -->
     <field name="pid" type="string" indexed="true" stored="true" multiValued="false"/>
