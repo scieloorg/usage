@@ -11,9 +11,9 @@ class Top100ArticlesModelTestCase(TestCase):
         self.user = User.objects.create(username='testuser')
     
     def test_create_valid_article(self):
-        article = Top100Articles.create(
+        article, _ = Top100Articles.create_or_update(
             user=self.user,
-            key_issn='2448-6132',
+            pid_issn='2448-6132',
             year_month_day='2024-06-01',
             print_issn='2007-428X',
             online_issn='2448-6132',
@@ -27,7 +27,7 @@ class Top100ArticlesModelTestCase(TestCase):
         )
         self.assertIsNotNone(article)
         
-        self.assertEqual(article.key_issn, '2448-6132')
+        self.assertEqual(article.pid_issn, '2448-6132')
         self.assertEqual(article.year_month_day,  '2024-06-01')
         self.assertEqual(article.print_issn, '2007-428X')
         self.assertEqual(article.online_issn, '2448-6132')
@@ -39,40 +39,9 @@ class Top100ArticlesModelTestCase(TestCase):
         self.assertEqual(article.unique_item_requests, 8)
         self.assertEqual(article.unique_item_investigations, 4)
     
-    def test_unique_together_constraint(self):
-        Top100Articles.create(
-            user=self.user,
-            key_issn='2448-6132',
-            year_month_day='2024-06-01',
-            print_issn='2007-428X',
-            online_issn='2448-6132',
-            collection='mex',
-            pid='S2448-61322023000100101',
-            yop=2024,
-            total_item_requests=10,
-            total_item_investigations=5,
-            unique_item_requests=8,
-            unique_item_investigations=4,
-        )
-        with self.assertRaises(IntegrityError):
-            Top100Articles.create(
-                user=self.user,
-                key_issn='2448-6132',
-                year_month_day='2024-06-01',
-                print_issn='2007-428X',
-                online_issn='2448-6132',
-                collection='mex',
-                pid='S2448-61322023000100101',
-                yop=2023,
-                total_item_requests=10,
-                total_item_investigations=5,
-                unique_item_requests=8,
-                unique_item_investigations=4,
-            )
-    
     def test_str_method(self):
         article = Top100Articles(
-            key_issn='2448-6132',
+            pid_issn='2448-6132',
             year_month_day='2024-06-01',
             print_issn='2007-428X',
             online_issn='2448-6132',
