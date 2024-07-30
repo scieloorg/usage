@@ -17,17 +17,19 @@ User = get_user_model()
 
 
 @celery_app.task(bind=True, name=_('Load Top100 Article Metrics'), timelimit=-1)
-def task_load_top100_articles(self, overwrite=False, file_id=None, bulk_size=50000, user_id=None, username=None):
+def task_load_top100_articles(self, update=False, file_id=None, bulk_size=50000, user_id=None, username=None):
     """
     Load Top 100 article metrics from CSV files.
 
     Parameters:
-        overwrite (bool): Whether to overwrite existing data.
+        update (bool): Whether to update existing data.
         file_id (int, optional): Specific file ID to process.
         bulk_size (int): Number of records to process per batch.
         user_id (int, optional): User ID for context.
         username (str, optional): Username for context.
     """
+    if isinstance(update, str):
+        update = update.lower() == 'true'
     
     top100_files = Top100ArticlesFile.objects.filter(
         pk=file_id) if file_id else Top100ArticlesFile.objects.filter(status=Top100ArticlesFile.Status.QUEUED).order_by('-created')
@@ -36,17 +38,17 @@ def task_load_top100_articles(self, overwrite=False, file_id=None, bulk_size=500
         logging.info(f'Processing file {obj_file.attachment.file.path}')
         obj_file.status = Top100ArticlesFile.Status.PARSING
         obj_file.save()
-        task_process_file.apply_async(args=(obj_file.pk, overwrite, bulk_size, user_id, username))
+        task_process_file.apply_async(args=(obj_file.pk, update, bulk_size, user_id, username))
 
 
 @celery_app.task(bind=True, name=_('Process CSV File'), timelimit=-1)
-def task_process_file(self, file_id, overwrite, bulk_size, user_id=None, username=None):
+def task_process_file(self, file_id, update, bulk_size, user_id=None, username=None):
     """
     Process a CSV file to create or update `Top100Articles`.
 
     Parameters:
         file_id (int): ID of the file to process.
-        overwrite (bool): Whether to update existing records.
+        update (bool): Whether to update existing records.
         bulk_size (int): Number of records per batch.
         user_id (int, optional): ID of the user performing the action.
         username (str, optional): Username of the user performing the action.
@@ -67,21 +69,21 @@ def task_process_file(self, file_id, overwrite, bulk_size, user_id=None, usernam
             obj_top100, created = Top100Articles.create_or_update(user=user, save=False, **row)
             if created:
                 objs_create.append(obj_top100)
-            elif overwrite:
+            elif update:
                 objs_update.append(obj_top100)
 
             if len(objs_create) >= bulk_size:
                 Top100Articles.bulk_create(objs_create)
                 objs_create = []
 
-            if overwrite and len(objs_update) >= bulk_size:
+            if update and len(objs_update) >= bulk_size:
                 Top100Articles.bulk_update(objs_update)
                 objs_update = []
 
         if objs_create:
             Top100Articles.bulk_create(objs_create)
     
-        if overwrite and objs_update:
+        if update and objs_update:
             Top100Articles.bulk_update(objs_update)
     
     except OSError as e:

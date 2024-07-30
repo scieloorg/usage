@@ -72,7 +72,7 @@ class Top100Articles(CommonControlField):
         return obj, created
     
     @classmethod
-    def bulk_create(cls, objects, ignore_conflicts=True):
+    def bulk_create(cls, objects, ignore_conflicts=False):
         cls.objects.bulk_create(objs=objects, ignore_conflicts=ignore_conflicts)
 
     @classmethod
