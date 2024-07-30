@@ -425,21 +425,9 @@ HAYSTACK_CONNECTIONS = {
     },
 }
 
-HAYSTACK_ROUTERS = [
-    "core.routers.UpdateEverythingRouter",
-]
-
-USE_SOLR = env.bool("USE_SOLR", default=False)
+USE_SOLR = env.bool("USE_SOLR", default=True)
 
 if USE_SOLR:
     HAYSTACK_SIGNAL_PROCESSOR = "haystack.signals.RealtimeSignalProcessor"
 
 SEARCH_PAGINATION_ITEMS_PER_PAGE = 10
-
-# SEARCH_FACET_ITEMS_PER_MORE = 5
-
-# SEARCH_FACET_LIST = [
-#     "server_time",
-#     "action_name",
-#     "browser_name",
-# ]
