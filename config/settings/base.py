@@ -425,7 +425,7 @@ HAYSTACK_CONNECTIONS = {
     },
 }
 
-USE_SOLR = env.bool("USE_SOLR", default=True)
+USE_SOLR = env.bool("USE_SOLR", default=False)
 
 if USE_SOLR:
     HAYSTACK_SIGNAL_PROCESSOR = "haystack.signals.RealtimeSignalProcessor"
