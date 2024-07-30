@@ -1,7 +1,11 @@
 # Solr
+index/data/usage
 index/data/log_manager/data
 index/data/metrics/data
 index/logs
+
+# media
+core/media
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
