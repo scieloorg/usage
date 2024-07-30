@@ -9,7 +9,7 @@ from core.models import CommonControlField
 
 
 class Top100Articles(CommonControlField):
-    key_issn = models.CharField('Key ISSN', max_length=9, null=False, blank=False)
+    pid_issn = models.CharField('PID ISSN', max_length=9, null=False, blank=False)
     year_month_day = models.DateField('Date of access', null=False, blank=False)
 
     print_issn = models.CharField('Print ISSN', max_length=9, null=True, blank=True)
@@ -25,7 +25,7 @@ class Top100Articles(CommonControlField):
     unique_item_investigations = models.IntegerField('Unique Item Investigations', null=False, blank=False)
 
     panels = [
-        FieldPanel('key_issn'),
+        FieldPanel('pid_issn'),
         FieldPanel('year_month_day'),
         FieldPanel('print_issn'),
         FieldPanel('online_issn'),
@@ -41,13 +41,13 @@ class Top100Articles(CommonControlField):
     class Meta:
         unique_together = (
             'collection',
-            'key_issn',
+            'pid_issn',
             'pid',
             'year_month_day',
         )
         verbose_name = _('Top 100 Articles')
         indexes = [
-            models.Index(fields=['key_issn']),
+            models.Index(fields=['pid_issn']),
             models.Index(fields=['year_month_day']),
         ]
 

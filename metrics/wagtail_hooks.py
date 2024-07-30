@@ -15,7 +15,7 @@ class Top100Articles(SnippetViewSet):
 
     list_display = (
         'collection',
-        'key_issn',
+        'pid_issn',
         'pid',
         'yop',
         'year_month_day',
@@ -26,7 +26,7 @@ class Top100Articles(SnippetViewSet):
     )
     list_filter = (
         "collection",
-        "key_issn",
+        "pid_issn",
         'yop',
         'year_month_day',
     )
