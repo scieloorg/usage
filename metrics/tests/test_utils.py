@@ -1,8 +1,6 @@
-import unittest
 import io
 import tarfile
-
-from unittest.mock import patch, mock_open
+import unittest
 
 from metrics.utils import (
     get_load_data_function, 
@@ -14,48 +12,49 @@ from metrics.utils import (
 class TestUtils(unittest.TestCase):
     
     def setUp(self):
-        self.csv_content = "col1,col2,col3\n1,2,3\n4,5,6"
-        self.tar_content = io.BytesIO()
-
-        with tarfile.open(fileobj=self.tar_content, mode="w:gz") as tar:
-            tarinfo = tarfile.TarInfo(name="example.csv")
-            tarinfo.size = len(self.csv_content)
-            tar.addfile(tarinfo, io.BytesIO(self.csv_content.encode('utf-8')))
-
-        self.tar_content.seek(0)
+        self.csv_path = '/app/metrics/fixtures/top100articles.csv'
+        self.tar_path = '/app/metrics/fixtures/top100articles.tar.gz'
 
     def test_get_load_data_function_csv(self):
-        load_function = get_load_data_function("example.csv")
+        load_function = get_load_data_function(self.csv_path)
         self.assertEqual(load_function, load_csv)
 
     def test_get_load_data_function_tar_gz(self):
-        load_function = get_load_data_function("example.tar.gz")
+        load_function = get_load_data_function(self.tar_path)
         self.assertEqual(load_function, load_tar_gz)
 
-    def test_load_csv(self):
-        csv_file = io.StringIO(self.csv_content)
-        result = list(load_csv(csv_file, delimiter=',', is_stream=True))
-        expected = [
-            {"col1": "1", "col2": "2", "col3": "3"},
-            {"col1": "4", "col2": "5", "col3": "6"}
-        ]
-        self.assertEqual(result, expected)
+    def test_load_csv_from_csv(self):
+        result = list(load_csv(self.csv_path))[0]
+        expected = {
+            "total_item_requests": "13",
+            "total_item_investigations": "16",
+            "unique_item_requests": "13",
+            "unique_item_investigations": "16",
+            "print_issn": "0002-7014",
+            "pid_issn": "0002-7014",
+            "online_issn": "1851-8044",
+            "collection": "arg",
+            "pid": "S0002-70142005000300005",
+            "yop": "2005",
+            "year_month_day": "2024-05-26"
+        }
 
-    @patch("builtins.open", new_callable=mock_open, read_data="col1\tcol2\tcol3\n1\t2\t3\n4\t5\t6")
-    def test_load_csv_from_file(self, mock_file):
-        result = list(load_csv("dummy_path.csv"))
-        expected = [
-            {"col1": "1", "col2": "2", "col3": "3"},
-            {"col1": "4", "col2": "5", "col3": "6"}
-        ]
-        self.assertEqual(result, expected)
+        self.assertDictEqual(result, expected)
 
     def test_load_tar_gz(self):
-        with patch("builtins.open", mock_open(read_data=self.tar_content.read()), create=True):
-            with tarfile.open(fileobj=self.tar_content, mode='r:gz') as tar:
-                result = list(load_tar_gz(tar.name))
-                expected = [
-                    {"col1": "1", "col2": "2", "col3": "3"},
-                    {"col1": "4", "col2": "5", "col3": "6"}
-                ]
-                self.assertEqual(result, expected)
+        result = list(load_tar_gz(self.tar_path))[0]
+        expected = {
+            "total_item_requests": "13",
+            "total_item_investigations": "16",
+            "unique_item_requests": "13",
+            "unique_item_investigations": "16",
+            "print_issn": "0002-7014",
+            "pid_issn": "0002-7014",
+            "online_issn": "1851-8044",
+            "collection": "arg",
+            "pid": "S0002-70142005000300005",
+            "yop": "2005",
+            "year_month_day": "2024-05-26"
+        }
+        
+        self.assertDictEqual(result, expected)
