@@ -111,7 +111,7 @@ def task_discover_logs(self, collection_acron2, is_enabled=True, days_to_go_back
                     continue
 
                 file_path = os.path.join(root, name)
-                file_ctime = utils.timestamp_to_datetime(os.stat(file_path).st_ctime)
+                file_ctime = utils.timestamp_to_date(os.stat(file_path).st_ctime)
 
                 if not (days_to_go_back or from_date) or file_ctime > obj_from_date:
                     task_add_log_file.apply_async(args=(collection_acron2, file_path, user_id, username))
