@@ -161,7 +161,7 @@ def task_validate_log(self, log_file_hash, user_id=None, username=None):
     if val_results.get('is_valid', {}).get('all', False):
         probably_date = val_results.get('probably_date', '')
 
-        models.LogFileDate.create(
+        models.LogFileDate.create_or_update(
             user=user,
             log_file=log_file,
             date=probably_date,
