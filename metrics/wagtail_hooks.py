@@ -3,19 +3,18 @@ from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 from wagtail.snippets.models import register_snippet
 
 from config.menu import get_menu_order
+from .models import Top100Articles, Top100ArticlesFile
 
-from metrics.models import Top100Articles
 
-
-class Top100Articles(SnippetViewSet):
+class Top100ArticlesSnippetViewSet(SnippetViewSet):
     model = Top100Articles
     menu_label = _("Top 100 Articles")
-    icon = "folder"
+    icon = "list-ol"
     menu_order = 100
 
     list_display = (
         'collection',
-        'key_issn',
+        'pid_issn',
         'pid',
         'yop',
         'year_month_day',
@@ -26,7 +25,7 @@ class Top100Articles(SnippetViewSet):
     )
     list_filter = (
         "collection",
-        "key_issn",
+        "pid_issn",
         'yop',
         'year_month_day',
     )
@@ -35,13 +34,33 @@ class Top100Articles(SnippetViewSet):
     )
 
 
+class Top100ArticlesFileSnippetViewSet(SnippetViewSet):
+    model = Top100ArticlesFile
+    menu_label = _("Top 100 Articles File")
+    icon = "list-ol"
+    menu_order = 100
+
+    list_display = (
+        'attachment',
+        'get_status_display',
+        'creator',
+        'created',
+        'updated',
+    )
+    list_filter = (
+        "status",
+    )
+
+
 class MetricsViewSetGroup(SnippetViewSetGroup):
     menu_name = 'metrics'
     menu_label = _("Usage Metrics")
-    menu_icon = "folder-open-inverse"
+    icon = "folder-open-inverse"
     menu_order = get_menu_order("metrics")
+    
     items = (
-        Top100Articles, 
+        Top100ArticlesSnippetViewSet, 
+        Top100ArticlesFileSnippetViewSet,
     )
 
 

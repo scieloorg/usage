@@ -8,7 +8,7 @@ class Top100ArticlesIndex(indexes.SearchIndex, indexes.Indexable):
     text = indexes.CharField(document=True, use_template=True, null=True)
 
     collection = indexes.CharField(model_attr='collection', null=True)
-    key_issn = indexes.CharField(model_attr='key_issn', null=False)
+    pid_issn = indexes.CharField(model_attr='pid_issn', null=False)
     pid = indexes.CharField(model_attr='pid', null=False)
     yop = indexes.CharField(model_attr='yop', null=False)
     total_item_requests = indexes.IntegerField(model_attr='total_item_requests', null=False)

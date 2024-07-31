@@ -10,11 +10,9 @@ from wagtailautocomplete.edit_handlers import AutocompletePanel
 from collection.models import Collection
 from core.forms import CoreAdminModelForm
 from core.models import CommonControlField
-from tracker.models import UnexpectedEvent
 
 from . import choices
 from .exceptions import (
-    LogFileAlreadyExistsError, 
     MultipleCollectionConfigError,
     UndefinedCollectionConfigError,
 )
@@ -214,15 +212,19 @@ class LogFileDate(CommonControlField):
         )
 
     @classmethod
-    def create(cls, user, log_file, date):
-        obj = cls()
+    def create_or_update(cls, user, log_file, date):
+        obj, created = cls.objects.get_or_create(
+            log_file=log_file, 
+            date=date,
+        )
 
-        obj.creator = user
-        obj.created = datetime.utcnow()
-        obj.log_file = log_file
-        obj.date = date
-        obj.save()
-        
+        if not created:
+            obj.updated_by = user
+            obj.updated = datetime.utcnow()
+        else:
+            obj.creator = user
+            obj.created = datetime.utcnow()
+
         return obj
     
     @classmethod
@@ -321,11 +323,8 @@ class CollectionLogFileDateCount(CommonControlField):
         else:
             obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_OK 
         
-        try:
-            obj.save()
-            return obj        
-        except IntegrityError:
-            ...
+        obj.save()
+        return obj
     
     class Meta:
         ordering = ['-date']
@@ -390,16 +389,7 @@ class LogFile(CommonControlField):
     @classmethod
     def create(cls, user, collection, path, stat_result, hash, status=None):
         try:
-            obj = cls.get(hash=hash)
-            UnexpectedEvent.create(
-                LogFileAlreadyExistsError,
-                detail={
-                    'Error': _('File hash is already registered.'),
-                    'Action': _('No action required from the user.'),
-                    'Result': _('The file has been ignored.'),
-                    'Hash': hash,
-                })
-            return 
+            return cls.get(hash=hash)
         except cls.DoesNotExist:
             obj = cls()
             obj.creator = user

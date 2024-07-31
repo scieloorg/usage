@@ -15,3 +15,6 @@ class UndefinedCollectionConfigError(Exception):
 
 class MultipleCollectionConfigError(Exception):
     ...
+
+class UnsupportedFileExtentionError(Exception):
+    ...

@@ -13,13 +13,13 @@ services:
       - mailhog
       - pgbouncer
       - solr
-      - minio
     links:
       - pgbouncer
       - solr
     volumes:
       - .:/app:z
-      - ../scms_data/usage/data:/data
+      - ../scms_data/scielo_usage/data/logs:/data/logs
+      - ../scms_data/scielo_usage/data/supplies:/data/supplies
     env_file:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
@@ -51,18 +51,6 @@ services:
       - SOLR_JAVA_MEM=-Xms512m -Xmx512m
       - SOLR_HEAP=512m
 
-  minio:
-    image: 'minio/minio:RELEASE.2024-03-21T23-13-43Z'
-    container_name: scielo_usage_local_minio
-    ports:
-      - '9000:9000'
-      - '9001:9001'
-    env_file:
-      - ./.envs/.local/.minio
-    volumes:
-      - ../scms_data/minio:/data
-    command: server --console-address ":9001" /data
-
   postgres:
     build:
       context: .
@@ -70,8 +58,8 @@ services:
     image: scielo_usage_local_postgres
     container_name: scielo_usage_local_postgres
     volumes:
-      - ../scms_data/postgresql:/var/lib/postgresql/data:Z
-      - ../scms_data/postgresql_backup:/backups:z
+      - ../scms_data/scielo_usage/postgresql:/var/lib/postgresql/data:Z
+      - ../scms_data/scielo_usage/postgresql_backup:/backups:z
     ports:
       - "5439:5432"
     env_file:

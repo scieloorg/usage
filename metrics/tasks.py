@@ -1,93 +1,113 @@
 import logging
-import os
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.utils.translation import gettext as _
 
 from core.utils.utils import _get_user
 from config import celery_app
+from tracker.models import UnexpectedEvent
 
-from . import (
-    models,
-    utils,
-)
+from .exceptions import Top100ArticlesFileNotFoundError
+from .models import Top100Articles, Top100ArticlesFile
+from .utils import get_load_data_function
 
 
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name=_('Load Top100 Article Metrics from directory'))
-def task_load_top100_from_dir(self, dir=None, user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Load Top100 Article Metrics'), timelimit=-1)
+def task_load_top100_articles(self, update=False, file_id=None, bulk_size=50000, user_id=None, username=None):
     """
-    Task to load most accessed articles by journal.
+    Load Top 100 article metrics from CSV files.
 
     Parameters:
-        dir (path): Directory path containing the top100 metrics files
-        user_id
-        username
+        update (bool): Whether to update existing data.
+        file_id (int, optional): Specific file ID to process.
+        bulk_size (int): Number of records to process per batch.
+        user_id (int, optional): User ID for context.
+        username (str, optional): Username for context.
+    """
+    if isinstance(update, str):
+        update = update.lower() == 'true'
     
-    Returns:
-        None.
+    top100_files = Top100ArticlesFile.objects.filter(
+        pk=file_id) if file_id else Top100ArticlesFile.objects.filter(status=Top100ArticlesFile.Status.QUEUED).order_by('-created')
+
+    for obj_file in top100_files:
+        logging.info(f'Processing file {obj_file.attachment.file.path}')
+        obj_file.status = Top100ArticlesFile.Status.PARSING
+        obj_file.save()
+        task_process_file.apply_async(args=(obj_file.pk, update, bulk_size, user_id, username))
+
+
+@celery_app.task(bind=True, name=_('Process CSV File'), timelimit=-1)
+def task_process_file(self, file_id, update, bulk_size, user_id=None, username=None):
+    """
+    Process a CSV file to create or update `Top100Articles`.
+
+    Parameters:
+        file_id (int): ID of the file to process.
+        update (bool): Whether to update existing records.
+        bulk_size (int): Number of records per batch.
+        user_id (int, optional): ID of the user performing the action.
+        username (str, optional): Username of the user performing the action.
     """
     user = _get_user(self.request, username=username, user_id=user_id)
 
-    for root, sub_dirs, files in os.walk(dir):
-        for name in files:
-            if not name.lower().endswith('.csv'):
-                continue
+    try:
+        obj_file = Top100ArticlesFile.objects.get(pk=file_id)
+    except Top100ArticlesFile.DoesNotExist:
+        raise Top100ArticlesFileNotFoundError(f'Top100ArticlesFile with id {file_id} does not exist.')
 
-            file_path = os.path.join(root, name)
-            for row in utils.load_csv(file_path):
-                try:
-                    models.Top100ArticlesByJournal.create(
-                        user=user,
-                        key_issn=row['pid_issn'],
-                        online_issn=row['online_issn'],
-                        print_issn=row['print_issn'],
-                        year_month_day=row['year_month_day'],
-                        collection=row['collection'],
-                        pid=row['pid'],
-                        yop=row['yop'],
-                        total_item_requests=row['total_item_requests'],
-                        total_item_investigations=row['total_item_investigations'],
-                        unique_item_requests=row['unique_item_requests'],
-                        unique_item_investigations=row['unique_item_investigations'],
-                    )
-                except KeyError as e:
-                    logging.info(_(f'File {file_path} does not contain all of the necessary data. Message: {e}'))
-
-
-@celery_app.task(bind=True, name=_('Load Top100 Article Metrics from file'))
-def task_load_top100_from_file(self, file_path, user_id=None, username=None):
-    """
-    Task to load most accessed articles by journal.
-
-    Args:
-        path (str): File path of the top100 metrics data.
-        user_id
-        username
-
-    Returns:
-        None.
-    """
-    user = _get_user(self.request, username=username, user_id=user_id)
+    load_data_function = get_load_data_function(obj_file.attachment.file.path)
     
-    logging.info(f'Processing file {file_path}')
-    for row in utils.load_csv(file_path):
-        try:
-            models.Top100ArticlesByJournal.create(
-                user=user,
-                key_issn=row['pid_issn'],
-                online_issn=row['online_issn'],
-                print_issn=row['print_issn'],
-                year_month_day=row['year_month_day'],
-                collection=row['collection'],
-                pid=row['pid'],
-                yop=row['yop'],
-                total_item_requests=row['total_item_requests'],
-                total_item_investigations=row['total_item_investigations'],
-                unique_item_requests=row['unique_item_requests'],
-                unique_item_investigations=row['unique_item_investigations'],
-            )
-        except KeyError as e:
-            logging.info(_(f'File {file_path} does not contain all of the necessary data. Message: {e}'))
+    objs_create, objs_update = [], []
+
+    try:
+        for row in load_data_function(obj_file.attachment.file.path):
+            obj_top100, created = Top100Articles.create_or_update(user=user, save=False, **row)
+            if created:
+                objs_create.append(obj_top100)
+            elif update:
+                objs_update.append(obj_top100)
+
+            if len(objs_create) >= bulk_size:
+                Top100Articles.bulk_create(objs_create)
+                objs_create = []
+
+            if update and len(objs_update) >= bulk_size:
+                Top100Articles.bulk_update(objs_update)
+                objs_update = []
+
+        if objs_create:
+            Top100Articles.bulk_create(objs_create)
+    
+        if update and objs_update:
+            Top100Articles.bulk_update(objs_update)
+    
+    except OSError as e:
+        UnexpectedEvent.create(
+            OSError(f'It was not possible to process file {obj_file.attachment.file.path}.'),
+            detail={'File': obj_file.attachment.file.path, 'Message': e}
+        )
+        obj_file.status = Top100ArticlesFile.Status.INVALIDATED
+    else:
+        obj_file.status = Top100ArticlesFile.Status.PROCESSED
+    obj_file.save()
+
+
+@celery_app.task(bind=True, name=_('Rebuild Metrics Index'), timelimit=-1)
+def rebuild_metrics_index(self, user_id=None, username=None):
+    """Celery task to rebuild the index for metrics."""
+    
+    user = _get_user(self.request, username=username, user_id=user_id)
+    call_command('rebuild_index', '--using=metrics', 'metrics.Top100Articles')
+
+
+@celery_app.task(bind=True, name=_('Update Metrics Index'), timelimit=-1)
+def update_metrics_index(self, user_id=None, username=None):
+    """Celery task to update the index for metrics."""
+    
+    user = _get_user(self.request, username=username, user_id=user_id)
+    call_command('update_index', '--using=metrics', 'metrics.Top100Articles')

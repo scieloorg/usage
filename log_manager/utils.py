@@ -39,8 +39,8 @@ def date_range(start, end):
         current += timedelta(days=1)
         
 
-def timestamp_to_datetime(timestamp):
-    return datetime.fromtimestamp(timestamp)
+def timestamp_to_date(timestamp):
+    return datetime.fromtimestamp(timestamp).date()
 
 
 def hash_file(path, num_lines=25):

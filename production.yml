@@ -8,13 +8,18 @@ services:
     image: scielo_usage_production_django
     platform: linux/x86_64
     depends_on:
-      - postgres
       - redis
+      - postgres
+      - mailhog
       - solr
       - pgbouncer
     links:
       - pgbouncer
-      - solr      
+      - solr
+      volumes:
+      - .:/app:z
+      - ../scms_data/scielo_usage/data/logs:/data/logs
+      - ../scms_data/scielo_usage/data/supplies:/data/supplies
     env_file:
       - ./.envs/.production/.django
       - ./.envs/.production/.postgres
@@ -32,19 +37,6 @@ services:
       - postgres
     links:
       - postgres
-
-  postgres:
-    build:
-      context: .
-      dockerfile: ./compose/production/postgres/Dockerfile
-    image: scielo_usage_production_postgres
-    volumes:
-      - ../scms_data/scielo_usage/data_prod:/var/lib/postgresql/data:Z
-      - ../scms_data/scielo_usage/data_prod_backup:/backups:z
-    ports:
-      - "5432:5432"
-    env_file:
-      - ./.envs/.production/.postgres
   
   solr:
       image: solr:9.3
@@ -56,20 +48,31 @@ services:
       environment:
           - SOLR_JAVA_MEM=-Xms512m -Xmx512m
           - SOLR_HEAP=512m
-  
-  traefik:
+
+  postgres:
     build:
       context: .
-      dockerfile: ./compose/production/traefik/Dockerfile
-    image: scielo_usage_production_traefik
-    depends_on:
-      - django
+      dockerfile: ./compose/production/postgres/Dockerfile
+    image: scielo_usage_production_postgres
     volumes:
-      - ../scms_data/scielo_usage/traefik:/etc/traefik/acme:z
+      - ../scms_data/scielo_usage/postgresql:/var/lib/postgresql/data:Z
+      - ../scms_data/scielo_usage/postgresql_backup:/backups:z
     ports:
-      - "0.0.0.0:80:80"
-      - "0.0.0.0:443:443"
-      - "0.0.0.0:5555:5555"
+      - "5432:5432"
+    env_file:
+      - ./.envs/.production/.postgres
+
+  adminer:
+    image: adminer
+    container_name: scielo_usage_production_adminer
+    ports:
+      - "8089:8080"
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.0
+    container_name: scielo_usage_production_mailhog
+    ports:
+      - "8029:8025"
 
   redis:
     image: redis:6
@@ -96,3 +99,17 @@ services:
     <<: *django
     image: scielo_usage_production_flower
     command: /start-flower
+
+  traefik:
+    build:
+      context: .
+      dockerfile: ./compose/production/traefik/Dockerfile
+    image: scielo_usage_production_traefik
+    depends_on:
+      - django
+    volumes:
+      - ../scms_data/scielo_usage/traefik:/etc/traefik/acme:z
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+      - "0.0.0.0:5555:5555"
