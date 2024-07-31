@@ -44,7 +44,7 @@ services:
       ports:
          - "8983:8983"
       volumes:
-          - ./index/data:/var/solr
+          - ./index:/var/solr
       environment:
           - SOLR_JAVA_MEM=-Xms512m -Xmx512m
           - SOLR_HEAP=512m
