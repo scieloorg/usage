@@ -1,8 +1,8 @@
 import logging
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.utils.translation import gettext as _
-from haystack.management.commands import update_index, rebuild_index
 
 from core.utils.utils import _get_user
 from config import celery_app
@@ -102,7 +102,7 @@ def rebuild_metrics_index(self, user_id=None, username=None):
     """Celery task to rebuild the index for metrics."""
     
     user = _get_user(self.request, username=username, user_id=user_id)
-    rebuild_index.Command().handle(interactive=False, using='metrics')
+    call_command('rebuild_index', '--using=metrics', 'metrics.Top100Articles')
 
 
 @celery_app.task(bind=True, name=_('Update Metrics Index'), timelimit=-1)
@@ -110,4 +110,4 @@ def update_metrics_index(self, user_id=None, username=None):
     """Celery task to update the index for metrics."""
     
     user = _get_user(self.request, username=username, user_id=user_id)
-    update_index.Command().handle(interactive=False, using='metrics')
+    call_command('update_index', '--using=metrics', 'metrics.Top100Articles')
