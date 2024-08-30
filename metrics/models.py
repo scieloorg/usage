@@ -113,7 +113,9 @@ class Top100ArticlesFile(CommonControlField):
 
     @property
     def filename(self):
-        return os.path.basename(self.attachment.filename)
+        if self.attachment:
+            return os.path.basename(self.attachment.filename)
+        return _('File not available')
 
     panels = [
         FieldPanel("attachment"),
