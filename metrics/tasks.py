@@ -2,6 +2,7 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.db import IntegrityError
 from django.utils.translation import gettext as _
 
 from core.utils.utils import _get_user
@@ -16,21 +17,17 @@ from .utils import get_load_data_function
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name=_('Process Compressed File for Top100 Article Metrics'), timelimit=-1)
-def task_process_top100_csv_compressed(self, update=False, file_id=None, bulk_size=50000, user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Process File for Top100 Article Metrics'), timelimit=-1)
+def task_process_top100_file(self, file_id=None, bulk_size=50000, user_id=None, username=None):
     """
-    Process a compressed file to create or update `Top100Articles`.
+    Process a file to create or update `Top100Articles`.
 
     Parameters:
-        update (bool): Whether to update existing data.
         file_id (int, optional): Specific file ID to process.
         bulk_size (int): Number of records to process per batch.
         user_id (int, optional): User ID for context.
         username (str, optional): Username for context.
-    """
-    if isinstance(update, str):
-        update = update.lower() == 'true'
-    
+    """    
     top100_files = Top100ArticlesFile.objects.filter(
         pk=file_id) if file_id else Top100ArticlesFile.objects.filter(status=Top100ArticlesFile.Status.QUEUED).order_by('-created')
 
@@ -38,17 +35,16 @@ def task_process_top100_csv_compressed(self, update=False, file_id=None, bulk_si
         logging.info(f'Processing file {obj_file.attachment.file.path}')
         obj_file.status = Top100ArticlesFile.Status.PARSING
         obj_file.save()
-        task_process_top100_csv.apply_async(args=(obj_file.pk, update, bulk_size, user_id, username))
+        task_process_top100_file_item.apply_async(args=(obj_file.pk, bulk_size, user_id, username))
 
 
-@celery_app.task(bind=True, name=_('Process CSV File for Top100 Article Metrics'), timelimit=-1)
-def task_process_top100_csv(self, file_id, update, bulk_size, user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Process File Item for Top100 Article Metrics'), timelimit=-1)
+def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, username=None):
     """
-    Process a CSV file to create or update `Top100Articles`.
+    Process items in a file to create or update `Top100Articles`.
 
     Parameters:
         file_id (int): ID of the file to process.
-        update (bool): Whether to update existing records.
         bulk_size (int): Number of records per batch.
         user_id (int, optional): ID of the user performing the action.
         username (str, optional): Username of the user performing the action.
@@ -69,21 +65,21 @@ def task_process_top100_csv(self, file_id, update, bulk_size, user_id=None, user
             obj_top100, created = Top100Articles.create_or_update(user=user, save=False, **row)
             if created:
                 objs_create.append(obj_top100)
-            elif update:
+            else:
                 objs_update.append(obj_top100)
 
             if len(objs_create) >= bulk_size:
                 Top100Articles.bulk_create(objs_create)
                 objs_create = []
 
-            if update and len(objs_update) >= bulk_size:
+            if len(objs_update) >= bulk_size:
                 Top100Articles.bulk_update(objs_update)
                 objs_update = []
 
         if objs_create:
             Top100Articles.bulk_create(objs_create)
     
-        if update and objs_update:
+        if objs_update:
             Top100Articles.bulk_update(objs_update)
     
     except OSError as e:
