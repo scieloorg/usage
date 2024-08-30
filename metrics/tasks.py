@@ -59,6 +59,7 @@ def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, 
     load_data_function = get_load_data_function(obj_file.attachment.file.path)
     
     objs_create, objs_update = [], []
+    total_items_before = Top100Articles.objects.count()
 
     try:
         for row in load_data_function(obj_file.attachment.file.path):
@@ -83,14 +84,37 @@ def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, 
             Top100Articles.bulk_update(objs_update)
     
     except OSError as e:
+        # ToDo: report this error in a better way - it is an EXPECTED error
         UnexpectedEvent.create(
             OSError(f'It was not possible to process file {obj_file.attachment.file.path}.'),
             detail={'File': obj_file.attachment.file.path, 'Message': e}
         )
         obj_file.status = Top100ArticlesFile.Status.INVALIDATED
+    except IntegrityError as e:
+        # ToDo: report this error in a better way - it is an EXPECTED error
+        UnexpectedEvent.create(
+            IntegrityError(
+                f'It was not possible to process file {obj_file.attachment.file.path} due to duplicate keys. '
+                f'Message: {e}. '
+                f'Please, set update=True on the task to update existing records. '
+                f'File has been enqueued to be reprocessed.'
+            ),
+            detail={'File': obj_file.attachment.file.path, 'Message': e}
+        )
+        obj_file.status = Top100ArticlesFile.Status.QUEUED
+    except Exception as e:
+        UnexpectedEvent.create(
+            Exception(f'It was not possible to process file {obj_file.attachment.file.path}.'),
+            detail={'File': obj_file.attachment.file.path, 'Message': e}
+        )
+        obj_file.status = Top100ArticlesFile.Status.ERROR
     else:
+        # ToDo: report this result in a better way
+        total_items_after = Top100Articles.objects.count()
         obj_file.status = Top100ArticlesFile.Status.PROCESSED
-    obj_file.save()
+        logging.info(f'File {obj_file.attachment.file.path} processed successfully. {total_items_after - total_items_before} new records created.')
+    finally:
+        obj_file.save()
 
 
 @celery_app.task(bind=True, name=_('Rebuild Metrics Index'), timelimit=-1)
