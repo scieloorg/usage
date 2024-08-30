@@ -16,10 +16,10 @@ from .utils import get_load_data_function
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name=_('Load Top100 Article Metrics'), timelimit=-1)
-def task_load_top100_articles(self, update=False, file_id=None, bulk_size=50000, user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Process Compressed File for Top100 Article Metrics'), timelimit=-1)
+def task_process_top100_csv_compressed(self, update=False, file_id=None, bulk_size=50000, user_id=None, username=None):
     """
-    Load Top 100 article metrics from CSV files.
+    Process a compressed file to create or update `Top100Articles`.
 
     Parameters:
         update (bool): Whether to update existing data.
@@ -38,11 +38,11 @@ def task_load_top100_articles(self, update=False, file_id=None, bulk_size=50000,
         logging.info(f'Processing file {obj_file.attachment.file.path}')
         obj_file.status = Top100ArticlesFile.Status.PARSING
         obj_file.save()
-        task_process_file.apply_async(args=(obj_file.pk, update, bulk_size, user_id, username))
+        task_process_top100_csv.apply_async(args=(obj_file.pk, update, bulk_size, user_id, username))
 
 
-@celery_app.task(bind=True, name=_('Process CSV File'), timelimit=-1)
-def task_process_file(self, file_id, update, bulk_size, user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Process CSV File for Top100 Article Metrics'), timelimit=-1)
+def task_process_top100_csv(self, file_id, update, bulk_size, user_id=None, username=None):
     """
     Process a CSV file to create or update `Top100Articles`.
 
