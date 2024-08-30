@@ -194,7 +194,7 @@ class EventReport(CommonControlField):
 class Top100ArticlesFileEvent(CommonControlField):
     file = models.ForeignKey("metrics.Top100ArticlesFile", on_delete=models.SET_NULL, null=True, blank=True)
     status = models.CharField(_("Status"), max_length=64, null=True, blank=True)
-    lines = models.IntegerField(_("Lines"), null=True, blank=True)
+    lines = models.IntegerField(_("Lines"), default=0, null=True, blank=True)
     message = models.TextField(_("Message"), null=True, blank=True)
 
     def __str__(self):
@@ -211,17 +211,15 @@ class Top100ArticlesFileEvent(CommonControlField):
         verbose_name_plural = _("Top 100 Article File Reports")
     
     @classmethod
-    def create(cls, user, file, status, lines, message):
+    def create_or_update(cls, user, file, status, lines, message):
         try:
+            obj = cls.objects.get(file=file)
+        except Top100ArticlesFileEvent.DoesNotExist:
             obj = cls()
             obj.creator = user
-            obj.file = file
-            obj.status = status
-            obj.lines = lines
-            obj.message = message
-            obj.save()
-        except Exception as e:
-            raise Top100ArticleFileReportCreateError(
-                f"Unable to create Top100ArticleFileReport. Exception: {e}"
-            )
-    
+
+        obj.file = file
+        obj.status = status
+        obj.lines = obj.lines + lines
+        obj.message = message
+        obj.save()

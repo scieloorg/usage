@@ -3,3 +3,6 @@ class Top100ArticlesFileNotFoundError(Exception):
 
 class Top100ArticlesFileAttachmentNotFoundError(Exception):
     ...
+
+class Top100ArticlesFileAttachmentInvalidFormatError(Exception):
+    ...

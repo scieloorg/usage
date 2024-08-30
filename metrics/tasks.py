@@ -6,7 +6,11 @@ from core.utils.utils import _get_user
 from config import celery_app
 from tracker.models import Top100ArticlesFileEvent
 
-from .exceptions import Top100ArticlesFileNotFoundError, Top100ArticlesFileAttachmentNotFoundError
+from .exceptions import (
+    Top100ArticlesFileNotFoundError, 
+    Top100ArticlesFileAttachmentNotFoundError,
+    Top100ArticlesFileAttachmentInvalidFormatError,
+)
 from .models import Top100Articles, Top100ArticlesFile
 from .utils import get_load_data_function
 
@@ -47,24 +51,23 @@ def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, 
     """
     user = _get_user(self.request, username=username, user_id=user_id)
 
-    objs_create, objs_update = [], []
-    lines = 0
-
     try:
         obj_file = Top100ArticlesFile.objects.get(pk=file_id)
     except Top100ArticlesFile.DoesNotExist:
+        obj_file.status = Top100ArticlesFile.Status.ERROR
+        obj_file.save()
         raise Top100ArticlesFileNotFoundError(f'Top100ArticlesFile with id {file_id} does not exist.')
 
     try:
-        load_data_function = get_load_data_function(obj_file.attachment.file.path)
+        file_path = obj_file.attachment.file.path
     except AttributeError:
         obj_file.status = Top100ArticlesFile.Status.ERROR
         obj_file.save()
-        Top100ArticleFileEvent.create(
+        Top100ArticlesFileEvent.create_or_update(
             user=user,
             file=obj_file,
             status=obj_file.status,
-            lines=lines,
+            lines=0,
             message=f'Attachment related to {file_id} does not exist.',
         )
         raise Top100ArticlesFileAttachmentNotFoundError(f'Attachment related to {file_id} does not exist.')
@@ -105,7 +108,6 @@ def _process_top100_file_item(user, obj_file, bulk_size, file_path, load_data_fu
             if len(objs_update) >= bulk_size:
                 Top100Articles.bulk_update(objs_update)
                 objs_update = []
-                lines += len(objs_update)
 
         if objs_create:
             Top100Articles.bulk_create(objs_create)
@@ -113,20 +115,10 @@ def _process_top100_file_item(user, obj_file, bulk_size, file_path, load_data_fu
     
         if objs_update:
             Top100Articles.bulk_update(objs_update)
-            lines += len(objs_update)
     
-    except OSError as e:
-        obj_file.status = Top100ArticlesFile.Status.ERROR
-        Top100ArticlesFileEvent.create(
-            user=user,
-            file=obj_file,
-            status=obj_file.status,
-            lines=lines,
-            message=str(e),
-        )
     except Exception as e:
         obj_file.status = Top100ArticlesFile.Status.ERROR
-        Top100ArticlesFileEvent.create(
+        Top100ArticlesFileEvent.create_or_update(
             user=user,
             file=obj_file,
             status=obj_file.status,
@@ -135,7 +127,7 @@ def _process_top100_file_item(user, obj_file, bulk_size, file_path, load_data_fu
         )        
     else:
         obj_file.status = Top100ArticlesFile.Status.PROCESSED
-        Top100ArticlesFileEvent.create(
+        Top100ArticlesFileEvent.create_or_update(
             user=user,
             file=obj_file,
             status=obj_file.status,
