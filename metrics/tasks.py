@@ -2,14 +2,13 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.db import IntegrityError
 from django.utils.translation import gettext as _
 
 from core.utils.utils import _get_user
 from config import celery_app
 from tracker.models import UnexpectedEvent
 
-from .exceptions import Top100ArticlesFileNotFoundError
+from .exceptions import Top100ArticlesFileNotFoundError, Top100ArticlesFileAttachmentNotFoundError
 from .models import Top100Articles, Top100ArticlesFile
 from .utils import get_load_data_function
 
@@ -32,7 +31,6 @@ def task_process_top100_file(self, file_id=None, bulk_size=50000, user_id=None, 
         pk=file_id) if file_id else Top100ArticlesFile.objects.filter(status=Top100ArticlesFile.Status.QUEUED).order_by('-created')
 
     for obj_file in top100_files:
-        logging.info(f'Processing file {obj_file.attachment.file.path}')
         obj_file.status = Top100ArticlesFile.Status.PARSING
         obj_file.save()
         task_process_top100_file_item.apply_async(args=(obj_file.pk, bulk_size, user_id, username))
@@ -56,7 +54,12 @@ def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, 
     except Top100ArticlesFile.DoesNotExist:
         raise Top100ArticlesFileNotFoundError(f'Top100ArticlesFile with id {file_id} does not exist.')
 
-    load_data_function = get_load_data_function(obj_file.attachment.file.path)
+    try:
+        load_data_function = get_load_data_function(obj_file.attachment.file.path)
+    except AttributeError:
+        obj_file.status = Top100ArticlesFile.Status.ERROR
+        obj_file.save()
+        raise Top100ArticlesFileAttachmentNotFoundError(f'Attachment related to {file_id} does not exist.')
     
     objs_create, objs_update = [], []
     total_items_before = Top100Articles.objects.count()
@@ -86,33 +89,21 @@ def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, 
     except OSError as e:
         # ToDo: report this error in a better way - it is an EXPECTED error
         UnexpectedEvent.create(
-            OSError(f'It was not possible to process file {obj_file.attachment.file.path}.'),
-            detail={'File': obj_file.attachment.file.path, 'Message': e}
+            OSError(f'It was not possible to process file {obj_file.filename}.'),
+            detail={'File': obj_file.filename, 'Message': e}
         )
         obj_file.status = Top100ArticlesFile.Status.INVALIDATED
-    except IntegrityError as e:
-        # ToDo: report this error in a better way - it is an EXPECTED error
-        UnexpectedEvent.create(
-            IntegrityError(
-                f'It was not possible to process file {obj_file.attachment.file.path} due to duplicate keys. '
-                f'Message: {e}. '
-                f'Please, set update=True on the task to update existing records. '
-                f'File has been enqueued to be reprocessed.'
-            ),
-            detail={'File': obj_file.attachment.file.path, 'Message': e}
-        )
-        obj_file.status = Top100ArticlesFile.Status.QUEUED
     except Exception as e:
         UnexpectedEvent.create(
-            Exception(f'It was not possible to process file {obj_file.attachment.file.path}.'),
-            detail={'File': obj_file.attachment.file.path, 'Message': e}
+            Exception(f'It was not possible to process file {obj_file.filename}.'),
+            detail={'File': obj_file.filename, 'Message': e}
         )
         obj_file.status = Top100ArticlesFile.Status.ERROR
     else:
         # ToDo: report this result in a better way
         total_items_after = Top100Articles.objects.count()
         obj_file.status = Top100ArticlesFile.Status.PROCESSED
-        logging.info(f'File {obj_file.attachment.file.path} processed successfully. {total_items_after - total_items_before} new records created.')
+        logging.info(f'File {obj_file.filename} processed successfully. {total_items_after - total_items_before} new records created.')
     finally:
         obj_file.save()
 
