@@ -208,7 +208,7 @@ class Top100ArticlesFileEvent(CommonControlField):
     ]
 
     class Meta:
-        verbose_name_plural = _("Top 100 Article File Reports")
+        verbose_name_plural = _("Top 100 Article File Events")
     
     @classmethod
     def create_or_update(cls, user, file, status, lines, message):
