@@ -8,8 +8,6 @@ from wagtail.admin.panels import FieldPanel
 
 from core.models import CommonControlField
 
-from .forms import Top100ArticlesFileForm
-
 
 class Top100Articles(CommonControlField):
     pid_issn = models.CharField('PID ISSN', max_length=9, null=False, blank=False)
@@ -134,8 +132,6 @@ class Top100ArticlesFile(CommonControlField):
         FieldPanel("attachment"),
         FieldPanel("status"),
     ]
-    
-    base_form_class = Top100ArticlesFileForm
 
     def __str__(self):
         return f'{self.filename}'
