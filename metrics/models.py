@@ -104,6 +104,7 @@ class Top100ArticlesFile(CommonControlField):
         QUEUED = "QUE", _("Queued")
         PARSING = "PAR", _("Parsing")
         PROCESSED = "PRO", _("Processed")
+        ERROR = "ERR", _("Error")
         INVALIDATED = "INV", _("Invalidated")
     
     attachment = models.ForeignKey(
