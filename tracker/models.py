@@ -8,6 +8,7 @@ from datetime import datetime
 from django.core.files.base import ContentFile
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from wagtail.admin.panels import FieldPanel
 
 from core.models import CommonControlField
 from tracker import choices
@@ -188,3 +189,39 @@ class EventReport(CommonControlField):
             raise EventReportCreateError(
                 f"Unable to create EventReport. Exception: {e}"
             )
+
+
+class Top100ArticlesFileEvent(CommonControlField):
+    file = models.ForeignKey("metrics.Top100ArticlesFile", on_delete=models.SET_NULL, null=True, blank=True)
+    status = models.CharField(_("Status"), max_length=64, null=True, blank=True)
+    lines = models.IntegerField(_("Lines"), null=True, blank=True)
+    message = models.TextField(_("Message"), null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.file.filename}"
+    
+    panels = [
+        FieldPanel("file"),
+        FieldPanel("status"),
+        FieldPanel("lines"),
+        FieldPanel("message"),
+    ]
+
+    class Meta:
+        verbose_name_plural = _("Top 100 Article File Reports")
+    
+    @classmethod
+    def create(cls, user, file, status, lines, message):
+        try:
+            obj = cls()
+            obj.creator = user
+            obj.file = file
+            obj.status = status
+            obj.lines = lines
+            obj.message = message
+            obj.save()
+        except Exception as e:
+            raise Top100ArticleFileReportCreateError(
+                f"Unable to create Top100ArticleFileReport. Exception: {e}"
+            )
+    
