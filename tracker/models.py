@@ -198,7 +198,7 @@ class Top100ArticlesFileEvent(CommonControlField):
     message = models.TextField(_("Message"), null=True, blank=True)
 
     def __str__(self):
-        return f"{self.file.filename}"
+        return f"{self.file}"
     
     panels = [
         FieldPanel("file"),
