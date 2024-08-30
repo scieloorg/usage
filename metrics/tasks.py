@@ -68,9 +68,29 @@ def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, 
             message=f'Attachment related to {file_id} does not exist.',
         )
         raise Top100ArticlesFileAttachmentNotFoundError(f'Attachment related to {file_id} does not exist.')
+
+    load_data_function = get_load_data_function(file_path)
+    if not load_data_function:
+        obj_file.status = Top100ArticlesFile.Status.ERROR
+        obj_file.save()
+        Top100ArticlesFileEvent.create_or_update(
+            user=user,
+            file=obj_file,
+            status=obj_file.status,
+            lines=0,
+            message=f'File {file_id} does not have a valid format.',
+        )
+        raise Top100ArticlesFileAttachmentInvalidFormatError(f'File {file_id} does not have a valid format.')
     
+    _process_top100_file_item(user, obj_file, bulk_size, file_path, load_data_function)
+
+
+def _process_top100_file_item(user, obj_file, bulk_size, file_path, load_data_function):
+    objs_create, objs_update = [], []
+    lines = 0
+
     try:
-        for row in load_data_function(obj_file.attachment.file.path):
+        for row in load_data_function(file_path):
             obj_top100, created = Top100Articles.create_or_update(user=user, save=False, **row)
             if created:
                 objs_create.append(obj_top100)
