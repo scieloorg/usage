@@ -1,12 +1,10 @@
-import logging
-
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.utils.translation import gettext as _
 
 from core.utils.utils import _get_user
 from config import celery_app
-from tracker.models import UnexpectedEvent
+from tracker.models import Top100ArticlesFileEvent
 
 from .exceptions import Top100ArticlesFileNotFoundError, Top100ArticlesFileAttachmentNotFoundError
 from .models import Top100Articles, Top100ArticlesFile
@@ -49,6 +47,9 @@ def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, 
     """
     user = _get_user(self.request, username=username, user_id=user_id)
 
+    objs_create, objs_update = [], []
+    lines = 0
+
     try:
         obj_file = Top100ArticlesFile.objects.get(pk=file_id)
     except Top100ArticlesFile.DoesNotExist:
@@ -59,11 +60,15 @@ def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, 
     except AttributeError:
         obj_file.status = Top100ArticlesFile.Status.ERROR
         obj_file.save()
+        Top100ArticleFileEvent.create(
+            user=user,
+            file=obj_file,
+            status=obj_file.status,
+            lines=lines,
+            message=f'Attachment related to {file_id} does not exist.',
+        )
         raise Top100ArticlesFileAttachmentNotFoundError(f'Attachment related to {file_id} does not exist.')
     
-    objs_create, objs_update = [], []
-    total_items_before = Top100Articles.objects.count()
-
     try:
         for row in load_data_function(obj_file.attachment.file.path):
             obj_top100, created = Top100Articles.create_or_update(user=user, save=False, **row)
@@ -75,35 +80,48 @@ def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, 
             if len(objs_create) >= bulk_size:
                 Top100Articles.bulk_create(objs_create)
                 objs_create = []
+                lines += len(objs_create)
 
             if len(objs_update) >= bulk_size:
                 Top100Articles.bulk_update(objs_update)
                 objs_update = []
+                lines += len(objs_update)
 
         if objs_create:
             Top100Articles.bulk_create(objs_create)
+            lines += len(objs_create)
     
         if objs_update:
             Top100Articles.bulk_update(objs_update)
+            lines += len(objs_update)
     
     except OSError as e:
-        # ToDo: report this error in a better way - it is an EXPECTED error
-        UnexpectedEvent.create(
-            OSError(f'It was not possible to process file {obj_file.filename}.'),
-            detail={'File': obj_file.filename, 'Message': e}
-        )
-        obj_file.status = Top100ArticlesFile.Status.INVALIDATED
-    except Exception as e:
-        UnexpectedEvent.create(
-            Exception(f'It was not possible to process file {obj_file.filename}.'),
-            detail={'File': obj_file.filename, 'Message': e}
-        )
         obj_file.status = Top100ArticlesFile.Status.ERROR
+        Top100ArticlesFileEvent.create(
+            user=user,
+            file=obj_file,
+            status=obj_file.status,
+            lines=lines,
+            message=str(e),
+        )
+    except Exception as e:
+        obj_file.status = Top100ArticlesFile.Status.ERROR
+        Top100ArticlesFileEvent.create(
+            user=user,
+            file=obj_file,
+            status=obj_file.status,
+            lines=lines,
+            message=str(e),
+        )        
     else:
-        # ToDo: report this result in a better way
-        total_items_after = Top100Articles.objects.count()
         obj_file.status = Top100ArticlesFile.Status.PROCESSED
-        logging.info(f'File {obj_file.filename} processed successfully. {total_items_after - total_items_before} new records created.')
+        Top100ArticlesFileEvent.create(
+            user=user,
+            file=obj_file,
+            status=obj_file.status,
+            lines=lines,
+            message='File processed successfully.',
+        )
     finally:
         obj_file.save()
 
