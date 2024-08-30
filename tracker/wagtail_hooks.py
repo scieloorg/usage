@@ -1,10 +1,13 @@
 from django.utils.translation import gettext as _
-from wagtail.snippets.views.snippets import SnippetViewSet
+from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 from wagtail.snippets.models import register_snippet
 
 from config.menu import get_menu_order
 
-from .models import UnexpectedEvent
+from .models import (
+    UnexpectedEvent, 
+    Top100ArticlesFileEvent
+)
 
 
 class UnexpectedEventSnippetViewSet(SnippetViewSet):
@@ -12,7 +15,7 @@ class UnexpectedEventSnippetViewSet(SnippetViewSet):
     menu_label = _("Unexpected Events")
     icon = 'warning'
     menu_order = get_menu_order("tracker")
-    add_to_admin_menu = True
+    add_to_admin_menu = False
 
     list_display = (
         "exception_type",
@@ -34,4 +37,40 @@ class UnexpectedEventSnippetViewSet(SnippetViewSet):
     )
 
 
-register_snippet(UnexpectedEventSnippetViewSet)
+class Top100ArticlesFileEventSnippetViewSet(SnippetViewSet):
+    model = Top100ArticlesFileEvent
+    menu_label = _("Top100 Articles File Events")
+    icon = 'warning'
+    menu_order = get_menu_order("tracker")
+    add_to_admin_menu = False
+
+    list_display = (
+        "file",
+        "status",
+        "lines",
+        "message",
+        "created",
+    )
+    list_filter = (
+        "status",
+        "lines",
+    )
+    search_fields = (
+        "file",
+        "created",
+    )
+
+
+class TrackerViewSetGroup(SnippetViewSetGroup):
+    menu_name = 'tracker'
+    menu_label = _("Tracker")
+    icon = "folder-open-inverse"
+    menu_order = get_menu_order("tracker")
+    
+    items = (
+        UnexpectedEventSnippetViewSet, 
+        Top100ArticlesFileEventSnippetViewSet,
+    )
+
+
+register_snippet(TrackerViewSetGroup)

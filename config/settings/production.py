@@ -201,3 +201,7 @@ sentry_sdk.init(
 
 # Your stuff...
 # ------------------------------------------------------------------------------
+USE_SOLR = env.bool("USE_SOLR", default=True)
+
+if USE_SOLR:
+    HAYSTACK_SIGNAL_PROCESSOR = "haystack.signals.RealtimeSignalProcessor"

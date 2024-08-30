@@ -1,14 +1,16 @@
-import logging
-
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.utils.translation import gettext as _
 
 from core.utils.utils import _get_user
 from config import celery_app
-from tracker.models import UnexpectedEvent
+from tracker.models import Top100ArticlesFileEvent
 
-from .exceptions import Top100ArticlesFileNotFoundError
+from .exceptions import (
+    Top100ArticlesFileNotFoundError, 
+    Top100ArticlesFileAttachmentNotFoundError,
+    Top100ArticlesFileAttachmentInvalidFormatError,
+)
 from .models import Top100Articles, Top100ArticlesFile
 from .utils import get_load_data_function
 
@@ -16,39 +18,33 @@ from .utils import get_load_data_function
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name=_('Load Top100 Article Metrics'), timelimit=-1)
-def task_load_top100_articles(self, update=False, file_id=None, bulk_size=50000, user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Process File for Top100 Article Metrics'), timelimit=-1)
+def task_process_top100_file(self, file_id=None, bulk_size=50000, user_id=None, username=None):
     """
-    Load Top 100 article metrics from CSV files.
+    Process a file to create or update `Top100Articles`.
 
     Parameters:
-        update (bool): Whether to update existing data.
         file_id (int, optional): Specific file ID to process.
         bulk_size (int): Number of records to process per batch.
         user_id (int, optional): User ID for context.
         username (str, optional): Username for context.
-    """
-    if isinstance(update, str):
-        update = update.lower() == 'true'
-    
+    """    
     top100_files = Top100ArticlesFile.objects.filter(
         pk=file_id) if file_id else Top100ArticlesFile.objects.filter(status=Top100ArticlesFile.Status.QUEUED).order_by('-created')
 
     for obj_file in top100_files:
-        logging.info(f'Processing file {obj_file.attachment.file.path}')
         obj_file.status = Top100ArticlesFile.Status.PARSING
         obj_file.save()
-        task_process_file.apply_async(args=(obj_file.pk, update, bulk_size, user_id, username))
+        task_process_top100_file_item.apply_async(args=(obj_file.pk, bulk_size, user_id, username))
 
 
-@celery_app.task(bind=True, name=_('Process CSV File'), timelimit=-1)
-def task_process_file(self, file_id, update, bulk_size, user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Process File Item for Top100 Article Metrics'), timelimit=-1)
+def task_process_top100_file_item(self, file_id, bulk_size=50000, user_id=None, username=None):
     """
-    Process a CSV file to create or update `Top100Articles`.
+    Process items in a file to create or update `Top100Articles`.
 
     Parameters:
         file_id (int): ID of the file to process.
-        update (bool): Whether to update existing records.
         bulk_size (int): Number of records per batch.
         user_id (int, optional): ID of the user performing the action.
         username (str, optional): Username of the user performing the action.
@@ -58,43 +54,88 @@ def task_process_file(self, file_id, update, bulk_size, user_id=None, username=N
     try:
         obj_file = Top100ArticlesFile.objects.get(pk=file_id)
     except Top100ArticlesFile.DoesNotExist:
+        obj_file.status = Top100ArticlesFile.Status.ERROR
+        obj_file.save()
         raise Top100ArticlesFileNotFoundError(f'Top100ArticlesFile with id {file_id} does not exist.')
 
-    load_data_function = get_load_data_function(obj_file.attachment.file.path)
+    try:
+        file_path = obj_file.attachment.file.path
+    except AttributeError:
+        obj_file.status = Top100ArticlesFile.Status.ERROR
+        obj_file.save()
+        Top100ArticlesFileEvent.create_or_update(
+            user=user,
+            file=obj_file,
+            status=obj_file.status,
+            lines=0,
+            message=f'Attachment related to {file_id} does not exist.',
+        )
+        raise Top100ArticlesFileAttachmentNotFoundError(f'Attachment related to {file_id} does not exist.')
+
+    load_data_function = get_load_data_function(file_path)
+    if not load_data_function:
+        obj_file.status = Top100ArticlesFile.Status.ERROR
+        obj_file.save()
+        Top100ArticlesFileEvent.create_or_update(
+            user=user,
+            file=obj_file,
+            status=obj_file.status,
+            lines=0,
+            message=f'File {file_id} does not have a valid format.',
+        )
+        raise Top100ArticlesFileAttachmentInvalidFormatError(f'File {file_id} does not have a valid format.')
     
+    _process_top100_file_item(user, obj_file, bulk_size, file_path, load_data_function)
+
+
+def _process_top100_file_item(user, obj_file, bulk_size, file_path, load_data_function):
     objs_create, objs_update = [], []
+    lines = 0
 
     try:
-        for row in load_data_function(obj_file.attachment.file.path):
+        for row in load_data_function(file_path):
             obj_top100, created = Top100Articles.create_or_update(user=user, save=False, **row)
             if created:
                 objs_create.append(obj_top100)
-            elif update:
+            else:
                 objs_update.append(obj_top100)
 
             if len(objs_create) >= bulk_size:
                 Top100Articles.bulk_create(objs_create)
                 objs_create = []
+                lines += len(objs_create)
 
-            if update and len(objs_update) >= bulk_size:
+            if len(objs_update) >= bulk_size:
                 Top100Articles.bulk_update(objs_update)
                 objs_update = []
 
         if objs_create:
             Top100Articles.bulk_create(objs_create)
+            lines += len(objs_create)
     
-        if update and objs_update:
+        if objs_update:
             Top100Articles.bulk_update(objs_update)
     
-    except OSError as e:
-        UnexpectedEvent.create(
-            OSError(f'It was not possible to process file {obj_file.attachment.file.path}.'),
-            detail={'File': obj_file.attachment.file.path, 'Message': e}
-        )
-        obj_file.status = Top100ArticlesFile.Status.INVALIDATED
+    except Exception as e:
+        obj_file.status = Top100ArticlesFile.Status.ERROR
+        Top100ArticlesFileEvent.create_or_update(
+            user=user,
+            file=obj_file,
+            status=obj_file.status,
+            lines=lines,
+            message=str(e),
+        )        
     else:
         obj_file.status = Top100ArticlesFile.Status.PROCESSED
-    obj_file.save()
+        Top100ArticlesFileEvent.create_or_update(
+            user=user,
+            file=obj_file,
+            status=obj_file.status,
+            lines=lines,
+            message='File processed successfully.',
+        )
+    finally:
+        obj_file.save()
 
 
 @celery_app.task(bind=True, name=_('Rebuild Metrics Index'), timelimit=-1)

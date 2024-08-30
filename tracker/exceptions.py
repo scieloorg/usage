@@ -18,3 +18,6 @@ class EventReportCreateError(Exception):
 
 class EventReportDeleteEventsError(Exception):
     ...
+
+class Top100ArticleFileReportCreateError(Exception):
+    ...

@@ -2,13 +2,11 @@ import os
 
 from datetime import datetime
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from wagtail.admin.panels import FieldPanel
 
 from core.models import CommonControlField
-
-from .forms import Top100ArticlesFileForm
 
 
 class Top100Articles(CommonControlField):
@@ -56,23 +54,35 @@ class Top100Articles(CommonControlField):
 
     @classmethod
     def create_or_update(cls, user, save=True, **data):
-        defaults = {**data, 'updated_by': user, 'updated': datetime.utcnow()}
-        obj, created = cls.objects.update_or_create(
-            collection=data.get('collection'),
-            pid_issn=data.get('pid_issn'),
-            pid=data.get('pid'),
-            year_month_day=data.get('year_month_day'),
-            defaults=defaults
-        )
-        if created:
-            obj.creator = user
-            obj.created = datetime.utcnow()
+        with transaction.atomic():
+            now = datetime.utcnow()
+
+            obj, created = cls.objects.get_or_create(
+                collection=data.get('collection'),
+                pid_issn=data.get('pid_issn'),
+                pid=data.get('pid'),
+                year_month_day=data.get('year_month_day'),
+                defaults={
+                    **data, 
+                    'creator': user, 
+                    'created': now,
+                    'updated_by': user,
+                    'updated': now
+                }
+            )
+            if not created:
+                for key, value in data.items():
+                    setattr(obj, key, value)
+                obj.updated_by = user
+                obj.updated = datetime.utcnow()
+
         if save:
             obj.save()
+
         return obj, created
     
     @classmethod
-    def bulk_create(cls, objects, ignore_conflicts=False):
+    def bulk_create(cls, objects, ignore_conflicts=True):
         cls.objects.bulk_create(objs=objects, ignore_conflicts=ignore_conflicts)
 
     @classmethod
@@ -92,6 +102,7 @@ class Top100ArticlesFile(CommonControlField):
         QUEUED = "QUE", _("Queued")
         PARSING = "PAR", _("Parsing")
         PROCESSED = "PRO", _("Processed")
+        ERROR = "ERR", _("Error")
         INVALIDATED = "INV", _("Invalidated")
     
     attachment = models.ForeignKey(
@@ -113,14 +124,14 @@ class Top100ArticlesFile(CommonControlField):
 
     @property
     def filename(self):
-        return os.path.basename(self.attachment.filename)
+        if self.attachment:
+            return os.path.basename(self.attachment.filename)
+        return _('File not available')
 
     panels = [
         FieldPanel("attachment"),
         FieldPanel("status"),
     ]
-    
-    base_form_class = Top100ArticlesFileForm
 
     def __str__(self):
         return f'{self.filename}'

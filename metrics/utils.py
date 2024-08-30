@@ -16,7 +16,7 @@ def get_load_data_function(file_path):
     if file_path.lower().endswith('.csv'):
         return load_csv
     
-    if file_path.lower().endswith('.tar.gz'):
+    if file_path.lower().endswith('.tar.gz') or ('.tar' in file_path.lower() and file_path.lower().endswith('.gz')):
         return load_tar_gz
 
 
