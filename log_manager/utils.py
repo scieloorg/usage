@@ -1,18 +1,8 @@
 from datetime import datetime, timedelta
 
 import hashlib
-import logging
-import os
 
 from scielo_log_validator import validator
-from app.lib import (
-    logparser,
-    file
-)
-from app.proc import (
-    download_geomap,
-    download_robots,
-)
 
 
 def get_date_offset_from_today(days=1):
@@ -79,47 +69,12 @@ def hash_file(path, num_lines=25):
     return md5_hash.hexdigest()
 
 
-def validate_file(path, sample_size=0.05):
-    # FIXME: It does not seem right to call a method starting with the '_' char. 
-    #   It depends on the scielo_log_validator to become more flexible.
-    validations = [
-        validator._validate_path,
-        validator._validate_content,
-    ]
-
-    return validator.validate(path, validations=validations, sample_size=sample_size)
-
-
-def download_supplies(output_dir, url_robots, url_geomap):
-    robots = download_robots.get_robots(url_robots)
-    robots_path = os.path.join(output_dir, 'robots.txt')
-    download_robots.save(robots, robots_path)
-
-    mmdb_path = os.path.join(output_dir, 'geomap.mmdb.gz')
-    download_geomap.download_mmdb(url_geomap, mmdb_path)
-
-    geo_path_extracted = mmdb_path.replace('.gz', '')
-    file.extract_gzip(mmdb_path, geo_path_extracted)
-
-    return robots_path, geo_path_extracted
-
-
-def parse_file(path_geomap, path_robots, path_log):
-    lp = logparser.LogParser(path_geomap, path_robots)
-    lp.logfile = path_log
-
-    # FIXME: It depends on the counter-access library to become more flexible.
-    lp.output = f'{path_log}.processed'
-    lp.stats.output = f'{path_log}.summary'
-
-    logging.info(f'INFO. LogParser has been started processing {lp.logfile}')
-    for row in lp.parse():
-        '''
-        hit.local_datetime
-        hit.client_name
-        hit.client_version
-        hit.ip
-        hit.geolocation
-        hit.action
-        '''
-        yield row
+def validate_file(path, sample_size=0.05, buffer_size=2048, days_delta=5, apply_path_validation=True, apply_content_validation=True):
+    return validator.pipeline_validate(
+        path=path, 
+        sample_size=sample_size,
+        buffer_size=buffer_size,
+        days_delta=days_delta,
+        apply_path_validation=apply_path_validation,
+        apply_content_validation=apply_content_validation,
+    )
