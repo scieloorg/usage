@@ -24,61 +24,43 @@ User = get_user_model()
 
 
 @celery_app.task(bind=True, name=_('Discover logs for a list of collections'))
-def task_discover_logs_bulk(self, collections=[], is_enabled=True, days_to_go_back=None, from_date=None, user_id=None, username=None):
+def task_discover_logs_bulk(self, collections=[], days_to_go_back=None, from_date=None, user_id=None, username=None):
     for col in collections or Collection().acron2_list:
         logging.info(f'Discovering logs for collection {col}.')
-        task_discover_logs.apply_async(args=(col, is_enabled, days_to_go_back, from_date, user_id, username))
+        task_discover_logs.apply_async(args=(col, days_to_go_back, from_date, user_id, username))
 
 
 @celery_app.task(bind=True, name=_('Discover logs for one collection'))
-def task_discover_logs(self, collection_acron2, is_enabled=True, days_to_go_back=None, from_date=None, user_id=None, username=None):
+def task_discover_logs(self, collection_acron2, days_to_go_back=None, from_date=None, user_id=None, username=None):
     """
     Task to discover logs.
 
     Parameters:
         collection_acron2 (str): Acronym of the collection.
-        is_enabled (boolean)
         days_to_go_back (int, optional): Number of days to count backward from the current date (e.g., 1 for yesterday, 7 for a week ago).
         from_date (str, optional): Specific date from which logs should be considered (format: 'YYYY-MM-DD').
         user_id
         username
 
     Raises:
-        UndefinedCollectionConfigError: If there is no configuration for the logs directory.
+        CollectionLogDirectoryError: If the CollectionLogDirectory is missing for the collection.
         InvalidDateFormatError: If the provided date format is invalid.
     
     Returns:
         None.
     """
-    col_configs_dirs = models.CollectionConfig.filter_by_collection_and_config_type(
-        collection_acron2=collection_acron2, 
-        config_type=choices.COLLECTION_CONFIG_TYPE_DIRECTORY_LOGS,
-        is_enabled=is_enabled,
+    col_configs_dirs = lmc_models.CollectionLogDirectory.objects.filter(
+        collection_acron2=collection_acron2,
+        active=True,
     )
 
     if len(col_configs_dirs) == 0:
-        UnexpectedEvent.create(
-            exceptions.UndefinedCollectionConfigError(_(f'[{collection_acron2}] Collection Config is missing for the logs directory parameter')),
-            detail={
-                'Action': _('Add an Collection Config for the logs directory parameter.'),
-                'Result': _('The collection has been ignored.'),
-                'Collection': collection_acron2,
-            }
-        )
-        raise exceptions.UndefinedCollectionConfigError(_('ERROR. Please, add an Collection Config for the Logs Directory.'))
+        raise lmc_exceptions.UndefinedCollectionLogDirectoryError(_('ERROR. Please, add a CollectionLogDirectory for the collection.'))
 
-    app_config_log_file_formats = models.ApplicationConfig.get_field_values(config_type=choices.APPLICATION_CONFIG_TYPE_LOG_FILE_FORMAT)
+    supported_logfile_extensions = lmc_models.SupportedLogFile.objects.filter(active=True).values_list('extension', flat=True)
 
-    if len(app_config_log_file_formats) == 0:
-        UnexpectedEvent.create(
-            exceptions.UndefinedApplicationConfigError(_(f'[{collection_acron2}] Application Config is missing for the log file supported format parameter.')),
-            detail={
-                'Action': _('Add an Application Config to indicate the supported log file format.'),
-                'Result': _('The collection has been ignored.'),
-                'Collection': collection_acron2,
-            }
-        )
-        raise exceptions.UndefinedApplicationConfigError(_('ERROR. Please, add an Application Config for each of the supported log file formats.'))
+    if len(supported_logfile_extensions) == 0:
+        raise lmc_exceptions.UndefinedSupportedLogFile(_('ERROR. Please, add a SupportedLogFile for each of the supported log file formats.'))
 
     if days_to_go_back:
         obj_from_date = utils.get_date_offset_from_today(days=days_to_go_back)
@@ -86,28 +68,13 @@ def task_discover_logs(self, collection_acron2, is_enabled=True, days_to_go_back
         try:
             obj_from_date = utils.formatted_text_to_datetime(from_date)
         except ValueError:
-            UnexpectedEvent.create(
-                exceptions.InvalidDateFormatError(_(f'[{collection_acron2}] Invalid date format usage.')),
-                detail={
-                    'Action': _('Inform a valid date format (YYYY-MM-DD).'),
-                    'Result': _('The collection has been ignored.'),
-                    'Collection': collection_acron2,
-                }
-            )
             raise exceptions.InvalidDateFormatError(_('ERROR. Please, use a valid date format (YYYY-MM-DD).'))
     
     for cd in col_configs_dirs:
         for root, _sub_dirs, files in os.walk(cd.value):
             for name in files:
                 _name, extension = os.path.splitext(name)
-                if extension.lower() not in app_config_log_file_formats:
-                    UnexpectedEvent.create(
-                        exceptions.UnsupportedFileExtentionError(_(f'[{extension.lower()}] is not a supported extension.')),
-                        detail={
-                            'Action': _('Add an Collection Config to indicate the extesion.'),
-                            'Result': _('The file has been ignored.'),
-                            'Collection': collection_acron2,
-                        })
+                if extension.lower() not in supported_logfile_extensions:
                     continue
 
                 file_path = os.path.join(root, name)
@@ -178,29 +145,7 @@ def task_check_missing_logs_for_date(self, collection_acron2, date, user_id=None
     user = _get_user(self.request, username=username, user_id=user_id)
     collection = models.Collection.objects.get(acron2=collection_acron2)
     
-    try:
-        n_expected_files = models.CollectionConfig.get_number_of_expected_files_by_day(collection_acron2=collection_acron2, date=date)
-    except exceptions.UndefinedCollectionConfigError:
-        UnexpectedEvent.create(
-            exceptions.UndefinedCollectionConfigError(_(f'[{collection_acron2}] Collection Config is missing for the number of expected files parameter.')),
-            detail={
-                'Action': _('Add an Collection Config to indicate the number of expected files.'),
-                'Result': _('The collection has been ignored.'),
-                'Collection': collection_acron2,
-                'Date': date,
-            })
-        return
-    except exceptions.MultipleCollectionConfigError:
-        UnexpectedEvent.create(
-            exceptions.MultipleCollectionConfigError(_(f'[{collection_acron2}] There are two or more Collection Config values for the number of expected files parameter.')),
-            detail={
-                'Action': _('Keep only one Collection Configuration enabled for the number of expected files.'),
-                'Result': _('The collection has been ignored.'),
-                'Collection': collection_acron2,
-                'Date': date,
-            })
-        return
-        
+    n_expected_files = lmc_models.CollectionLogFilesPerDay.get_number_of_expected_files_by_day(collection_acron2=collection_acron2, date=date)        
     n_found_logs = models.LogFileDate.get_number_of_found_files_for_date(collection_acron2=collection_acron2, date=date)
         
     models.CollectionLogFileDateCount.create_or_update(
@@ -253,14 +198,9 @@ def task_log_files_count_status_report(self, collection_acron2, user_id=None, us
 
 @celery_app.task(bind=True, name=_('Send a message'))
 def task_send_message(self, subject, message, collection_acron2, user_id=None, username=None):
-    col_configs = models.CollectionConfig.filter_by_collection_and_config_type(
-        collection_acron2=collection_acron2,
-        config_type=choices.COLLECTION_CONFIG_TYPE_EMAIL,
-    )
-    if col_configs.count() == 0:
-        raise exceptions.UndefinedCollectionConfigError(_("ERROR. Please, add an Application Configuration for the EMAIL attribute."))
-
-    recipient_list = [cc.value for cc in col_configs]
+    collection_emails = lmc_models.CollectionEmail.objects.filter(collection_acron2=collection_acron2, active=True).values_list('email', flat=True)
+    if len(collection_emails) == 0:
+        raise exceptions.UndefinedCollectionConfigError(_("ERROR. Please, add an Email Configuration for the collection."))
     
     send_mail(
         subject=subject,
