@@ -5,64 +5,15 @@ from wagtail.snippets.models import register_snippet
 from config.menu import get_menu_order
 
 from log_manager.models import (
-    ApplicationConfig,
-    CollectionConfig,
     CollectionLogFileDateCount,
     LogFile,
     LogFileDate,
-    LogProcessedRow,
 )
 
 
-class ApplicationConfigSnippetViewSet(SnippetViewSet):
-    model = ApplicationConfig
-    menu_label = _("Application Configuration")
-    icon = "cog"
-    menu_order = 100
-
-    list_display = (
-        "config_type",
-        "value",
-        "created",
-        "is_enabled",
-        "version_number",
-    )
-    list_filter = (
-        "config_type",
-        "is_enabled",
-    )
-    search_fields = (
-        "value",
-    )
-
-
-class CollectionConfigSnippetViewSet(SnippetViewSet):
-    model = CollectionConfig
-    menu_label = _("Collection Configuration")
-    icon = "cog"
-    menu_order = 200
-
-    list_display = (
-        "collection",
-        "config_type",
-        "value",
-        "start_date",
-        "end_date",
-        "is_enabled",
-    )
-    list_filter = (
-        "collection", 
-        "config_type",
-        "is_enabled",
-    )
-    search_fields = (
-        "value",
-    )
-
-
-class LogFileDateSet(SnippetViewSet):
+class LogFileDateViewSet(SnippetViewSet):
     model = LogFileDate
-    menu_label = _("Log File Dates")
+    menu_label = _("Log Files per Day")
     icon = "folder"
     menu_order = 300
 
@@ -77,9 +28,9 @@ class LogFileDateSet(SnippetViewSet):
     search_fields = ()
 
 
-class CollectionLogFileDateCountSet(SnippetViewSet):
+class CollectionLogFileDateCountViewSet(SnippetViewSet):
     model = CollectionLogFileDateCount
-    menu_label = _("Collection Log File Date Count")
+    menu_label = _("Expected and Found Log Files")
     icon = "folder"
     menu_order = 400
 
@@ -102,7 +53,7 @@ class CollectionLogFileDateCountSet(SnippetViewSet):
 
 class LogFileSnippetViewSet(SnippetViewSet):
     model = LogFile
-    menu_label = _("Log File")
+    menu_label = _("Log File Status")
     icon = "folder"
     menu_order = 500
     list_display = (
@@ -116,34 +67,15 @@ class LogFileSnippetViewSet(SnippetViewSet):
     search_fields = ("file",)
 
 
-class LogProcessedRowSnippetViewSet(SnippetViewSet):
-    model = LogProcessedRow
-    menu_label = _("Log Processed Row")
-    icon = "folder"
-    menu_order = 600
-
-    list_display = (
-        "action_name",
-        "server_time",
-        "created", 
-        "log_file",
-    )
-    list_filter = ("log_file__collection", "browser_name")
-    search_fields = ("action_name",)
-
-
 class LogSnippetViewSetGroup(SnippetViewSetGroup):
     menu_name = 'log_manager'
     menu_label = _("Log Manager")
     menu_icon = "folder-open-inverse"
     menu_order = get_menu_order("log_manager")
     items = (
-        ApplicationConfigSnippetViewSet, 
-        CollectionConfigSnippetViewSet,
-        LogFileDateSet,
-        CollectionLogFileDateCountSet,
+        LogFileDateViewSet,
+        CollectionLogFileDateCountViewSet,
         LogFileSnippetViewSet, 
-        LogProcessedRowSnippetViewSet, 
     )
 
 
