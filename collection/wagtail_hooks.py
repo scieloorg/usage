@@ -11,7 +11,7 @@ class CollectionSnippetViewSet(SnippetViewSet):
     model = Collection
     icon = "folder-open-inverse"
     menu_name = 'collection'
-    menu_label = _("Collection")    
+    menu_label = _("Collection")
     menu_order = get_menu_order("collection")
     add_to_admin_menu = True
 
