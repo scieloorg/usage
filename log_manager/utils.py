@@ -9,9 +9,9 @@ def get_date_offset_from_today(days=1):
     return (datetime.now() - timedelta(days=days)).date()
 
 
-def formatted_text_to_datetime(text, format="%Y-%m-%d"):
+def formatted_text_to_date(text, format="%Y-%m-%d"):
     try:
-        return datetime.strptime(text, format)
+        return datetime.strptime(text, format).date()
     except ValueError:
         raise
 

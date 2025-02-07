@@ -61,7 +61,7 @@ def task_discover_logs(self, collection_acron2, days_to_go_back=None, from_date=
         obj_from_date = utils.get_date_offset_from_today(days=days_to_go_back)
     elif from_date:
         try:
-            obj_from_date = utils.formatted_text_to_datetime(from_date)
+            obj_from_date = utils.formatted_text_to_date(from_date)
         except ValueError:
             raise exceptions.InvalidDateFormatError(_('ERROR. Please, use a valid date format (YYYY-MM-DD).'))
     
