@@ -43,6 +43,27 @@ class Journal(CommonControlField):
         null=False,
     )
 
+    publisher_name = models.JSONField(
+        verbose_name=_('Publisher Name'),
+        blank=True,
+        null=True,
+        default=list,
+    )
+
+    subject_areas = models.JSONField(
+        verbose_name=_('Subject Areas (CAPES)'),
+        null=False,
+        blank=False,
+        default=list,
+    )
+
+    wos_subject_areas = models.JSONField(
+        verbose_name=_('Subject Areas (WoS)'),
+        null=False,
+        blank=False,
+        default=list,
+    )
+
     def __str__(self):
         return f'{self.collection.acron2} - {self.scielo_issn} - {self.acronym}'
     
