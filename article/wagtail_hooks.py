@@ -32,5 +32,10 @@ class ArticleSnippetViewSet(SnippetViewSet):
         "scielo_issn",
         "publication_year",
     )
+    search_fields = (
+        "scielo_issn",
+        "pid_v2",
+        "pid_v3",
+    )
 
 register_snippet(ArticleSnippetViewSet)
