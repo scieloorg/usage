@@ -140,7 +140,13 @@ def task_check_missing_logs_for_date(self, collection_acron2, date, user_id=None
     user = _get_user(self.request, username=username, user_id=user_id)
     collection = models.Collection.objects.get(acron2=collection_acron2)
     
-    n_expected_files = lmc_models.CollectionLogFilesPerDay.get_number_of_expected_files_by_day(collection_acron2=collection_acron2, date=date)        
+    try:
+        n_expected_files = lmc_models.CollectionLogFilesPerDay.get_number_of_expected_files_by_day(collection_acron2=collection_acron2, date=date)
+    except lmc_exceptions.UndefinedCollectionFilesPerDayError:
+        return
+    except lmc_exceptions.MultipleFilesPerDayForTheSameDateError:
+        return
+        
     n_found_logs = models.LogFileDate.get_number_of_found_files_for_date(collection_acron2=collection_acron2, date=date)
         
     models.CollectionLogFileDateCount.create_or_update(
