@@ -13,68 +13,41 @@ from . import constants, models, utils
 User = get_user_model()
 
 @celery_app.task(bind=True, name=_('Download robots data'))
-def task_download_robots(self, url_robots=None, user_id=None, username=None):
+def task_load_robots(self, url_robots=None, user_id=None, username=None):
     """
-    Downloads robot data from the specified URL.
-
-    If no URL is provided, the default URL from constants.DEFAULT_COUNTER_ROBOTS_URL is used.
-
+    Load robots from a given URL and save them to the database.
+    This function fetches robot data from a specified URL (or a default URL if none is provided),
+    cleans the data, and saves it to the database. If the robots already exist in the database,
+    their information is updated.
     Args:
-        url_robots (str, optional): The URL to download the robots data from. Defaults to None.
-        user_id (int, optional): The ID of the user requesting the download. Defaults to None.
-        username (str, optional): The username of the user requesting the download. Defaults to None.
-
+        url_robots (str, optional): The URL to fetch the robots data from. Defaults to None.
+        user_id (int, optional): The ID of the user performing the task. Defaults to None.
+        username (str, optional): The username of the user performing the task. Defaults to None.
     Returns:
-        dict: The downloaded robot data in JSON format.
-
+        bool: True if the robots were successfully loaded and saved, False otherwise.
     Raises:
-        Exception: If there is an error during the download process.
-
+        Exception: If there is an error fetching or saving the robots data.
     Logs:
-        Warning: If no URL is provided and the default URL is used.
-        Error: If there is an error during the download process.
+        - Warning if no robots URL is provided.
+        - Error if there is an issue downloading or saving the robots.
+        - Debug information for each robot saved.
     """
+    user = _get_user(self.request, username=username, user_id=user_id)
+    
     if not url_robots:
         url_robots = constants.DEFAULT_COUNTER_ROBOTS_URL
         logging.warning(f'No robots URL provided. Using default: {url_robots}')
 
     try:
-        return utils.fetch_data(url_robots, data_type='json')
+        robots_data = utils.fetch_data(url_robots, data_type='json')
     except Exception as e:
         logging.error(f'Error downloading robots: {e}')
-
-
-@celery_app.task(bind=True, name=_('Save robots data'))
-def task_save_robots(self, robots, user_id=None, username=None):
-    """
-    Adds a list of robots to the database.
-    This function processes a list of robots, cleans the list, and saves each robot to the database.
-    If a robot with the same pattern and last_changed date already exists, it updates the existing
-    robot. Otherwise, it creates a new robot entry.
-    Args:
-        robots (list): A list of dictionaries, where each dictionary represents a robot with keys
-                       'pattern' and 'last_changed'.
-        user_id (int, optional): The ID of the user performing the operation. Defaults to None.
-        username (str, optional): The username of the user performing the operation. Defaults to None.
-    Returns:
-        bool: True if all robots were successfully saved, False otherwise.
-    Raises:
-        Exception: If there is an error while saving the robots.
-    Logs:
-        - Error if no robots are provided.
-        - Debug information for each robot saved.
-        - Error if there is an exception during the saving process.
-    """
-    user = _get_user(self.request, username=username, user_id=user_id)
-
-    if not robots:
-        logging.error('No robots to save.')
         return False
-    
-    robots = utils.clean_robots_list(robots)
+
+    cleaned_robots_data = utils.clean_robots_list(robots_data)
 
     try:
-        for r_str in robots:
+        for r_str in cleaned_robots_data:
             pattern = r_str.get('pattern')
             last_changed = r_str.get('last_changed')
 
