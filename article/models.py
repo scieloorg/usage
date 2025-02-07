@@ -12,6 +12,7 @@ class Article(CommonControlField):
         on_delete=models.CASCADE,
         blank=False,
         null=False,
+        db_index=True,
     )
 
     scielo_issn = models.CharField(
@@ -19,6 +20,7 @@ class Article(CommonControlField):
         max_length=9,
         blank=False,
         null=False,
+        db_index=True,
     )
 
     pid_v2 = models.CharField(
@@ -26,6 +28,7 @@ class Article(CommonControlField):
         max_length=23,
         blank=False,
         null=False,
+        db_index=True,
     )
 
     pid_v3 = models.CharField(
@@ -33,6 +36,7 @@ class Article(CommonControlField):
         max_length=23,
         blank=True,
         null=True,
+        db_index=True,
     )
 
     pdfs = models.JSONField(
@@ -75,6 +79,7 @@ class Article(CommonControlField):
         max_length=4,
         null=False,
         blank=False,
+        db_index=True,
     )
 
     def __str__(self):
