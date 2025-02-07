@@ -68,21 +68,21 @@ def task_load_robots(self, url_robots=None, user_id=None, username=None):
 
 
 @celery_app.task(bind=True, name=_('Download GeoIP data'))
-def task_download_geoip(self, url_geoip=None, user_id=None, username=None, validate=True):
+def task_load_geoip(self, url_geoip=None, user_id=None, username=None, validate=True):
     """
-    Downloads and processes GeoIP data from a given URL.
+    Load GeoIP data from a specified URL, validate it, and save it to the database.
     Args:
-        url_geoip (str, optional): The URL to download the GeoIP data from. 
-                                   If not provided, a default URL is used.
-        user_id (int, optional): The ID of the user requesting the download.
-        username (str, optional): The username of the user requesting the download.
-        validate (bool, optional): Whether to validate the downloaded GeoIP data. 
-                                   Defaults to True.
+        url_geoip (str, optional): The URL to download the GeoIP data from. Defaults to None.
+        user_id (int, optional): The ID of the user performing the task. Defaults to None.
+        username (str, optional): The username of the user performing the task. Defaults to None.
+        validate (bool, optional): Whether to validate the GeoIP data. Defaults to True.
     Returns:
-        bytes: The processed GeoIP data if successful, otherwise None.
+        bool: True if the GeoIP data was successfully loaded and saved, False otherwise.
     Raises:
-        None: All exceptions are logged and None is returned in case of errors.
+        Exception: If there is an error downloading, decompressing, or validating the GeoIP data.
     """
+    user = _get_user(self.request, username=username, user_id=user_id)
+
     if not url_geoip:
         url_geoip = constants.DEFAULT_MMDB_URL
         logging.warning(f'No GeoIP URL provided. Using default: {url_geoip}')
@@ -91,44 +91,21 @@ def task_download_geoip(self, url_geoip=None, user_id=None, username=None, valid
         data = utils.fetch_data(url_geoip, data_type='content')
     except Exception as e:
         logging.error(f'Error downloading GeoIP: {e}')
-        return None
+        return False
 
     try:
-        data = utils.decompress_gzip(data)
+        mmdb_data = utils.decompress_gzip(data)
     except Exception as e:
         logging.error(f'Error decompressing GeoIP data: {e}')
-        return None
+        return False
 
     if validate:
         try:
-            utils.validate_geoip_data(data)
+            utils.validate_geoip_data(mmdb_data)
         except Exception as e:
             logging.error(f'Error validating GeoIP data: {e}')
-            return None
+            return False
 
-    return data
-
-
-@celery_app.task(bind=True, name=_('Save GeoIP data'))
-def task_save_geoip(self, mmdb_data, mmdb_url=None, user_id=None, username=None):
-    """
-    Save GeoIP data to the database.
-    This function computes the hash of the provided GeoIP data and checks if it already exists in the database.
-    If the data does not exist, it creates a new entry. It also updates the metadata such as the creator and the 
-    last updated timestamp.
-    Args:
-        mmdb_data (file-like object): The GeoIP data file to be saved.
-        user_id (int, optional): The ID of the user performing the operation. Defaults to None.
-        username (str, optional): The username of the user performing the operation. Defaults to None.
-    Returns:
-        bool: True if the operation was successful.
-    """
-    user = _get_user(self.request, username=username, user_id=user_id)
-
-    if not mmdb_data:
-        logging.error('No valid GeoIP data to save.')
-        return False
-    
     mmdb_hash = models.MMDB.compute_hash(mmdb_data)
     
     try:    
@@ -137,7 +114,7 @@ def task_save_geoip(self, mmdb_data, mmdb_url=None, user_id=None, username=None)
 
     except models.MMDB.DoesNotExist:
         mmdb_obj = models.MMDB.objects.create(id=mmdb_hash, data=mmdb_data)
-        mmdb_obj.url = mmdb_url or constants.DEFAULT_MMDB_URL
+        mmdb_obj.url = url_geoip or constants.DEFAULT_MMDB_URL
         mmdb_obj.creator = user
 
     mmdb_obj.updated = timezone.now()
