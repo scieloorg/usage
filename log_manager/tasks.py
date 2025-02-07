@@ -53,8 +53,7 @@ def task_discover_logs(self, collection_acron2, days_to_go_back=None, from_date=
     if len(col_configs_dirs) == 0:
         raise lmc_exceptions.UndefinedCollectionLogDirectoryError(_('ERROR. Please, add a CollectionLogDirectory for the collection.'))
 
-    supported_logfile_extensions = lmc_models.SupportedLogFile.objects.filter(active=True).values_list('extension', flat=True)
-
+    supported_logfile_extensions = lmc_models.SupportedLogFile.objects.values_list('file_extension', flat=True)
     if len(supported_logfile_extensions) == 0:
         raise lmc_exceptions.UndefinedSupportedLogFile(_('ERROR. Please, add a SupportedLogFile for each of the supported log file formats.'))
 
