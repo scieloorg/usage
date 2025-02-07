@@ -6,11 +6,11 @@ from sickle import Sickle
 from time import sleep
 
 
-ARTICLEMETA_ENDPOINT = os.environ.get('ARTICLEMETA_COLLECT_URL', 'http://articlemeta.scielo.org/api/v1/article/counter_dict/')
+ARTICLEMETA_ENDPOINT = os.environ.get('ARTICLEMETA_COLLECT_URL', 'http://articlemeta.scielo.org/api/v1/article/counter_dict')
 ARTICLEMETA_MAX_RETRIES = int(os.environ.get('ARTICLEMETA_COLLECT_MAX_RETRIES', 5))
 ARTICLEMETA_SLEEP_TIME = int(os.environ.get('ARTICLEMETA_COLLECT_URL_SLEEP_TIME', 30))
 
-OPAC_ENDPOINT = os.environ.get('OPAC_ENDPOINT', 'https://scielo.br/api/v1/counter_dict')
+OPAC_ENDPOINT = os.environ.get('OPAC_ENDPOINT', 'https://www.scielo.br/api/v1/counter_dict')
 OPAC_MAX_RETRIES = int(os.environ.get('OPAC_COLLECT_MAX_RETRIES', 5))
 OPAC_SLEEP_TIME = int(os.environ.get('OPAC_COLLECT_URL_SLEEP_TIME', 30))
 
