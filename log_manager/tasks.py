@@ -49,11 +49,7 @@ def task_discover_logs(self, collection_acron2, days_to_go_back=None, from_date=
     Returns:
         None.
     """
-    col_configs_dirs = lmc_models.CollectionLogDirectory.objects.filter(
-        collection_acron2=collection_acron2,
-        active=True,
-    )
-
+    col_configs_dirs = lmc_models.CollectionLogDirectory.objects.filter(collection__acron2=collection_acron2, active=True)
     if len(col_configs_dirs) == 0:
         raise lmc_exceptions.UndefinedCollectionLogDirectoryError(_('ERROR. Please, add a CollectionLogDirectory for the collection.'))
 
@@ -71,7 +67,7 @@ def task_discover_logs(self, collection_acron2, days_to_go_back=None, from_date=
             raise exceptions.InvalidDateFormatError(_('ERROR. Please, use a valid date format (YYYY-MM-DD).'))
     
     for cd in col_configs_dirs:
-        for root, _sub_dirs, files in os.walk(cd.value):
+        for root, _sub_dirs, files in os.walk(cd.path):
             for name in files:
                 _name, extension = os.path.splitext(name)
                 if extension.lower() not in supported_logfile_extensions:
