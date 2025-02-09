@@ -1,4 +1,7 @@
+import logging
+
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from collection.models import Collection
@@ -13,19 +16,17 @@ class CollectionLogDirectory(CommonControlField):
         verbose_name=_('Collection'),
         on_delete=models.DO_NOTHING,
     )
-    directory_name = models.CharField(
-        verbose_name=_('Directory Name'),
-        max_length=255, 
-        unique=True,
-        blank=True,
-        null=True,
-    )
     path = models.CharField(
         verbose_name=_('Path'),
         max_length=255, 
-        unique=True, 
         blank=False, 
         null=False,
+    )
+    directory_name = models.CharField(
+        verbose_name=_('Directory Name'),
+        max_length=255, 
+        blank=True,
+        null=True,
     )
     active = models.BooleanField(
         verbose_name=_('Active'),
@@ -33,10 +34,57 @@ class CollectionLogDirectory(CommonControlField):
     )
 
     def __str__(self):
-        return f'{self.path} - {self.directory_name}'
+        return f'{self.collection} - {self.path} - {self.directory_name}'
     
+    @classmethod
+    def load(cls, data, user):
+        for item in data:
+            try:
+                collection = Collection.objects.get(acron3=item.get('acronym'))
+            except Collection.DoesNotExist:
+                logging.warning(f'Collection {item.get("acronym")} not found.')
+                continue
+
+            logging.info(item)
+            cls.create_or_update(
+                user=user,
+                collection=collection,
+                directory_name=item.get('directory_name'),
+                path=item.get('path'),
+                active=item.get('active', True),
+            )
+
+    @classmethod
+    def create_or_update(
+        cls,
+        user,
+        collection,
+        directory_name,
+        path,
+        active,
+    ):
+        try:
+            obj = cls.objects.get(collection=collection, path=path)
+        except cls.DoesNotExist:
+            obj = cls()
+            obj.creator = user
+            obj.created = timezone.now()
+            obj.collection = collection
+        
+        obj.updated_by = user
+        obj.updated = timezone.now()
+        obj.directory_name = directory_name
+        obj.path = path
+        obj.active = active
+     
+        obj.save()
+        logging.info(f'{collection.acron3} - {directory_name} - {path}')
+        return obj
+
     class Meta:
-        unique_together = ('collection', 'path')
+        constraints = [
+            models.UniqueConstraint(fields=['collection', 'path'], name='unique_collection_path')
+        ]
 
 
 class CollectionLogFilesPerDay(CommonControlField):
@@ -78,9 +126,56 @@ class CollectionLogFilesPerDay(CommonControlField):
             raise UndefinedCollectionFilesPerDayError(_("ERROR. Please, set the number of files per day for the collection {collection_acron2}."))
         
         return int(files_by_day.get().value)
-    
+
+    @classmethod
+    def load(cls, data, user):
+        for item in data:
+            try:
+                collection = Collection.objects.get(acron3=item.get('acronym'))
+            except Collection.DoesNotExist:
+                logging.warning(f'Collection {item.get("acronym")} not found.')
+                continue
+
+            logging.info(item)
+            cls.create_or_update(
+                user=user,
+                collection=collection,
+                start_date=item.get('start_date'),
+                quantity=item.get('quantity'),
+                end_date=item.get('end_date'),
+            )
+
+    @classmethod
+    def create_or_update(
+        cls,
+        user,
+        collection,
+        start_date,
+        quantity,
+        end_date,
+    ):
+        try:
+            obj = cls.objects.get(collection=collection, start_date=start_date)
+        except cls.DoesNotExist:
+            obj = cls()
+            obj.creator = user
+            obj.created = timezone.now()
+            obj.collection = collection
+
+        obj.updated_by = user
+        obj.updated = timezone.now()
+        obj.start_date = start_date
+        obj.quantity = quantity
+        obj.end_date = end_date
+        
+        obj.save()
+        logging.info(f'{collection.acron3} - {start_date} - {quantity}')
+        return obj
+
     class Meta:
-        unique_together = ('collection', 'start_date', 'quantity', )
+        constraints = [
+            models.UniqueConstraint(fields=['collection', 'start_date'], name='unique_collection_start_date')
+        ]
 
 
 class CollectionEmail(CommonControlField):
@@ -114,9 +209,58 @@ class CollectionEmail(CommonControlField):
     def __str__(self):
         return f'{self.email} - {self.name}'
     
-    class Meta:
-        unique_together = ('collection', 'email')
+    @classmethod
+    def load(cls, data, user):
+        for item in data:
+            try:
+                collection = Collection.objects.get(acron3=item.get('acronym'))
+            except Collection.DoesNotExist:
+                logging.warning(f'Collection {item.get("acronym")} not found.')
+                continue
 
+            logging.info(item)
+            cls.create_or_update(
+                user=user,
+                collection=collection,
+                email=item.get('e-mail'),
+                name=item.get('name'),
+                position=item.get('position'),
+                active=item.get('active', True),
+            )
+
+    @classmethod
+    def create_or_update(
+        cls,
+        user,
+        collection,
+        email,
+        name,
+        position,
+        active,
+    ):
+        try:
+            obj = cls.objects.get(collection=collection, email=email)
+        except cls.DoesNotExist:
+            obj = cls()
+            obj.creator = user
+            obj.created = timezone.now()
+            obj.collection = collection
+            obj.email = email
+
+        obj.updated_by = user
+        obj.updated = timezone.now()        
+        obj.name = name
+        obj.position = position
+        obj.active = active
+        
+        obj.save()
+        logging.info(f'{collection.acron3} - {name} - {position} - {email}')
+        return obj
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['collection', 'email'], name='unique_collection_email')
+        ]
 
 class SupportedLogFile(CommonControlField):
     file_extension = models.CharField(
