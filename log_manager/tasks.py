@@ -25,7 +25,7 @@ User = get_user_model()
 
 @celery_app.task(bind=True, name=_('Discover logs for a list of collections'))
 def task_discover_logs_bulk(self, collections=[], days_to_go_back=None, from_date=None, user_id=None, username=None):
-    for col in collections or Collection().acron2_list:
+    for col in collections or Collection.acron2_list():
         logging.info(f'Discovering logs for collection {col}.')
         task_discover_logs.apply_async(args=(col, days_to_go_back, from_date, user_id, username))
 
@@ -160,7 +160,7 @@ def task_check_missing_logs_for_date(self, collection_acron2, date, user_id=None
 
 @celery_app.task(bind=True, name=_('Check missing logs for a date range'))
 def task_check_missing_logs_for_date_range(self, start_date, end_date, collection_acron2_list=[], user_id=None, username=None):
-    for acron2 in collection_acron2_list or Collection().acron2_list:
+    for acron2 in collection_acron2_list or Collection.acron2_list():
         for date in utils.date_range(start_date, end_date):
             logging.info(f'CHECKING missings logs for collection {acron2} and date {date}')
             task_check_missing_logs_for_date.apply_async(args=(acron2, date, user_id, username))
