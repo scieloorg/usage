@@ -59,24 +59,24 @@ class LogFileDate(CommonControlField):
         return obj
     
     @classmethod
-    def filter_by_collection_and_date(cls, collection_acron2, date):
+    def filter_by_collection_and_date(cls, collection, date):
         return cls.objects.filter(
             ~Q(log_file__status__in=[
                 choices.LOG_FILE_STATUS_CREATED, 
                 choices.LOG_FILE_STATUS_INVALIDATED
             ]),
-            log_file__collection__acron2=collection_acron2,
+            log_file__collection__acron3=collection,
             date=date,
         )
         
     @classmethod
-    def get_number_of_found_files_for_date(cls, collection_acron2, date):
+    def get_number_of_found_files_for_date(cls, collection, date):
         return cls.objects.filter(
             ~Q(log_file__status__in=[
                 choices.LOG_FILE_STATUS_CREATED, 
                 choices.LOG_FILE_STATUS_INVALIDATED
             ]),
-            log_file__collection__acron2=collection_acron2,
+            log_file__collection__acron3=collection,
             date=date,
         ).count()
 

@@ -19,10 +19,7 @@ User = get_user_model()
 def task_load_journal_data_from_article_meta(self, collections=[], force_update=True, user_id=None, username=None, mode='thrift'):
     user = _get_user(user_id, username)
 
-    if not collections:
-        collections = Collection.acron3_list()
-
-    for col in collections:
+    for col in collections or Collection.acron3_list():
         for j in utils.fetch_article_meta_journals(collection=col, mode=mode):
             collection = Collection.objects.get(acron3=j.collection_acronym)
             if not collection:
