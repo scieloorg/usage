@@ -55,11 +55,11 @@ def fetch_article_meta_dict(from_date, until_date, offset=0, limit=1000, collect
             return response.json()
 
 
-def fetch_opac_dict(begin_date, end_date, page=1):
+def fetch_opac_dict(from_date, until_date, page=1):
     for t in range(1, OPAC_MAX_RETRIES + 1):
         params = {
-            'begin': begin_date, 
-            'end': end_date, 
+            'begin': from_date, 
+            'end': until_date, 
             'page': page
         }
 

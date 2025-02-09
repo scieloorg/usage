@@ -81,20 +81,20 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
         documents = response.get('documents')
 
         for doc_id, doc in documents.items():
-            collection = Collection.objects.get(acron3=collection_acron3)
-            if not collection:
-                logging.error(f'Collection not found: {collection_acron3}')
+            col = Collection.objects.get(acron3=collection)
+            if not col:
+                logging.error(f'Collection not found: {collection}')
                 continue
 
-            journal = Journal.objects.get(collection=collection, acronym=doc.get('journal_acronym'))
+            journal = Journal.objects.get(collection=col, acronym=doc.get('journal_acronym'))
             if not journal:
                 logging.error(f'Journal not found: {doc.get("journal_acronym")}')
                 continue
 
             try:
-                article, created = models.Article.objects.get_or_create(collection=collection, scielo_issn=journal.scielo_issn, pid_v2=doc.get('pid_v2'))
+                article, created = models.Article.objects.get_or_create(collection=col, scielo_issn=journal.scielo_issn, pid_v2=doc.get('pid_v2'))
             except Exception as e:
-                logging.error(f'Error creating Article: {e}. Collection: {collection}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
+                logging.error(f'Error creating Article: {e}. Collection: {col}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
                 continue
 
             if created or force_update:
