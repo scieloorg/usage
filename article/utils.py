@@ -19,7 +19,7 @@ OAI_METADATA_PREFIX = os.environ.get('OAI_METADATA_PREFIX', 'oai_dc')
 OAI_PMH_MAX_RETRIES = int(os.environ.get('OAI_PMH_MAX_RETRIES', 5))
 
 
-def fetch_article_meta_dict(from_date, until_date, offset=0, limit=1000):
+def fetch_article_meta_dict(from_date, until_date, offset=0, limit=1000, collection=None, issn=None):
     for t in range(1, ARTICLEMETA_MAX_RETRIES + 1):
         params = {
             'from': from_date,
@@ -27,6 +27,12 @@ def fetch_article_meta_dict(from_date, until_date, offset=0, limit=1000):
             'offset': offset,
             'limit': limit
         }
+
+        if collection:
+            params['collection'] = collection
+
+        if issn:
+            params['issn'] = issn
 
         response = requests.get(ARTICLEMETA_ENDPOINT, params=params)
 
@@ -49,11 +55,11 @@ def fetch_article_meta_dict(from_date, until_date, offset=0, limit=1000):
             return response.json()
 
 
-def fetch_opac_dict(begin_date, end_date, page=1):
+def fetch_opac_dict(from_date, until_date, page=1):
     for t in range(1, OPAC_MAX_RETRIES + 1):
         params = {
-            'begin': begin_date, 
-            'end': end_date, 
+            'begin': from_date, 
+            'end': until_date, 
             'page': page
         }
 

@@ -6,6 +6,7 @@ from django.utils.translation import gettext as _
 
 from collection.models import Collection
 from config import celery_app
+from core.utils import date_utils
 from core.utils.utils import _get_user
 
 from journal.models import Journal
@@ -14,14 +15,17 @@ from . import models, utils
 
 User = get_user_model()
 
-@celery_app.task(bind=True, name=_('Load article data from Article Meta'))
-def task_load_article_from_article_meta(self, from_date, until_date, force_update=True, user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Load article data from Article Meta'), timelimit=-1)
+def task_load_article_from_article_meta(self, from_date=None, until_date=None, days_to_go_back=None, collection=None, issn=None, force_update=True, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
+
+    from_date, until_date = date_utils.get_str_date_range(from_date, until_date, days_to_go_back)
+    logging.info(f'Loading articles from Article Meta. From: {from_date}, Until: {until_date}, Collection: {collection}, ISSN: {issn}.')
 
     offset = 0
     limit = 1000
     while True:
-        response = utils.fetch_article_meta_dict(from_date, until_date, offset=offset, limit=limit)
+        response = utils.fetch_article_meta_dict(from_date, until_date, offset=offset, limit=limit, collection=collection, issn=issn)
         objects = response.get('objects')
         if not objects:
             break
@@ -64,30 +68,33 @@ def task_load_article_from_article_meta(self, from_date, until_date, force_updat
     return True
 
 
-@celery_app.task(bind=True, name=_('Load article data from OPAC'))
-def task_load_article_from_opac(self, begin_date, end_date, page=1, force_update=True, collection_acron3='scl', user_id=None, username=None):
+@celery_app.task(bind=True, name=_('Load article data from OPAC'), timelimit=-1)
+def task_load_article_from_opac(self, collection='scl', from_date=None, until_date=None, days_to_go_back=None, page=1, force_update=True, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
 
+    from_date, until_date = date_utils.get_str_date_range(from_date, until_date, days_to_go_back)
+    logging.info(f'Loading articles from OPAC. From: {from_date}, Until: {until_date}')
+
     while True:
-        response = utils.fetch_opac_dict(begin_date, end_date, page=page)
+        response = utils.fetch_opac_dict(from_date, until_date, page=page)
 
         documents = response.get('documents')
 
         for doc_id, doc in documents.items():
-            collection = Collection.objects.get(acron3=collection_acron3)
-            if not collection:
-                logging.error(f'Collection not found: {collection_acron3}')
+            col = Collection.objects.get(acron3=collection)
+            if not col:
+                logging.error(f'Collection not found: {collection}')
                 continue
 
-            journal = Journal.objects.get(collection=collection, acronym=doc.get('journal_acronym'))
+            journal = Journal.objects.get(collection=col, acronym=doc.get('journal_acronym'))
             if not journal:
                 logging.error(f'Journal not found: {doc.get("journal_acronym")}')
                 continue
 
             try:
-                article, created = models.Article.objects.get_or_create(collection=collection, scielo_issn=journal.scielo_issn, pid_v2=doc.get('pid_v2'))
+                article, created = models.Article.objects.get_or_create(collection=col, scielo_issn=journal.scielo_issn, pid_v2=doc.get('pid_v2'))
             except Exception as e:
-                logging.error(f'Error creating Article: {e}. Collection: {collection}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
+                logging.error(f'Error creating Article: {e}. Collection: {col}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
                 continue
 
             if created or force_update:

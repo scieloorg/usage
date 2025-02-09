@@ -25,7 +25,7 @@ User = get_user_model()
 
 @celery_app.task(bind=True, name=_('Discover logs for a list of collections'))
 def task_discover_logs_bulk(self, collections=[], days_to_go_back=None, from_date=None, user_id=None, username=None):
-    for col in collections or Collection().acron2_list:
+    for col in collections or Collection.acron2_list():
         logging.info(f'Discovering logs for collection {col}.')
         task_discover_logs.apply_async(args=(col, days_to_go_back, from_date, user_id, username))
 
@@ -160,13 +160,13 @@ def task_check_missing_logs_for_date(self, collection_acron2, date, user_id=None
 
 @celery_app.task(bind=True, name=_('Check missing logs for a date range'))
 def task_check_missing_logs_for_date_range(self, start_date, end_date, collection_acron2_list=[], user_id=None, username=None):
-    for acron2 in collection_acron2_list or Collection().acron2_list:
+    for acron2 in collection_acron2_list or Collection.acron2_list():
         for date in utils.date_range(start_date, end_date):
             logging.info(f'CHECKING missings logs for collection {acron2} and date {date}')
             task_check_missing_logs_for_date.apply_async(args=(acron2, date, user_id, username))
 
 
-@celery_app.task(bind=True, name=_('Generate a log files countage report'))
+@celery_app.task(bind=True, name=_('Generate logfile count report'))
 def task_log_files_count_status_report(self, collection_acron2, user_id=None, username=None):
     col = models.Collection.objects.get(acron2=collection_acron2)
     subject = _(f'Log Files Report for {col.main_name}')
@@ -197,7 +197,7 @@ def task_log_files_count_status_report(self, collection_acron2, user_id=None, us
     task_send_message.apply_async(args=(subject, message, collection_acron2, user_id, username))
 
 
-@celery_app.task(bind=True, name=_('Send a message'))
+@celery_app.task(bind=True, name=_('Send log file count report'))
 def task_send_message(self, subject, message, collection_acron2, user_id=None, username=None):
     collection_emails = lmc_models.CollectionEmail.objects.filter(collection_acron2=collection_acron2, active=True).values_list('email', flat=True)
     if len(collection_emails) == 0:

@@ -15,11 +15,14 @@ from . import models, utils
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name=_('Populate Journal data'))
-def task_load_journal_data_from_article_meta(self, collection_list=['scl',], force_update=True, user_id=None, username=None, mode='thrift'):
+@celery_app.task(bind=True, name=_('Load journal data from Article Meta'))
+def task_load_journal_data_from_article_meta(self, collections=[], force_update=True, user_id=None, username=None, mode='thrift'):
     user = _get_user(user_id, username)
 
-    for col in collection_list:
+    if not collections:
+        collections = Collection.acron3_list()
+
+    for col in collections:
         for j in utils.fetch_article_meta_journals(collection=col, mode=mode):
             collection = Collection.objects.get(acron3=j.collection_acronym)
             if not collection:
