@@ -57,7 +57,7 @@ def task_search_log_files(self, collections=[], from_date=None, until_date=None,
                         continue
 
                     visible_dates = _get_visible_dates(from_date, until_date, days_to_go_back)
-                    logging.debug(f'Visible dates: {visible_dates}')
+                    logging.info(f'Visible dates: {visible_dates}')
 
                     _add_log_file(user, collection, root, name, visible_dates)
 
@@ -71,7 +71,7 @@ def _add_log_file(user, collection, root, name, visible_dates):
     file_path = os.path.join(root, name)
     file_ctime = date_utils.get_date_obj_from_timestamp(os.stat(file_path).st_ctime)
 
-    logging.debug(f'Checking file {file_path} with ctime {file_ctime}.')
+    logging.info(f'Checking file {file_path} with ctime {file_ctime}.')
     if file_ctime in visible_dates:
         models.LogFile.create_or_update(
             user=user,
