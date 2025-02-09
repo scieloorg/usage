@@ -112,20 +112,20 @@ class CollectionLogFilesPerDay(CommonControlField):
         return f'{self.start_date} - {self.quantity}'
     
     @classmethod
-    def get_number_of_expected_files_by_day(cls, collection_acron2, date):
+    def get_number_of_expected_files_by_day(cls, collection, date):
         files_by_day = cls.objects.filter(
-            models.Q(collection__acron2=collection_acron2) &
+            models.Q(collection__acron3=collection) &
             models.Q(start_date__lte=date) &
             (models.Q(end_date__gte=date) | models.Q(end_date__isnull=True))
         )
 
         if files_by_day.count() > 1:
-            raise MultipleFilesPerDayForTheSameDateError(_("ERROR. Please, set the field end_date for the collection {collection_acron2}."))
+            raise MultipleFilesPerDayForTheSameDateError(_("ERROR. Please, set the field end_date for the collection {collection}."))
 
         if files_by_day.count() == 0:
-            raise UndefinedCollectionFilesPerDayError(_("ERROR. Please, set the number of files per day for the collection {collection_acron2}."))
+            raise UndefinedCollectionFilesPerDayError(_("ERROR. Please, set the number of files per day for the collection {collection}."))
         
-        return int(files_by_day.get().value)
+        return int(files_by_day.get().quantity)
 
     @classmethod
     def load(cls, data, user):
@@ -261,6 +261,7 @@ class CollectionEmail(CommonControlField):
         constraints = [
             models.UniqueConstraint(fields=['collection', 'email'], name='unique_collection_email')
         ]
+
 
 class SupportedLogFile(CommonControlField):
     file_extension = models.CharField(
