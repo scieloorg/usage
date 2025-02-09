@@ -8,7 +8,7 @@ from config import celery_app
 User = get_user_model()
 
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, name=_('Load collection data'))
 def task_load_collections(self, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
     Collection.load(user)

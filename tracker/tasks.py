@@ -12,7 +12,7 @@ from .models import UnexpectedEvent
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name="cleanup_unexpected_events")
+@celery_app.task(bind=True, name="Cleanup unexpected events")
 def delete_unexpected_events(self, exception_type, start_date=None, end_date=None, user_id=None, username=None):
     """
     Delete UnexpectedEvent records based on exception type and optional date range.

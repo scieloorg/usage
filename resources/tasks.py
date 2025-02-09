@@ -12,7 +12,7 @@ from . import constants, models, utils
 
 User = get_user_model()
 
-@celery_app.task(bind=True, name=_('Download robots data'))
+@celery_app.task(bind=True, name=_('Load robots data'))
 def task_load_robots(self, url_robots=None, user_id=None, username=None):
     """
     Load robots from a given URL and save them to the database.
@@ -67,7 +67,7 @@ def task_load_robots(self, url_robots=None, user_id=None, username=None):
         logging.error(f'Error saving robots: {e}')
 
 
-@celery_app.task(bind=True, name=_('Download GeoIP data'))
+@celery_app.task(bind=True, name=_('Load geolocation and country data'))
 def task_load_geoip(self, url_geoip=None, user_id=None, username=None, validate=True):
     """
     Load GeoIP data from a specified URL, validate it, and save it to the database.
