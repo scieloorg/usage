@@ -1,36 +1,6 @@
-from datetime import datetime, timedelta
-
 import hashlib
 
 from scielo_log_validator import validator
-
-
-def get_date_offset_from_today(days=1):
-    return (datetime.now() - timedelta(days=days)).date()
-
-
-def formatted_text_to_date(text, format="%Y-%m-%d"):
-    try:
-        return datetime.strptime(text, format).date()
-    except ValueError:
-        raise
-
-
-def date_range(start, end):
-    if not isinstance(start, datetime):
-        start = datetime.strptime(start, "%Y-%m-%d").date()
-        
-    if not isinstance(end, datetime):
-        end = datetime.strptime(end, "%Y-%m-%d").date()
-
-    current = start
-    while current <= end:
-        yield current
-        current += timedelta(days=1)
-        
-
-def timestamp_to_date(timestamp):
-    return datetime.fromtimestamp(timestamp).date()
 
 
 def hash_file(path, num_lines=25):
@@ -67,7 +37,6 @@ def hash_file(path, num_lines=25):
         md5_hash.update(b''.join(last_lines))
 
     return md5_hash.hexdigest()
-
 
 def validate_file(path, sample_size=0.05, buffer_size=2048, days_delta=5, apply_path_validation=True, apply_content_validation=True):
     return validator.pipeline_validate(
