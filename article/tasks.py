@@ -25,7 +25,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
     offset = 0
     limit = 1000
     while True:
-        response = utils.fetch_article_meta_dict(from_date, until_date, offset=offset, limit=limit)
+        response = utils.fetch_article_meta_dict(from_date, until_date, offset=offset, limit=limit, collection=collection, issn=issn)
         objects = response.get('objects')
         if not objects:
             break
