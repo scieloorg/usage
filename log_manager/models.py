@@ -1,3 +1,5 @@
+import logging
+
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -59,24 +61,24 @@ class LogFileDate(CommonControlField):
         return obj
     
     @classmethod
-    def filter_by_collection_and_date(cls, collection_acron2, date):
+    def filter_by_collection_and_date(cls, collection, date):
         return cls.objects.filter(
             ~Q(log_file__status__in=[
                 choices.LOG_FILE_STATUS_CREATED, 
                 choices.LOG_FILE_STATUS_INVALIDATED
             ]),
-            log_file__collection__acron2=collection_acron2,
+            log_file__collection__acron3=collection,
             date=date,
         )
         
     @classmethod
-    def get_number_of_found_files_for_date(cls, collection_acron2, date):
+    def get_number_of_found_files_for_date(cls, collection, date):
         return cls.objects.filter(
             ~Q(log_file__status__in=[
                 choices.LOG_FILE_STATUS_CREATED, 
                 choices.LOG_FILE_STATUS_INVALIDATED
             ]),
-            log_file__collection__acron2=collection_acron2,
+            log_file__collection__acron3=collection,
             date=date,
         ).count()
 
@@ -127,6 +129,13 @@ class CollectionLogFileDateCount(CommonControlField):
         choices=choices.COLLECTION_LOG_FILE_DATE_COUNT,
         max_length=3,
     )
+    def set_status(self):
+        if self.found_log_files < self.expected_log_files:
+            self.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES
+        elif self.found_log_files > self.expected_log_files:
+            self.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES
+        else:
+            self.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_OK
     
     @classmethod
     def create_or_update(cls, user, collection, date, expected_log_files, found_log_files):
@@ -146,13 +155,7 @@ class CollectionLogFileDateCount(CommonControlField):
 
         obj.expected_log_files = expected_log_files            
         obj.found_log_files = found_log_files
-        
-        if found_log_files < expected_log_files:
-            obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES
-        elif found_log_files > expected_log_files:
-            obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES
-        else:
-            obj.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_OK 
+        obj.set_status()
         
         obj.save()
         return obj
@@ -175,6 +178,9 @@ class CollectionLogFileDateCount(CommonControlField):
         FieldPanel('status'),
     ]
 
+    def __str__(self):
+        return f'{self.collection.acron3}-{self.date}'
+    
 
 class LogFile(CommonControlField):
     hash = models.CharField(_("Hash MD5"), max_length=32, null=True, blank=True, unique=True)
@@ -218,9 +224,13 @@ class LogFile(CommonControlField):
         return cls.objects.get(hash=hash)
 
     @classmethod
-    def create(cls, user, collection, path, stat_result, hash, status=None):
+    def create_or_update(cls, user, collection, path, stat_result, hash, status=None):
         try:
-            return cls.get(hash=hash)
+            obj = cls.get(hash=hash)
+            obj.updated_by = user
+            obj.updated = timezone.now()
+            logging.info(f'File {path} already exists in the database.')
+
         except cls.DoesNotExist:
             obj = cls()
             obj.creator = user
@@ -230,8 +240,10 @@ class LogFile(CommonControlField):
             obj.stat_result = stat_result
             obj.hash = hash
             obj.status = status or choices.LOG_FILE_STATUS_CREATED
-            obj.save()
-            return obj
+            logging.info(f'File {path} added to the database.')
+        
+        obj.save()
+        return obj
         
     def __str__(self):
         return f'{self.path}'

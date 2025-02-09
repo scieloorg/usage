@@ -19,7 +19,7 @@ User = get_user_model()
 def task_load_article_from_article_meta(self, from_date=None, until_date=None, days_to_go_back=None, collection=None, issn=None, force_update=True, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
 
-    from_date, until_date = date_utils.get_str_date_range(from_date, until_date, days_to_go_back)
+    from_date, until_date = date_utils.get_date_range_str(from_date, until_date, days_to_go_back)
     logging.info(f'Loading articles from Article Meta. From: {from_date}, Until: {until_date}, Collection: {collection}, ISSN: {issn}.')
 
     offset = 0
@@ -72,7 +72,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
 def task_load_article_from_opac(self, collection='scl', from_date=None, until_date=None, days_to_go_back=None, page=1, force_update=True, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
 
-    from_date, until_date = date_utils.get_str_date_range(from_date, until_date, days_to_go_back)
+    from_date, until_date = date_utils.get_date_range_str(from_date, until_date, days_to_go_back)
     logging.info(f'Loading articles from OPAC. From: {from_date}, Until: {until_date}')
 
     while True:
