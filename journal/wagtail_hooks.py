@@ -21,6 +21,7 @@ class JournalSnippetViewSet(SnippetViewSet):
         "acronym",
         "title",
         "issns",
+        "publisher_name",
         "subject_areas",
         "wos_subject_areas",
     )
@@ -30,6 +31,7 @@ class JournalSnippetViewSet(SnippetViewSet):
     search_fields = (
         "issns",
         "acronym",
+        "publisher_name",
         "subject_areas",
         "wos_subject_areas",
     )

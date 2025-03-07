@@ -66,7 +66,22 @@ class Journal(CommonControlField):
 
     def __str__(self):
         return f'{self.collection.acron2} - {self.scielo_issn} - {self.acronym}'
-    
+
+    @classmethod
+    def metadata(cls, collection=None):
+        objs = cls.objects.all() if not collection else cls.objects.filter(collection=collection)
+        for j in objs:
+            yield {
+                'acronym': j.acronym,
+                'collection': j.collection.acron3,
+                'issns': j.issns,
+                'publisher_name': j.publisher_name,
+                'scielo_issn': j.scielo_issn,
+                'subject_areas': j.subject_areas,
+                'title': j.title,
+                'wos_subject_areas': j.wos_subject_areas,
+            }
+
     class Meta:
         verbose_name = _('Journal')
         verbose_name_plural = _('Journals')

@@ -4,10 +4,7 @@ from wagtail.snippets.models import register_snippet
 
 from config.menu import get_menu_order
 
-from .models import (
-    UnexpectedEvent, 
-    Top100ArticlesFileEvent
-)
+from .models import LogFileDiscardedLine, UnexpectedEvent
 
 
 class UnexpectedEventSnippetViewSet(SnippetViewSet):
@@ -36,41 +33,48 @@ class UnexpectedEventSnippetViewSet(SnippetViewSet):
         "created",
     )
 
-
-class Top100ArticlesFileEventSnippetViewSet(SnippetViewSet):
-    model = Top100ArticlesFileEvent
-    menu_label = _("Top100 Articles File Events")
+class LogFileDiscardedLineSnippetViewSet(SnippetViewSet):
+    model = LogFileDiscardedLine
+    menu_label = _("Discarded Lines")
     icon = 'warning'
     menu_order = get_menu_order("tracker")
     add_to_admin_menu = False
 
     list_display = (
-        "file",
-        "status",
-        "lines",
+        "log_file",
+        "data",
         "message",
-        "created",
+        "handled",
     )
     list_filter = (
-        "status",
-        "lines",
+        "log_file__collection",
+        "log_file", 
+        "handled",
+        "error_type"
     )
     search_fields = (
-        "file",
-        "created",
+        "data",
+        "message",
+    )
+    inspect_view_fields = (
+        "log_file",
+        "error_type",
+        "data",
+        "message",
+        "handled",
     )
 
 
-class TrackerViewSetGroup(SnippetViewSetGroup):
+class TrackerSnippetViewSetGroup(SnippetViewSetGroup):
     menu_name = 'tracker'
     menu_label = _("Tracker")
     icon = "folder-open-inverse"
     menu_order = get_menu_order("tracker")
     
     items = (
-        UnexpectedEventSnippetViewSet, 
-        Top100ArticlesFileEventSnippetViewSet,
+        UnexpectedEventSnippetViewSet,
+        LogFileDiscardedLineSnippetViewSet,
     )
 
 
-register_snippet(TrackerViewSetGroup)
+register_snippet(TrackerSnippetViewSetGroup)

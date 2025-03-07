@@ -1,3 +1,4 @@
+import langcodes
 import logging
 import requests
 import os
@@ -87,3 +88,48 @@ def fetch_preprint_oai_pmh(from_date, until_date):
 
     for r in records:
         yield r
+
+
+def extract_preprint_data(record):
+    pid_v2 = _extract_preprint_compatible_identifer(record.header.identifier)
+    text_langs = [_standardize_langcode(l) for l in record.metadata.get('language', [])]
+    publication_date = record.metadata.get('date', [''])[0]
+    default_language = text_langs[0] if text_langs else ''
+    publication_year = _extract_preprint_publication_year_from_date(publication_date)
+
+    data = {
+        'pid_v2': pid_v2,
+        'text_langs': text_langs,
+        'publication_date': publication_date,
+        'default_language': default_language,
+        'publication_year': publication_year
+    }
+
+    return data
+
+
+def _extract_preprint_compatible_identifer(pid_v2):
+    try:
+        # piv_v2 should be something like oai:ops.preprints.scielo.org:preprint/1195
+        # we are using the last part of the string as the identifier
+        return pid_v2.split(':')[-1].split('/')[1]
+    except IndexError:
+        return ''
+
+
+def _extract_preprint_publication_year_from_date(date_str):
+    try:
+        return date_str[:4]
+    except IndexError:
+        return ''
+
+
+def _standardize_langcode(language):
+    if langcodes.tag_is_valid(language):
+        return langcodes.standardize_tag(language)
+
+    logging.warning(f'Tentando padronizar {language}')
+    inferred_lang, score = langcodes.best_match(language, langcodes.LANGUAGE_ALPHA3.keys())
+        
+    if score >= 0.75:
+        return langcodes.standardize_tag(inferred_lang)

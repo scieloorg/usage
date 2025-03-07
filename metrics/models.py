@@ -1,137 +1,184 @@
-import os
-
-from datetime import datetime
-
-from django.db import models, transaction
+from django.db import models
 from django.utils.translation import gettext_lazy as _
-from wagtail.admin.panels import FieldPanel
 
-from core.models import CommonControlField
-
-
-class Top100Articles(CommonControlField):
-    pid_issn = models.CharField('PID ISSN', max_length=9, null=False, blank=False)
-    year_month_day = models.DateField('Date of access', null=False, blank=False)
-
-    print_issn = models.CharField('Print ISSN', max_length=9, null=True, blank=True)
-    online_issn = models.CharField('Online ISSN', max_length=9, null=True, blank=True)
-
-    collection = models.CharField('Collection Acronym 3', max_length=3, null=False, blank=False)
-    pid = models.CharField('Publication ID', null=False, blank=False)
-    yop = models.PositiveSmallIntegerField('Year of Publication', null=False, blank=False)
-    
-    total_item_requests = models.IntegerField('Total Item Requests', null=False, blank=False)
-    total_item_investigations = models.IntegerField('Total Item Investigations', null=False, blank=False)
-    unique_item_requests = models.IntegerField('Unique Item Requests', null=False, blank=False)
-    unique_item_investigations = models.IntegerField('Unique Item Investigations', null=False, blank=False)
-
-    panels = [
-        FieldPanel('pid_issn'),
-        FieldPanel('year_month_day'),
-        FieldPanel('print_issn'),
-        FieldPanel('online_issn'),
-        FieldPanel('collection'),
-        FieldPanel('pid'),
-        FieldPanel('yop'),
-        FieldPanel('total_item_requests'),
-        FieldPanel('total_item_investigations'),
-        FieldPanel('unique_item_requests'),
-        FieldPanel('unique_item_investigations'),
-    ]
-
-    class Meta:
-        unique_together = (
-            'collection',
-            'pid_issn',
-            'pid',
-            'year_month_day',
-        )
-        verbose_name_plural = _('Top 100 Articles')
-        indexes = [
-            models.Index(fields=['pid_issn']),
-            models.Index(fields=['year_month_day']),
-        ]
-
-    @classmethod
-    def create_or_update(cls, user, save=True, **data):
-        with transaction.atomic():
-            now = datetime.utcnow()
-
-            obj, created = cls.objects.get_or_create(
-                collection=data.get('collection'),
-                pid_issn=data.get('pid_issn'),
-                pid=data.get('pid'),
-                year_month_day=data.get('year_month_day'),
-                defaults={
-                    **data, 
-                    'creator': user, 
-                    'created': now,
-                    'updated_by': user,
-                    'updated': now
-                }
-            )
-            if not created:
-                for key, value in data.items():
-                    setattr(obj, key, value)
-                obj.updated_by = user
-                obj.updated = datetime.utcnow()
-
-        if save:
-            obj.save()
-
-        return obj, created
-    
-    @classmethod
-    def bulk_create(cls, objects, ignore_conflicts=True):
-        cls.objects.bulk_create(objs=objects, ignore_conflicts=ignore_conflicts)
-
-    @classmethod
-    def bulk_update(cls, objects, fields=['print_issn', 'online_issn', 'yop', 'total_item_requests', 'total_item_investigations', 'unique_item_requests', 'unique_item_investigations', 'updated', 'updated_by']):
-        cls.objects.bulk_update(objs=objects, fields=fields)
-
-    def __str__(self):
-        return f'{self.pid_issn}, {self.pid}, {self.total_item_requests}'
+from collection.models import Collection
+from journal.models import Journal
+from article.models import Article
 
 
-class Top100ArticlesFile(CommonControlField):
-    class Meta:
-        verbose_name_plural = _("Top 100 Articles Files")
-        verbose_name = _("Top 100 Articles File")
-
-    class Status(models.TextChoices):
-        QUEUED = "QUE", _("Queued")
-        PARSING = "PAR", _("Parsing")
-        PROCESSED = "PRO", _("Processed")
-        ERROR = "ERR", _("Error")
-        INVALIDATED = "INV", _("Invalidated")
-    
-    attachment = models.ForeignKey(
-        "wagtaildocs.Document",
-        verbose_name=_("Attachment"),
-        null=True,
+class Item(models.Model):
+    collection = models.ForeignKey(
+        Collection,
+        verbose_name=_("Collection"),
+        null=False,
         blank=False,
-        on_delete=models.SET_NULL,
-        related_name="+",
+        on_delete=models.CASCADE,
+        db_index=True,
+    )
+    
+    journal = models.ForeignKey(
+        Journal,
+        verbose_name=_("Journal"),
+        null=False,
+        blank=False,
+        on_delete=models.CASCADE,
+        db_index=True,
+    )
+    
+    article = models.ForeignKey(
+        Article,
+        verbose_name=_("Article"),
+        null=False,
+        blank=False,
+        on_delete=models.CASCADE,
+        db_index=True,
     )
 
-    status = models.CharField(max_length=5, choices=Status.choices, default=Status.QUEUED)
-
-    def get_status_display(self):
-        return self.Status(self.status).label
+    def __str__(self):
+        return '|'.join([
+            self.collection.acron2,
+            self.journal.acronym,
+            self.article.pid_v2,
+        ])
     
-    get_status_display.admin_order_field = "status"
-    get_status_display.short_description = "Status"
+    class Meta:
+        verbose_name = _("Item")
+        verbose_name_plural = _("Items")
+        indexes = [
+            models.Index(fields=['collection', 'journal', 'article']),
+            models.Index(fields=['collection', 'journal']),
+        ]
+        unique_together = (
+            'collection',
+            'journal',
+            'article',
+        )
 
-    @property
-    def filename(self):
-        if self.attachment:
-            return os.path.basename(self.attachment.filename)
-        return _('File not available')
 
-    panels = [
-        FieldPanel("attachment"),
-        FieldPanel("status"),
-    ]
+class UserAgent(models.Model):
+    name = models.CharField(
+        verbose_name=_("Name"),
+        max_length=255,
+        null=False,
+        blank=False,
+        db_index=True,
+    )
+
+    version = models.CharField(
+        verbose_name=_("Version"),
+        max_length=255,
+        null=False,
+        blank=False,
+        db_index=True,
+    )
 
     def __str__(self):
-        return f'{self.filename}'
+        return f"{self.name} {self.version}"
+
+    class Meta:
+        verbose_name = _("User Agent")
+        verbose_name_plural = _("User Agents")
+        unique_together = (
+            'name',
+            'version',
+        )
+
+
+class UserSession(models.Model):
+    datetime = models.DateTimeField(
+        verbose_name=_("Datetime"),
+        null=False,
+        blank=False,
+    )
+
+    user_agent = models.ForeignKey(
+        UserAgent,
+        verbose_name=_("User Agent"),
+        null=False,
+        blank=False,
+        on_delete=models.CASCADE,
+        db_index=True,
+    )
+
+    user_ip = models.CharField(
+        verbose_name=_("User IP"),
+        max_length=255,
+        null=False,
+        blank=False,
+        db_index=True,
+    )
+
+    def user_session(self):
+        return '|'.join([
+            self.user_agent.name,
+            self.user_agent.version,
+            self.user_ip,
+            self.datetime.strftime('%Y-%m-%d'),
+            self.datetime.strftime('%H'),
+        ])
+
+    def __str__(self):
+        return self.user_session()
+
+    class Meta:
+        verbose_name = _("User Session")
+        verbose_name_plural = _("User Sessions")
+        unique_together = (
+            'datetime',
+            'user_agent',
+            'user_ip',
+        )
+
+
+class ItemAccess(models.Model):
+    item = models.ForeignKey(
+        'Item',
+        verbose_name=_("Item"),
+        null=False,
+        blank=False,
+        on_delete=models.CASCADE,
+        db_index=True,
+    )
+
+    user_session = models.ForeignKey(
+        'UserSession',
+        verbose_name=_("User Session"),
+        null=False,
+        blank=False,
+        on_delete=models.CASCADE,
+        db_index=True,
+    )
+ 
+    country_code = models.CharField(
+        verbose_name=_("Country"),
+        max_length=2,
+        null=False,
+        blank=False,
+        db_index=True,
+    )
+
+    media_language = models.CharField(
+        verbose_name=_("Media Language"),
+        max_length=2,
+        null=False,
+        blank=False,
+        db_index=True,
+    )
+
+    media_format = models.CharField(
+        verbose_name=_("Media Format"),
+        max_length=10,
+        null=False,
+        blank=False,
+    )
+
+    class Meta:
+        verbose_name = _("Item Access")
+        verbose_name_plural = _("Items Access")
+        unique_together = (
+            'item',
+            'user_session',
+            'country_code',
+            'media_format',
+            'media_language',
+        )

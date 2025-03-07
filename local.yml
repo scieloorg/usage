@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   django: &django
     build:
@@ -11,45 +9,15 @@ services:
       - redis
       - postgres
       - mailhog
-      - pgbouncer
-      - solr
-    links:
-      - pgbouncer
-      - solr
     volumes:
       - .:/app:z
-      - ../scms_data/scielo_usage/data/logs:/data/logs
-      - ../scms_data/scielo_usage/data/supplies:/data/supplies
+      - ../scms_data/scielo_usage/data/logs:/app/logs
     env_file:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
     ports:
       - "8009:8000"
     command: /start
-
-  pgbouncer:
-    image: edoburu/pgbouncer:1.14.0
-    container_name: scielo_usage_local_pgbouncer
-    environment:
-      - DATABASE_URL=postgres://GVRFlLmcCNfGLhsFvSnCioYOPJPYpyfj:BQ4hSUL4rdj5WZLdR8ilDLRQMvCtzo0caMaXDO0olGsmycQjlcZlTVK9DepZR8kk@postgres/scielo_usage
-      - MAX_CLIENT_CONN=100
-    ports:
-      - 6439:5432
-    depends_on:
-      - postgres
-    links:
-      - postgres
-
-  solr:
-    image: solr:9.3
-    container_name: scielo_usage_local_solr
-    ports:
-      - "8983:8983"
-    volumes:
-        - ./index:/var/solr
-    environment:
-      - SOLR_JAVA_MEM=-Xms512m -Xmx512m
-      - SOLR_HEAP=512m
 
   postgres:
     build:
@@ -58,18 +26,12 @@ services:
     image: scielo_usage_local_postgres
     container_name: scielo_usage_local_postgres
     volumes:
-      - ../scms_data/scielo_usage/postgresql:/var/lib/postgresql/data:Z
+      - ../scms_data/scielo_usage/postgresql:/var/lib/postgresql/data:z
       - ../scms_data/scielo_usage/postgresql_backup:/backups:z
     ports:
       - "5439:5432"
     env_file:
       - ./.envs/.local/.postgres
-
-  adminer:
-    image: adminer
-    container_name: scielo_usage_local_adminer
-    ports:
-      - "8089:8080"
 
   mailhog:
     image: mailhog/mailhog:v1.0.0
@@ -104,11 +66,3 @@ services:
       - mailhog
     ports: []
     command: /start-celerybeat
-
-  flower:
-    <<: *django
-    image: scielo_usage_local_flower
-    container_name: scielo_usage_local_flower
-    ports:
-      - "5559:5555"
-    command: /start-flower
