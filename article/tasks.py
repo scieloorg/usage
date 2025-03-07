@@ -25,6 +25,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
     offset = 0
     limit = 1000
     while True:
+        logging.info(f'{from_date}, {until_date}, {offset}, {limit}, {collection}, {issn}')
         response = utils.fetch_article_meta_dict(from_date, until_date, offset=offset, limit=limit, collection=collection, issn=issn)
         objects = response.get('objects')
         if not objects:
@@ -33,11 +34,11 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
         for obj in objects:
             codes = obj.get('code_title')
 
-            for issn in codes:
+            for issn_code in codes:
                 jou = Journal.objects.filter(
-                    Q(issns__electronic_issn=issn) | 
-                    Q(issns__scielo_issn=issn) | 
-                    Q(issns__print_issn=issn)
+                    Q(issns__electronic_issn=issn_code) | 
+                    Q(issns__scielo_issn=issn_code) | 
+                    Q(issns__print_issn=issn_code)
                 ).first()
                 if not jou:
                     continue
@@ -46,12 +47,12 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
                 logging.info(f'Journal not found for ISSNs: {codes}')
                 continue
 
-            collection = Collection.objects.get(acron3=obj.get('collection'))
-            if not collection:
+            col_obj = Collection.objects.get(acron3=obj.get('collection'))
+            if not col_obj:
                 logging.info(f'Collection not found: {obj.get("collection")}')
                 continue
 
-            article, created = models.Article.objects.get_or_create(collection=collection, scielo_issn=jou.scielo_issn, pid_v2=obj.get('code'))
+            article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=jou.scielo_issn, pid_v2=obj.get('code'))
             if created or force_update:
                 article.pdfs = obj.get('pdfs') or {}
                 article.processing_date = obj.get('processing_date') or ''
@@ -61,7 +62,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
                 article.text_langs = obj.get('text_langs') or ''
 
             article.save()
-            logging.debug(f'Article {"created" if created else "updated"}: {article}')
+            logging.info(f'Article {"created" if created else "updated"}: {article}')
 
         offset += limit
 
@@ -81,20 +82,20 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
         documents = response.get('documents')
 
         for doc_id, doc in documents.items():
-            col = Collection.objects.get(acron3=collection)
-            if not col:
+            col_obj = Collection.objects.get(acron3=collection)
+            if not col_obj:
                 logging.error(f'Collection not found: {collection}')
                 continue
 
-            journal = Journal.objects.get(collection=col, acronym=doc.get('journal_acronym'))
+            journal = Journal.objects.get(collection=col_obj, acronym=doc.get('journal_acronym'))
             if not journal:
                 logging.error(f'Journal not found: {doc.get("journal_acronym")}')
                 continue
 
             try:
-                article, created = models.Article.objects.get_or_create(collection=col, scielo_issn=journal.scielo_issn, pid_v2=doc.get('pid_v2'))
+                article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=journal.scielo_issn, pid_v2=doc.get('pid_v2'))
             except Exception as e:
-                logging.error(f'Error creating Article: {e}. Collection: {col}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
+                logging.error(f'Error creating Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
                 continue
 
             if created or force_update:
