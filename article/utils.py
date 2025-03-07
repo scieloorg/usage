@@ -38,7 +38,7 @@ def fetch_article_meta_dict(from_date, until_date, offset=0, limit=1000, collect
 
         try:
             response.raise_for_status()
-            logging.debug(response.url)
+            logging.info(response.url)
 
         except requests.exceptions.HTTPError:
             logging.warning(
@@ -67,7 +67,7 @@ def fetch_opac_dict(from_date, until_date, page=1):
 
         try:
             response.raise_for_status()
-            logging.debug(response.url)
+            logging.info(response.url)
 
         except requests.exceptions.HTTPError:
             logging.warning('Não foi possível coletar dados de %s. Aguardando %d segundos para tentativa %d de %d' % (response.url, OPAC_SLEEP_TIME, t, OPAC_MAX_RETRIES))

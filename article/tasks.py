@@ -25,6 +25,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
     offset = 0
     limit = 1000
     while True:
+        logging.info(f'{from_date}, {until_date}, {offset}, {limit}, {collection}, {issn}')
         response = utils.fetch_article_meta_dict(from_date, until_date, offset=offset, limit=limit, collection=collection, issn=issn)
         objects = response.get('objects')
         if not objects:
@@ -61,7 +62,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
                 article.text_langs = obj.get('text_langs') or ''
 
             article.save()
-            logging.debug(f'Article {"created" if created else "updated"}: {article}')
+            logging.info(f'Article {"created" if created else "updated"}: {article}')
 
         offset += limit
 
