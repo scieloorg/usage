@@ -8,12 +8,60 @@ from datetime import datetime
 from django.core.files.base import ContentFile
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from wagtail.admin.panels import FieldPanel
 
 from core.models import CommonControlField
+from log_manager.models import LogFile
 from tracker import choices
 
 from .exceptions import *
+
+
+class LogFileDiscardedLine(CommonControlField):
+    log_file = models.ForeignKey(
+        LogFile, 
+        on_delete=models.CASCADE, 
+        null=False, 
+        blank=False,
+        db_index=True,
+    )
+    error_type = models.CharField(
+        _("Error Type"),
+        choices=choices.LOG_FILE_DISCARDED_LINE_REASON,
+        max_length=3,
+        null=True,
+        blank=True,
+    )
+    data = models.JSONField(
+        _("Data"),
+        default=dict,
+    )
+    message = models.TextField(
+        _("Message"),
+        null=True,
+        blank=True,
+    )
+    handled = models.BooleanField(
+        _("Handled"),
+        default=False
+    )
+
+    @classmethod
+    def create(cls, log_file, error_type, data, message):
+        try:
+            obj = cls()
+            obj.log_file = log_file
+            obj.error_type = error_type
+            obj.data = data
+            obj.message = message
+            obj.save()
+        except Exception as exc:
+            raise LogFileDiscardedLineCreateError(
+                f"Unable to create LogFileDiscardedLine ({data} - {error_type} - {message}). EXCEPTION {exc}"
+            )
+        return obj
+
+    def __str__(self):
+        return f"{self.data} - {self.message}"
 
 
 class UnexpectedEvent(models.Model):
@@ -84,7 +132,7 @@ class Event(CommonControlField):
     )
     detail = models.JSONField(null=True, blank=True)
     unexpected_event = models.ForeignKey(
-        UnexpectedEvent, on_delete=models.SET_NULL, null=True, blank=True
+        'UnexpectedEvent', on_delete=models.SET_NULL, null=True, blank=True
     )
 
     class Meta:
@@ -140,9 +188,7 @@ class Event(CommonControlField):
 
 
 def tracker_file_directory_path(instance, filename):
-    # file will be uploaded to MEDIA_ROOT/user_<id>/<filename>
-
-    d = datetime.utcnow()
+    d = datetime.now(datetime.timezone.utc)
     return f"tracker/{d.year}/{d.month}/{d.day}/{filename}"
 
 
@@ -160,7 +206,7 @@ class EventReport(CommonControlField):
         try:
             ext = ".json"
             content = json.dumps(list([item.data for item in events]))
-            name = datetime.utcnow().isoformat() + ext
+            name = datetime.now(datetime.timezone.utc).isoformat() + ext
             self.file.save(name, ContentFile(content))
             self.delete_events(events)
         except Exception as e:
@@ -189,37 +235,3 @@ class EventReport(CommonControlField):
             raise EventReportCreateError(
                 f"Unable to create EventReport. Exception: {e}"
             )
-
-
-class Top100ArticlesFileEvent(CommonControlField):
-    file = models.ForeignKey("metrics.Top100ArticlesFile", on_delete=models.SET_NULL, null=True, blank=True)
-    status = models.CharField(_("Status"), max_length=64, null=True, blank=True)
-    lines = models.IntegerField(_("Lines"), default=0, null=True, blank=True)
-    message = models.TextField(_("Message"), null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.file}"
-    
-    panels = [
-        FieldPanel("file"),
-        FieldPanel("status"),
-        FieldPanel("lines"),
-        FieldPanel("message"),
-    ]
-
-    class Meta:
-        verbose_name_plural = _("Top 100 Article File Events")
-    
-    @classmethod
-    def create_or_update(cls, user, file, status, lines, message):
-        try:
-            obj = cls.objects.get(file=file)
-        except Top100ArticlesFileEvent.DoesNotExist:
-            obj = cls()
-            obj.creator = user
-
-        obj.file = file
-        obj.status = status
-        obj.lines = obj.lines + lines
-        obj.message = message
-        obj.save()
