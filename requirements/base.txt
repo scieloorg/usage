@@ -67,7 +67,11 @@ reverse-geocode==1.6  # https://pypi.org/project/reverse-geocode/
 
 # SciELO Usage COUNTER
 device-detector==0.10  # https://github.com/thinkwelltwd/device_detector
--e git+https://github.com/scieloorg/scielo_usage_counter@0.6.0#egg=scielo_usage_counter
+-e git+https://github.com/scieloorg/scielo_usage_counter@1.0.0#egg=scielo_usage_counter
+
+# langcodes
+# ------------------------------------------------------------------------------
+import langcodes==3.5.0  # https://pypi.org/project/langcodes
 
 # packtools
 # ------------------------------------------------------------------------------
