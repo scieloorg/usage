@@ -117,3 +117,37 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
             break
 
     return True
+
+
+@celery_app.task(bind=True, name=_('Load preprint data from Preprints Server'), timelimit=-1)
+def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None, days_to_go_back=None, force_update=True, user_id=None, username=None):
+    user = _get_user(self.request, username=username, user_id=user_id)
+
+    from_date, until_date = date_utils.get_date_range_str(from_date, until_date, days_to_go_back)
+    logging.info(f'Loading preprints from Preprints Server. From: {from_date}, Until: {until_date}')
+
+    col_obj = Collection.objects.get(acron3='preprints')
+    if not col_obj:
+        logging.error(f'Collection not found: preprints')
+        return False
+
+    for record in utils.fetch_preprint_oai_pmh(from_date, until_date):
+        data = utils.extract_preprint_data(record)
+
+        if not data.get('pid_v2'):
+            logging.error(f'PIDv2 not found in record: {record}')
+            continue
+
+        # Currently, we are using the record.header.identifier as the PIDv2
+        article, created = models.Article.objects.get_or_create(collection=col_obj, pid_v2=data['pid_v2'])
+        if created or force_update:
+            article.text_langs = data.get('text_langs')
+            article.default_lang = data.get('default_language')
+            article.publication_date = data.get('publication_date')
+            article.publication_year = data.get('publication_year')
+            
+            # Preprints do not have a scielo_issn yet
+            article.scielo_issn = '0000-0000'
+
+            article.save()
+            logging.debug(f'Article {"created" if created else "updated"}: {article}')
