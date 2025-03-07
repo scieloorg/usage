@@ -71,7 +71,7 @@ device-detector==0.10  # https://github.com/thinkwelltwd/device_detector
 
 # langcodes
 # ------------------------------------------------------------------------------
-import langcodes==3.5.0  # https://pypi.org/project/langcodes
+langcodes==3.5.0  # https://pypi.org/project/langcodes
 
 # packtools
 # ------------------------------------------------------------------------------
