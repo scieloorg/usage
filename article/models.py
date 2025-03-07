@@ -83,8 +83,25 @@ class Article(CommonControlField):
     )
 
     def __str__(self):
-        return f'{self.collection.acron2} - {self.scielo_issn} - {self.pid_v2}'
-    
+        return f'{self.collection.acron3} - {self.scielo_issn} - {self.pid_v2}'
+
+    @classmethod
+    def metadata(cls, collection=None):
+        objs = cls.objects.all() if not collection else cls.objects.filter(collection=collection)
+        for a in objs:
+            yield {
+                'collection': a.collection.acron3,
+                'default_lang': a.default_lang,
+                'pdfs': a.pdfs,
+                'pid_v2': a.pid_v2,
+                'pid_v3': a.pid_v3,
+                'processing_date': a.processing_date,
+                'publication_date': a.publication_date,
+                'publication_year': a.publication_year,
+                'scielo_issn': a.scielo_issn,
+                'text_langs': a.text_langs,
+            }
+
     class Meta:
         verbose_name = _('Article')
         verbose_name_plural = _('Articles')
