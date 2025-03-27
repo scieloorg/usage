@@ -263,6 +263,74 @@ class CollectionEmail(CommonControlField):
         ]
 
 
+class CollectionValidationParameters(CommonControlField):
+    collection = models.ForeignKey(
+        Collection,
+        verbose_name=_('Collection'),
+        on_delete=models.DO_NOTHING,
+        primary_key=True,
+    )
+    sample_size = models.FloatField(
+        verbose_name=_('Sample Size'),
+        blank=False,
+        null=False,
+        default=0.1,
+    )
+    buffer_size = models.IntegerField(
+        verbose_name=_('Buffer Size'),
+        blank=False,
+        null=False,
+        default=2048,
+    )
+
+    def __str__(self):
+        return f'{self.collection.acron3} - {self.sample_size} - {self.buffer_size}'
+
+    @classmethod
+    def load(cls, data, user):
+        for item in data:
+            try:
+                collection = Collection.objects.get(acron3=item.get('acronym'))
+            except Collection.DoesNotExist:
+                logging.warning(f'Collection {item.get("acronym")} not found.')
+                continue
+
+            logging.info(item)
+            cls.create_or_update(
+                user=user,
+                collection=collection,
+                sample_size=item.get('sample_size'),
+                buffer_size=item.get('buffer_size'),
+            )
+
+    @classmethod
+    def create_or_update(
+        cls,
+        user,
+        collection,
+        sample_size,
+        buffer_size,
+    ):
+        try:
+            obj = cls.objects.get(collection=collection)
+        except cls.DoesNotExist:
+            obj = cls()
+            obj.creator = user
+            obj.created = timezone.now()
+            obj.collection = collection
+
+        obj.updated_by = user
+        obj.updated = timezone.now()
+        obj.sample_size = sample_size
+        obj.buffer_size = buffer_size
+        
+        obj.save()
+        logging.info(f'{collection.acron3} - {sample_size} - {buffer_size}')
+        return obj
+    
+    class Meta:
+        verbose_name = _('Collection Validation Parameters')
+        verbose_name_plural = _('Collection Validation Parameters')
 class SupportedLogFile(CommonControlField):
     file_extension = models.CharField(
         verbose_name=_('File Extension'),
