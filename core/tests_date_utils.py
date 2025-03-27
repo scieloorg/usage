@@ -81,6 +81,11 @@ class DateUtilsTests(TestCase):
         )
         self.assertEqual(result, expected)
 
+    def test_extract_minute_second_key(self):
+        dt = datetime(2023, 3, 15, 14, 30, 45)
+        key = extract_minute_second_key(dt)
+        self.assertEqual(key, '30:45')
+
     def test_truncate_datetime_to_hour(self):
         dt = datetime(2023, 3, 15, 14, 30, 45)
         truncated = truncate_datetime_to_hour(dt)
