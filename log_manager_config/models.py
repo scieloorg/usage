@@ -431,3 +431,40 @@ class SupportedLogFile(CommonControlField):
 
     def __str__(self):
         return f'{self.file_extension}'
+
+    @classmethod
+    def load(cls, data, user):
+        for item in data:
+            logging.info(item)
+            cls.create_or_update(
+                user=user,
+                file_extension=item.get('file_extension'),
+                description=item.get('description'),
+            )
+
+    @classmethod
+    def create_or_update(
+        cls,
+        user,
+        file_extension,
+        description,
+    ):
+        try:
+            obj = cls.objects.get(file_extension=file_extension)
+        except cls.DoesNotExist:
+            obj = cls()
+            obj.creator = user
+            obj.created = timezone.now()
+
+        obj.updated_by = user
+        obj.updated = timezone.now()
+        obj.file_extension = file_extension
+        obj.description = description
+        
+        obj.save()
+        logging.info(f'{file_extension}')
+        return obj
+    
+    class Meta:
+        verbose_name = _('Supported Log File')
+        verbose_name_plural = _('Supported Log Files')
