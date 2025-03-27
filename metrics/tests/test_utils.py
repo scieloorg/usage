@@ -32,3 +32,13 @@ class TestUtils(unittest.TestCase):
         media_language = 'en-GB'
         standardized = standardize_media_language(media_language)
         self.assertEqual(standardized, 'en')
+
+    def test_standardize_pid_v3_is_valid(self):
+        pid_v3 = 'jGJccQ7bFdbz6wy3nfXGVdv'
+        standardized = standardize_pid_v3(pid_v3)
+        self.assertEqual(standardized, 'jGJccQ7bFdbz6wy3nfXGVdv')
+
+    def test_standardize_pid_v2_is_valid(self):
+        pid_v2 = 'S0102-67202020000100001'
+        standardized = standardize_pid_v2(pid_v2)
+        self.assertEqual(standardized, 'S0102-67202020000100001')

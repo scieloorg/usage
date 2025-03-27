@@ -101,3 +101,50 @@ def standardize_media_language(media_language: str, threshold=0.75):
 
     # Handle unknown languages
     return 'un'
+
+
+def standardize_pid_v2(pid_v2):
+    """
+    Standardizes a PID v2.
+
+    Parameters:
+    pid_v2 (str): The PID v2 to be standardized.
+
+    Returns:
+    str: The standardized PID v2 or an empty string if the input is not a valid PID v2.
+    """
+    if not pid_v2 or not pid_v2.lower().startswith('s') or len(pid_v2) < 23:
+        return ''
+    
+    if len(pid_v2) == 23:
+        return pid_v2[0].upper() + pid_v2[1:]
+    
+    if len(pid_v2) > 23:
+        return pid_v2[0].upper() + pid_v2[1:23]
+    
+    if len(pid_v2) < 23:
+        return ''
+
+
+def standardize_pid_v3(pid_v3):
+    """
+    Standardizes a PID v3 using langcodes library."
+
+    Parameters:
+    pid_v3 (str): The PID v3 to be standardized.
+
+    Returns:
+    str: The standardized PID v3 or an empty string if the input is not a valid PID v3.
+    """
+
+    if not pid_v3:
+        return ''
+
+    if len(pid_v3) == 23:
+        return pid_v3
+    
+    if len(pid_v3) > 23:
+        return pid_v3[:23]
+    
+    if len(pid_v3) < 23:
+        return ''
