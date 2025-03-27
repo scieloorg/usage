@@ -8,6 +8,8 @@ from log_manager_config.models import (
     CollectionLogDirectory,
     CollectionLogFilesPerDay,
     CollectionEmail,
+    CollectionValidationParameters,
+    CollectionURLTranslatorClass,
     SupportedLogFile,
 )
 
@@ -72,6 +74,35 @@ class CollectionEmailSnippetViewSet(SnippetViewSet):
         "email"
     )
 
+class CollectionValidationParametersSnippetViewSet(SnippetViewSet):
+    model = CollectionValidationParameters
+    menu_label = _("Collection Validation Parameters")
+    icon = "folder"
+    menu_order = 550
+
+    list_display = (
+        "collection",
+        "sample_size",
+        "buffer_size",
+    )
+    list_filter = (
+        "collection",
+    )
+
+class CollectionURLTranslatorClassSnippetViewSet(SnippetViewSet):
+    model = CollectionURLTranslatorClass
+    menu_label = _("Collection URL Translator Class")
+    icon = "folder"
+    menu_order = 600
+
+    list_display = (
+        "collection",
+        "directory",
+        "translator_class",
+    )
+    list_filter = (
+        "collection",
+    )
 
 class SupportedLogFileSnippetViewSet(SnippetViewSet):
     model = SupportedLogFile
@@ -94,6 +125,8 @@ class LogManagerConfigSnippetViewSetGroup(SnippetViewSetGroup):
         CollectionLogDirectorySnippetViewSet,
         CollectionLogFilesPerDaySnippetViewSet,
         CollectionEmailSnippetViewSet,
+        CollectionValidationParametersSnippetViewSet,
+        CollectionURLTranslatorClassSnippetViewSet,
         SupportedLogFileSnippetViewSet,
     )
 

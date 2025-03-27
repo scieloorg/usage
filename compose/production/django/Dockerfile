@@ -80,11 +80,6 @@ RUN sed -i 's/\r$//g' /start-celerybeat
 RUN chmod +x /start-celerybeat
 
 
-COPY ./compose/production/django/celery/flower/start /start-flower
-RUN sed -i 's/\r$//g' /start-flower
-RUN chmod +x /start-flower
-
-
 # copy application code to WORKDIR
 COPY --chown=django:django . ${APP_HOME}
 

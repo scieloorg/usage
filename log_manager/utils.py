@@ -38,7 +38,7 @@ def hash_file(path, num_lines=25):
 
     return md5_hash.hexdigest()
 
-def validate_file(path, sample_size=0.05, buffer_size=2048, days_delta=5, apply_path_validation=True, apply_content_validation=True):
+def validate_file(path, sample_size=0.1, buffer_size=2048, days_delta=5, apply_path_validation=True, apply_content_validation=True):
     return validator.pipeline_validate(
         path=path, 
         sample_size=sample_size,

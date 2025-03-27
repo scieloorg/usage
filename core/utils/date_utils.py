@@ -83,3 +83,42 @@ def get_date_objs_from_date_range(from_date, until_date, format='%Y-%m-%d'):
         current += timedelta(days=1)
 
     return visible_dates
+
+
+def truncate_datetime_to_hour(dt):
+    """
+    Truncates a datetime object to the hour.
+    Parameters:
+    dt (datetime or str): The datetime object or string to be truncated.
+
+    Returns:
+    datetime: The truncated datetime object.
+    """
+    if isinstance(dt, str):
+        try:
+            dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            logging.error("Invalid datetime string format. Expected '%Y-%m-%d %H:%M:%S'.")
+            return None
+
+    return dt.replace(minute=0, second=0, microsecond=0)
+
+
+def extract_minute_second_key(dt):
+    """
+    Extracts a tuple based on the minute and second of a datetime object.
+
+    Parameters:
+    dt (datetime or str): The datetime object or string.
+
+    Returns:
+    str: A string in the format "MM:SS" representing the minute and second.
+    """
+    if isinstance(dt, str):
+        try:
+            dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            logging.error("Invalid datetime string format. Expected '%Y-%m-%d %H:%M:%S'.")
+            return None
+
+    return f"{dt.minute:02}:{dt.second:02}"

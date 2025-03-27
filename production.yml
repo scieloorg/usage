@@ -95,11 +95,6 @@ services:
       - postgres
     command: /start-celerybeat
 
-  flower:
-    <<: *django
-    image: scielo_usage_production_flower
-    command: /start-flower
-
   traefik:
     build:
       context: .

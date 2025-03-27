@@ -10,6 +10,7 @@ from core.utils import date_utils
 from core.utils.utils import _get_user
 from config import celery_app
 from collection.models import Collection
+from log_manager_config.models import CollectionValidationParameters
 from log_manager_config import exceptions as lmc_exceptions, models as lmc_models
 
 from . import (
@@ -57,7 +58,7 @@ def task_search_log_files(self, collections=[], from_date=None, until_date=None,
                         continue
 
                     visible_dates = _get_visible_dates(from_date, until_date, days_to_go_back)
-                    logging.info(f'Visible dates: {visible_dates}')
+                    logging.debug(f'Visible dates: {visible_dates}')
 
                     _add_log_file(user, collection, root, name, visible_dates)
 
@@ -71,7 +72,7 @@ def _add_log_file(user, collection, root, name, visible_dates):
     file_path = os.path.join(root, name)
     file_ctime = date_utils.get_date_obj_from_timestamp(os.stat(file_path).st_ctime)
 
-    logging.info(f'Checking file {file_path} with ctime {file_ctime}.')
+    logging.debug(f'Checking file {file_path} with ctime {file_ctime}.')
     if file_ctime in visible_dates:
         models.LogFile.create_or_update(
             user=user,
@@ -97,8 +98,10 @@ def task_validate_log_files(self, collections=[], user_id=None, username=None):
     for col in collections or Collection.acron3_list():
         for log_file in models.LogFile.objects.filter(status=choices.LOG_FILE_STATUS_CREATED, collection__acron3=col):
             logging.info(f'Validating log file {log_file.path} for collection {log_file.collection.acron3}.')
+
+            buffer_size, sample_size = _fetch_validation_parameters(col)
             
-            val_results = utils.validate_file(path=log_file.path)
+            val_results = utils.validate_file(path=log_file.path, buffer_size=buffer_size, sample_size=sample_size)
             if val_results.get('is_valid', {}).get('all', False):
                 models.LogFileDate.create_or_update(
                     user=user,
@@ -112,6 +115,14 @@ def task_validate_log_files(self, collections=[], user_id=None, username=None):
 
             logging.info(f'Log file {log_file.path} ({log_file.collection.acron3}) has status {log_file.status}.')
             log_file.save()
+
+
+def _fetch_validation_parameters(collection, default_buffer_size=0.1, default_sample_size=2048):
+    col_configs_params = lmc_models.CollectionValidationParameters.objects.filter(collection__acron3=collection).first()
+    if not col_configs_params:
+        logging.warning(f'No CollectionValidationParameters found for collection {collection}. Using default values.')
+        return default_buffer_size, default_sample_size
+    return col_configs_params.buffer_size, col_configs_params.sample_size
 
 
 @celery_app.task(bind=True, name=_('Check missing log files'))

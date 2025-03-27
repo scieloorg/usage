@@ -39,12 +39,15 @@ class ItemAccessSnippetViewSet(SnippetViewSet):
         'country_code',
         'media_language',
         'media_format',
+        'content_type',
+        'click_timestamps',
     )
     list_filter = (
         "item",
         "country_code",
         "media_language",
         "media_format",
+        "content_type",
     )
     search_fields = (
         "item",
