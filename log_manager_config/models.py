@@ -82,6 +82,8 @@ class CollectionLogDirectory(CommonControlField):
         return obj
 
     class Meta:
+        verbose_name = _('Collection Log Directory')
+        verbose_name_plural = _('Collection Log Directories')
         constraints = [
             models.UniqueConstraint(fields=['collection', 'path'], name='unique_collection_path')
         ]
@@ -173,6 +175,8 @@ class CollectionLogFilesPerDay(CommonControlField):
         return obj
 
     class Meta:
+        verbose_name = _('Collection Log Files Per Day')
+        verbose_name_plural = _('Collection Log Files Per Day')
         constraints = [
             models.UniqueConstraint(fields=['collection', 'start_date'], name='unique_collection_start_date')
         ]
@@ -258,6 +262,8 @@ class CollectionEmail(CommonControlField):
         return obj
     
     class Meta:
+        verbose_name = _('Collection Email')
+        verbose_name_plural = _('Collection Emails')
         constraints = [
             models.UniqueConstraint(fields=['collection', 'email'], name='unique_collection_email')
         ]
