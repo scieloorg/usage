@@ -331,6 +331,84 @@ class CollectionValidationParameters(CommonControlField):
     class Meta:
         verbose_name = _('Collection Validation Parameters')
         verbose_name_plural = _('Collection Validation Parameters')
+
+
+class CollectionURLTranslatorClass(CommonControlField):
+    collection = models.ForeignKey(
+        Collection,
+        verbose_name=_('Collection'),
+        on_delete=models.DO_NOTHING,
+    )
+    directory = models.ForeignKey(
+        CollectionLogDirectory,
+        verbose_name=_('Directory'),
+        on_delete=models.DO_NOTHING,
+    )
+    translator_class = models.CharField(
+        verbose_name=_('URL Translator Class'),
+        blank=False,
+        null=False,
+        default='URLTranslatorClassicSite',
+    )
+
+    def __str__(self):
+        return f'{self.collection.acron3} - {self.directory} - {self.translator_class}'
+
+    class Meta:
+        verbose_name = _('Collection URL Translator Class')
+        verbose_name_plural = _('Collection URL Translator Classes')
+        constraints = [
+            models.UniqueConstraint(fields=['collection', 'directory'], name='unique_collection_directory')
+        ]
+
+    @classmethod
+    def load(cls, data, user):
+        for item in data:
+            try:
+                collection = Collection.objects.get(acron3=item.get('acronym'))
+            except Collection.DoesNotExist:
+                logging.warning(f'Collection {item.get("acronym")} not found.')
+                continue
+
+            try:
+                directory = CollectionLogDirectory.objects.get(collection=collection, path=item.get('path'))
+                logging.info(item)
+                cls.create_or_update(
+                    user=user,
+                    collection=collection,
+                    directory=directory,
+                    translator_class=item.get('translator_class'),
+                )
+            except CollectionLogDirectory.DoesNotExist:
+                logging.warning(f'Directory {item.get("path")} not found.')
+                continue
+
+    @classmethod
+    def create_or_update(
+        cls,
+        user,
+        collection,
+        directory,
+        translator_class,
+    ):
+        try:
+            obj = cls.objects.get(collection=collection)
+        except cls.DoesNotExist:
+            obj = cls()
+            obj.creator = user
+            obj.created = timezone.now()
+            obj.collection = collection
+            obj.directory = directory
+
+        obj.updated_by = user
+        obj.updated = timezone.now()
+        obj.translator_class = translator_class
+        
+        obj.save()
+        logging.info(f'{collection.acron3} - {directory.path} - {translator_class}')
+        return obj
+    
+
 class SupportedLogFile(CommonControlField):
     file_extension = models.CharField(
         verbose_name=_('File Extension'),
