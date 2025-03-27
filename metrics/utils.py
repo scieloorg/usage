@@ -1,5 +1,6 @@
 import csv
 import io
+import langcodes
 import tarfile
 
 
@@ -70,3 +71,33 @@ def load_tar_gz(file_path, delimiter='\t'):
                     delimiter=delimiter, 
                     is_stream=True
                 )
+
+
+def standardize_media_language(media_language: str, threshold=0.75):
+    """
+    Standardizes a media language using langcodes library.
+
+    Parameters:
+    media_language (str): The media language to be standardized.
+    threshold (float): The minimum score for a language to be considered valid. Default is 0.75.
+
+    Returns:
+    str: The standardized media language or None if the input is not a valid language tag.
+    """
+    if not media_language:
+        return 'un'
+    
+    if langcodes.tag_is_valid(media_language):
+        return langcodes.standardize_tag(media_language).split('-')[0]
+    
+    # Handle special cases
+    if media_language.lower() == 'esp':
+        return 'es'
+
+    inferred_lang, score = langcodes.best_match(media_language, langcodes.LANGUAGE_ALPHA3.keys())
+
+    if score >= threshold:
+        return langcodes.standardize_tag(inferred_lang).split('-')[0]
+
+    # Handle unknown languages
+    return 'un'
