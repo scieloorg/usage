@@ -2,7 +2,11 @@ from datetime import datetime, timedelta
 
 from django.test import TestCase
 
-from core.utils.date_utils import get_date_range_str
+from core.utils.date_utils import (
+    extract_minute_second_key,
+    get_date_range_str,
+    truncate_datetime_to_hour,
+)
 
 
 class DateUtilsTests(TestCase):
@@ -76,3 +80,8 @@ class DateUtilsTests(TestCase):
             '2025-02-08',
         )
         self.assertEqual(result, expected)
+
+    def test_truncate_datetime_to_hour(self):
+        dt = datetime(2023, 3, 15, 14, 30, 45)
+        truncated = truncate_datetime_to_hour(dt)
+        self.assertEqual(truncated, datetime(2023, 3, 15, 14, 0, 0))
