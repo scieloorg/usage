@@ -170,7 +170,32 @@ class ItemAccess(models.Model):
         max_length=10,
         null=False,
         blank=False,
+        db_index=True,
     )
+
+    content_type = models.CharField(
+        verbose_name=_("Content Type"),
+        max_length=16,
+        null=False,
+        blank=False,
+    )
+
+    click_timestamps = models.JSONField(
+        verbose_name=_("Click Timestamps"),
+        default=dict,
+    )
+
+    def __str__(self):
+        return '|'.join([
+            self.item.collection.acron2,
+            self.item.journal.acronym,
+            self.item.article.pid_v2,
+            self.user_session.user_session(),
+            self.country_code,
+            self.media_language,
+            self.media_format,
+            self.content_type,
+        ])
 
     class Meta:
         verbose_name = _("Item Access")
@@ -181,4 +206,5 @@ class ItemAccess(models.Model):
             'country_code',
             'media_format',
             'media_language',
+            'content_type',
         )
