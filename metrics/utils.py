@@ -193,3 +193,23 @@ def is_valid_item_access_data(data):
     ]):
         return False
     return True
+
+
+def translator_class_name_to_obj(name):
+    """
+    Translates a class name to a class object."
+
+    Parameters:
+        name (str): The name of the URL translator site.
+    """
+    if not name:
+        return None
+    
+    translator_classes = {
+        'classic': URLTranslatorClassicSite,
+        'dataverse': URLTranslatorDataverseSite,
+        'opac': URLTranslatorOPACSite,
+        'opac_alpha': URLTranslatorOPACAlphaSite,
+        'preprints': URLTranslatorPreprintsSite
+    }
+    return translator_classes.get(name.lower())
