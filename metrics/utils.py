@@ -3,6 +3,17 @@ import io
 import langcodes
 import tarfile
 
+from scielo_usage_counter.values import (
+    CONTENT_TYPE_UNDEFINED,
+    MEDIA_FORMAT_UNDEFINED,
+)
+
+from scielo_usage_counter.translator.classic import URLTranslatorClassicSite
+from scielo_usage_counter.translator.dataverse import URLTranslatorDataverseSite
+from scielo_usage_counter.translator.opac import URLTranslatorOPACSite
+from scielo_usage_counter.translator.opac_alpha import URLTranslatorOPACAlphaSite
+from scielo_usage_counter.translator.preprints import URLTranslatorPreprintsSite
+
 
 def get_load_data_function(file_path):
     """
@@ -148,3 +159,37 @@ def standardize_pid_v3(pid_v3):
     
     if len(pid_v3) < 23:
         return ''
+
+
+def is_valid_item_access_data(data):
+    """
+    Validates the item access data based on the provided parameters.
+
+    Parameters:
+        data (dict): A dictionary containing the following keys:
+            - scielo_issn (str): The ISSN of the SciELO journal.
+            - pid_v2 (str): The PID version 2 of the document.
+            - pid_v3 (str): The PID version 3 of the document.
+            - media_format (str): The media format of the document.
+            - content_type (str): The content type of the document.
+
+    Returns:
+        bool: True if the item access data is valid, False otherwise."
+    """
+    if not isinstance(data, dict):
+        return False
+
+    scielo_issn = data.get('scielo_issn')
+    media_format = data.get('media_format')
+    content_type = data.get('content_type')
+    pid_v2 = data.get('pid_v2')
+    pid_v3 = data.get('pid_v3')
+
+    if not all([
+        scielo_issn,
+        media_format and media_format != MEDIA_FORMAT_UNDEFINED,
+        content_type and content_type != CONTENT_TYPE_UNDEFINED,
+        pid_v2 or pid_v3
+    ]):
+        return False
+    return True
