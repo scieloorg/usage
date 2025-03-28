@@ -44,6 +44,8 @@ class ItemAccessSnippetViewSet(SnippetViewSet):
     )
     list_filter = (
         "item",
+        "item__collection",
+        "item__journal",       
         "country_code",
         "media_language",
         "media_format",
