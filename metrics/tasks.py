@@ -15,7 +15,10 @@ from config import celery_app
 from article.models import Article
 from journal.models import Journal
 from log_manager import choices
-from log_manager_config.models import CollectionURLTranslatorClass
+from log_manager_config.models import (
+    CollectionURLTranslatorClass,
+    CollectionLogDirectory,
+)
 from log_manager.models import LogFile
 from resources.models import MMDB, RobotUserAgent
 from tracker.models import LogFileDiscardedLine
@@ -108,16 +111,24 @@ def _setup_parsing_environment(log_file, robots_list, mmdb):
     lp = log_handler.LogParser(mmdb_data=mmdb.data, robots_list=robots_list, output_mode='dict')
     lp.logfile = log_file.path
 
-    try:
-        translator_class = translator_class_name_to_obj(CollectionURLTranslatorClass.objects.get(collection=log_file.collection).translator_class)
-    except CollectionURLTranslatorClass.DoesNotExist:
-        translator_class = None
+    translator_class = None
+    for cld in CollectionLogDirectory.objects.filter(collection=log_file.collection):
+        if cld.path in log_file.path:
+            try:
+                translator_class_name = CollectionURLTranslatorClass.objects.get(collection=log_file.collection, directory=cld).translator_class
+                translator_class = translator_class_name_to_obj(translator_class_name)
+                break
+            except CollectionURLTranslatorClass.DoesNotExist:
+                continue
+
+    if not translator_class:
+        raise Exception(f'No URL translator class found for collection {log_file.collection}.')
 
     logging.info(f'Creating URL translation manager for {log_file.collection}')
     utm = url_translator.URLTranslationManager(
         articles_metadata=Article.metadata(collection=log_file.collection),
         journals_metadata=Journal.metadata(collection=log_file.collection),
-        translator_class=translator_class,
+        translator=translator_class,
     )
     return lp, utm
 
