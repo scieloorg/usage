@@ -54,7 +54,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
 
             article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=jou.scielo_issn, pid_v2=obj.get('code'))
             if created or force_update:
-                article.pdfs = obj.get('pdfs') or {}
+                article.files = obj.get('files') or {}
                 article.processing_date = obj.get('processing_date') or ''
                 article.publication_date = obj.get('publication_date') or ''
                 article.publication_year = obj.get('publication_year') or ''
