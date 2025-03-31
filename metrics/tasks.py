@@ -217,7 +217,9 @@ def _register_item_access(item_access_data, line, log_file):
 
 def _fetch_article(collection, pid_v2, pid_v3, pid_generic, log_file, line):
     try:
-        return Article.objects.get(Q(collection=collection) & (Q(pid_v2=pid_v2) | Q(pid_v3=pid_v3) | Q(pid_generic=pid_generic)))
+        if pid_generic:
+            return Article.objects.get(Q(collection=collection) & Q(pid_generic=pid_generic))
+        return Article.objects.get(Q(collection=collection) & (Q(pid_v2=pid_v2) | Q(pid_v3=pid_v3)))
     except Article.DoesNotExist:
         _log_discarded_line(
             log_file, line,

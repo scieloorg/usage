@@ -6,7 +6,7 @@ from django.utils.translation import gettext as _
 
 from collection.models import Collection
 from config import celery_app
-from core.utils import date_utils
+from core.utils import date_utils, standardizer
 from core.utils.utils import _get_user
 
 from journal.models import Journal
