@@ -175,7 +175,7 @@ class ItemAccess(models.Model):
 
     content_type = models.CharField(
         verbose_name=_("Content Type"),
-        max_length=16,
+        max_length=32,
         null=False,
         blank=False,
     )
