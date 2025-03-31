@@ -196,4 +196,25 @@ def standardize_doi(text):
     if not matched_doi:
         return  
     
-    return matched_doi.group()
+    return matched_doi.group().upper()
+
+
+def standardize_pid_generic(pid_generic):
+    """
+    Standardizes a PID."
+    
+    Parameters:
+    pid_generic (str): The PID to be standardized.
+
+    Returns:
+    str: The standardized PID or an empty string if the input is not a valid PID.
+    """
+
+    if not pid_generic:
+        return ''
+    
+    pid_generic_based_on_doi = standardize_doi(pid_generic)
+    if pid_generic_based_on_doi:
+        return pid_generic_based_on_doi
+    
+    return pid_generic.strip().upper()
