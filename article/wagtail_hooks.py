@@ -20,12 +20,9 @@ class ArticleSnippetViewSet(SnippetViewSet):
         "scielo_issn",
         "pid_v2",
         "pid_v3",
-        "pdfs",
-        "default_lang",
-        "text_langs",
-        "processing_date",
+        "pid_generic",
+        "files",
         "publication_date",
-        "publication_year",
     )
     list_filter = (
         "collection",
@@ -36,6 +33,7 @@ class ArticleSnippetViewSet(SnippetViewSet):
         "scielo_issn",
         "pid_v2",
         "pid_v3",
+        "pid_generic",
     )
 
 register_snippet(ArticleSnippetViewSet)
