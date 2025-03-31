@@ -106,12 +106,13 @@ def is_valid_item_access_data(data):
     content_type = data.get('content_type')
     pid_v2 = data.get('pid_v2')
     pid_v3 = data.get('pid_v3')
+    pid_generic = data.get('pid_generic')
 
     if not all([
         scielo_issn,
         media_format and media_format != MEDIA_FORMAT_UNDEFINED,
         content_type and content_type != CONTENT_TYPE_UNDEFINED,
-        pid_v2 or pid_v3
+        pid_v2 or pid_v3 or pid_generic,
     ]):
         return False
     return True

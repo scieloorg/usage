@@ -7,6 +7,7 @@ from scielo_usage_counter.values import (
     CONTENT_TYPE_UNDEFINED,
     CONTENT_TYPE_FULL_TEXT,
     CONTENT_TYPE_ABSTRACT,
+    SCIELO_ISSN_DEFAULT,
 )
 
 from metrics.utils import is_valid_item_access_data
@@ -80,5 +81,16 @@ class TestUtils(unittest.TestCase):
             'pid_v3': 'jGJccQ7bFdbz6wy3nfXGVdv',
             'media_format': MEDIA_FORMAT_PDF,
             'content_type': CONTENT_TYPE_ABSTRACT
+        }
+        self.assertTrue(is_valid_item_access_data(data))
+
+    def test_is_valid_item_acess_data_dataverse(self):
+        data = {
+            'scielo_issn': SCIELO_ISSN_DEFAULT,
+            'pid_v2': None,
+            'pid_v3': None,
+            'pid_generic': 'DOI:10.48331/SCIELODATA.JLMAIY',
+            'media_format': MEDIA_FORMAT_HTML,
+            'content_type': CONTENT_TYPE_ABSTRACT,
         }
         self.assertTrue(is_valid_item_access_data(data))
