@@ -154,7 +154,7 @@ def _process_line(line, utm, log_file):
         'scielo_issn': translated_url.get('scielo_issn'),
         'pid_v2': standardizer.standardize_pid_v2(translated_url.get('pid_v2')),
         'pid_v3': standardizer.standardize_pid_v3(translated_url.get('pid_v3')),
-        'pid_generic': translated_url.get('pid_generic'),
+        'pid_generic': standardizer.standardize_pid_generic(translated_url.get('pid_generic')),
         'media_language': standardizer.standardize_language_code(translated_url.get('media_language')),
         'media_format': translated_url.get('media_format'),
         'content_type': translated_url.get('content_type'),

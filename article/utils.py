@@ -190,6 +190,9 @@ def fetch_dataverse_metadata(from_date=None, until_date=None):
             files = get_files(dataset_id)
 
             for file in files:
+                file_persistent_id = file["dataFile"].get("persistentId", None)
+                file_persistent_id_stz = standardizer.standardize_pid_generic(file_persistent_id) if file_persistent_id else None
+
                 yield {
                     "title": subdataverse_title,
                     "dataset_doi": doi,
@@ -197,5 +200,5 @@ def fetch_dataverse_metadata(from_date=None, until_date=None):
                     "file_id": file["dataFile"]["id"],
                     "file_name": file["label"],
                     "file_url": f"{DATAVERSE_ENDPOINT}/access/datafile/{file['dataFile']['id']}",
-                    "file_persistent_id": file["dataFile"].get("persistentId", None)
+                    "file_persistent_id": file_persistent_id_stz,
                 }
