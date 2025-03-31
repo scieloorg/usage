@@ -150,3 +150,39 @@ def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None
 
             article.save()
             logging.debug(f'Article {"created" if created else "updated"}: {article}')
+
+
+@celery_app.task(bind=True, name=_('Load dataset metadata from Dataverse'), timelimit=-1)
+def task_load_dataset_metadata_from_dataverse(self, from_date=None, until_date=None, days_to_go_back=None, force_update=True, user_id=None, username=None):
+    user = _get_user(self.request, username=username, user_id=user_id)
+
+    from_date, until_date = date_utils.get_date_range_str(from_date, until_date, days_to_go_back)
+    logging.info(f'Loading dataset metadata from SciELO Data. From: {from_date}, Until: {until_date}')
+
+    col_obj = Collection.objects.get(acron3='data')
+    if not col_obj:
+        logging.error(f'Collection not found: data')
+        return False
+
+    for record in utils.fetch_dataverse_metadata(from_date, until_date):
+        dataset_doi = record.get('dataset_doi')
+        if not dataset_doi:
+            logging.error(f'Dataset DOI not found in record: {record}')
+            continue
+
+        dataset, created = models.Article.objects.get_or_create(collection=col_obj, pid_generic=dataset_doi)
+        if created or force_update:
+            dataset.publication_date = record.get('dataset_published')
+
+            file_persistent_id = record.get('file_persistent_id')
+            file_id = record.get('file_id')
+            file_name = record.get('file_name')
+            file_url = record.get('file_url')
+
+            if file_id:
+                dataset.files[file_id] = {'name': file_name, 'url': file_url, 'file_persisent_id': file_persistent_id}
+
+            dataset.save()
+            logging.debug(f'Dataset {"created" if created else "updated"}: {dataset}')
+
+    return True
