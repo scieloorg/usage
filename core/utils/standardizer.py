@@ -1,4 +1,5 @@
-import logging
+import langcodes
+import re
 
 
 ITEMS_SEP_FOR_LOCATION = [";", ", ", "|", "/"]
@@ -89,3 +90,110 @@ def standardize_name(original):
         if not row:
             continue
         yield {"name": row}
+
+
+def standardize_language_code(language_code: str, threshold=0.75):
+    """
+    Standardizes a media language using langcodes library.
+
+    Parameters:
+    media_language (str): The media language to be standardized.
+    threshold (float): The minimum score for a language to be considered valid. Default is 0.75.
+
+    Returns:
+    str: The standardized media language or None if the input is not a valid language tag.
+    """
+    if not language_code:
+        return 'un'
+    
+    if langcodes.tag_is_valid(language_code):
+        return langcodes.standardize_tag(language_code).split('-')[0]
+    
+    # Handle special cases
+    if language_code.lower() == 'esp':
+        return 'es'
+
+    inferred_lang, score = langcodes.best_match(language_code, langcodes.LANGUAGE_ALPHA3.keys())
+
+    if score >= threshold:
+        return langcodes.standardize_tag(inferred_lang).split('-')[0]
+
+    # Handle unknown languages
+    return 'un'
+
+
+def standardize_pid_v2(pid_v2):
+    """
+    Standardizes a PID v2.
+
+    Parameters:
+    pid_v2 (str): The PID v2 to be standardized.
+
+    Returns:
+    str: The standardized PID v2 or an empty string if the input is not a valid PID v2.
+    """
+    if not pid_v2 or not pid_v2.lower().startswith('s') or len(pid_v2) < 23:
+        return ''
+    
+    if len(pid_v2) == 23:
+        return pid_v2[0].upper() + pid_v2[1:]
+    
+    if len(pid_v2) > 23:
+        return pid_v2[0].upper() + pid_v2[1:23]
+    
+    if len(pid_v2) < 23:
+        return ''
+
+
+def standardize_pid_v3(pid_v3):
+    """
+    Standardizes a PID v3 using langcodes library."
+
+    Parameters:
+    pid_v3 (str): The PID v3 to be standardized.
+
+    Returns:
+    str: The standardized PID v3 or an empty string if the input is not a valid PID v3.
+    """
+
+    if not pid_v3:
+        return ''
+
+    if len(pid_v3) == 23:
+        return pid_v3
+    
+    if len(pid_v3) > 23:
+        return pid_v3[:23]
+    
+    if len(pid_v3) < 23:
+        return ''
+
+
+def standardize_doi(text):
+    """"
+    Standardizes a DOI.
+    
+    Parameters:
+    text (str): The DOI to be standardized.
+
+    Returns:
+    str: The standardized DOI
+    """
+    PATTERNS_DOI = [re.compile(pd) for pd in [
+        r'10.\d{4,9}/[-._;()/:A-Z0-9]+$',
+        r'10.1002/[^\s]+$',
+        r'10.\d{4}/\d+-\d+X?(\d+)\d+<[\d\w]+:[\d\w]*>\d+.\d+.\w+;\d$',
+        r'10.1207/[\w\d]+\&\d+_\d+$',
+        r'10.\d{4,9}/[-._;()/:a-zA-Z0-9]*']
+    ]
+    matched_doi = False
+
+    for pattern_doi in PATTERNS_DOI:
+        matched_doi = pattern_doi.search(text)
+        if matched_doi:
+            break
+
+    if not matched_doi:
+        return  
+    
+    return matched_doi.group()
