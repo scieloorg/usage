@@ -39,8 +39,16 @@ class Article(CommonControlField):
         db_index=True,
     )
 
-    pdfs = models.JSONField(
-        verbose_name=_('Format with Language'),
+    pid_generic = models.CharField(
+        verbose_name=_('PID Generic'),
+        max_length=50,
+        blank=True,
+        null=True,
+        db_index=True,
+    )
+
+    files = models.JSONField(
+        verbose_name=_('Files'),
         null=True,
         blank=True,
         default=dict,
@@ -92,9 +100,10 @@ class Article(CommonControlField):
             yield {
                 'collection': a.collection.acron3,
                 'default_lang': a.default_lang,
-                'pdfs': a.pdfs,
+                'files': a.files,
                 'pid_v2': a.pid_v2,
                 'pid_v3': a.pid_v3,
+                'pid_generic': a.pid_generic,
                 'processing_date': a.processing_date,
                 'publication_date': a.publication_date,
                 'publication_year': a.publication_year,
@@ -110,4 +119,5 @@ class Article(CommonControlField):
             'scielo_issn', 
             'pid_v2',
             'pid_v3',
+            'pid_generic',
         )

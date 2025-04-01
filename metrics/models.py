@@ -36,7 +36,7 @@ class Item(models.Model):
 
     def __str__(self):
         return '|'.join([
-            self.collection.acron2,
+            self.collection.acron3,
             self.journal.acronym,
             self.article.pid_v2,
         ])
@@ -175,7 +175,7 @@ class ItemAccess(models.Model):
 
     content_type = models.CharField(
         verbose_name=_("Content Type"),
-        max_length=16,
+        max_length=32,
         null=False,
         blank=False,
     )
@@ -187,7 +187,7 @@ class ItemAccess(models.Model):
 
     def __str__(self):
         return '|'.join([
-            self.item.collection.acron2,
+            self.item.collection.acron3,
             self.item.journal.acronym,
             self.item.article.pid_v2,
             self.user_session.user_session(),

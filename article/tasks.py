@@ -6,7 +6,7 @@ from django.utils.translation import gettext as _
 
 from collection.models import Collection
 from config import celery_app
-from core.utils import date_utils
+from core.utils import date_utils, standardizer
 from core.utils.utils import _get_user
 
 from journal.models import Journal
@@ -54,7 +54,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
 
             article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=jou.scielo_issn, pid_v2=obj.get('code'))
             if created or force_update:
-                article.pdfs = obj.get('pdfs') or {}
+                article.files = obj.get('files') or {}
                 article.processing_date = obj.get('processing_date') or ''
                 article.publication_date = obj.get('publication_date') or ''
                 article.publication_year = obj.get('publication_year') or ''
@@ -119,12 +119,12 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
     return True
 
 
-@celery_app.task(bind=True, name=_('Load preprint data from Preprints Server'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Load preprint data from SciELO Preprints'), timelimit=-1)
 def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None, days_to_go_back=None, force_update=True, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
 
     from_date, until_date = date_utils.get_date_range_str(from_date, until_date, days_to_go_back)
-    logging.info(f'Loading preprints from Preprints Server. From: {from_date}, Until: {until_date}')
+    logging.info(f'Loading preprints from SciELO Preprints. From: {from_date}, Until: {until_date}')
 
     col_obj = Collection.objects.get(acron3='preprints')
     if not col_obj:
@@ -134,12 +134,11 @@ def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None
     for record in utils.fetch_preprint_oai_pmh(from_date, until_date):
         data = utils.extract_preprint_data(record)
 
-        if not data.get('pid_v2'):
-            logging.error(f'PIDv2 not found in record: {record}')
+        if not data.get('pid_generic'):
+            logging.error(f'Preprint ID not found in record: {record}')
             continue
 
-        # Currently, we are using the record.header.identifier as the PIDv2
-        article, created = models.Article.objects.get_or_create(collection=col_obj, pid_v2=data['pid_v2'])
+        article, created = models.Article.objects.get_or_create(collection=col_obj, pid_generic=data['pid_generic'])
         if created or force_update:
             article.text_langs = data.get('text_langs')
             article.default_lang = data.get('default_language')
@@ -151,3 +150,39 @@ def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None
 
             article.save()
             logging.debug(f'Article {"created" if created else "updated"}: {article}')
+
+
+@celery_app.task(bind=True, name=_('Load dataset metadata from Dataverse'), timelimit=-1)
+def task_load_dataset_metadata_from_dataverse(self, from_date=None, until_date=None, days_to_go_back=None, force_update=True, user_id=None, username=None):
+    user = _get_user(self.request, username=username, user_id=user_id)
+
+    from_date, until_date = date_utils.get_date_range_str(from_date, until_date, days_to_go_back)
+    logging.info(f'Loading dataset metadata from SciELO Data. From: {from_date}, Until: {until_date}')
+
+    col_obj = Collection.objects.get(acron3='data')
+    if not col_obj:
+        logging.error(f'Collection not found: data')
+        return False
+
+    for record in utils.fetch_dataverse_metadata(from_date, until_date):
+        dataset_doi = record.get('dataset_doi')
+        if not dataset_doi:
+            logging.error(f'Dataset DOI not found in record: {record}')
+            continue
+
+        dataset, created = models.Article.objects.get_or_create(collection=col_obj, pid_generic=dataset_doi)
+        if created or force_update:
+            dataset.publication_date = record.get('dataset_published')
+
+            file_persistent_id = record.get('file_persistent_id')
+            file_id = record.get('file_id')
+            file_name = record.get('file_name')
+            file_url = record.get('file_url')
+
+            if file_id:
+                dataset.files[file_id] = {'name': file_name, 'url': file_url, 'file_persisent_id': file_persistent_id}
+
+            dataset.save()
+            logging.debug(f'Dataset {"created" if created else "updated"}: {dataset}')
+
+    return True
