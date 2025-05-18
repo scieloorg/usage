@@ -467,3 +467,8 @@ def _is_valid_log_file_status(collection, date_str):
             return False
     return True
 
+
+def _process_user_sessions(collection, date, date_str, data):
+    for user_session in UserSession.objects.filter(itemaccess__item__collection__acron3=collection, datetime__date=date_str):
+        _process_item_accesses(collection, date, date_str, user_session, data)
+
