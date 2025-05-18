@@ -38,7 +38,7 @@ class Item(models.Model):
         return '|'.join([
             self.collection.acron3,
             self.journal.acronym,
-            self.article.pid_v2,
+            self.article.pid_v2 or self.article.pid_v3 or self.article.pid_generic,
         ])
     
     class Meta:
@@ -189,7 +189,7 @@ class ItemAccess(models.Model):
         return '|'.join([
             self.item.collection.acron3,
             self.item.journal.acronym,
-            self.item.article.pid_v2,
+            self.item.article.pid_v2 or self.item.article.pid_v3 or self.item.article.pid_generic,
             self.user_session.user_session(),
             self.country_code,
             self.media_language,
