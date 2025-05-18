@@ -10,7 +10,6 @@ from core.utils import date_utils
 from core.utils.utils import _get_user
 from config import celery_app
 from collection.models import Collection
-from log_manager_config.models import CollectionValidationParameters
 from log_manager_config import exceptions as lmc_exceptions, models as lmc_models
 
 from . import (
