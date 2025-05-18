@@ -182,3 +182,31 @@ def delete_document(index_name, doc_id, client=None, url=None, basic_auth=None, 
     except NotFoundError as e:
         logging.error(f"Failed to delete document {doc_id} from Elasticsearch: {e}")
 
+
+def delete_documents(index_name, doc_ids, client=None, url=None, basic_auth=None, api_key=None):
+    """
+    Delete multiple documents from Elasticsearch using bulk.
+    :param index_name: Name of the index.
+    :param doc_ids: List of document IDs to delete.
+    :param client: Elasticsearch client instance. If None, a new client will be created.
+    :param url: Elasticsearch URL. If None, it will be taken from Django settings.
+    :param basic_auth: Basic authentication credentials. If None, it will be taken from Django settings.
+    :param api_key: API key. If None, it will be taken from Django settings.
+    """
+    if not client:
+        client = get_elasticsearch_client(url, basic_auth, api_key)
+    
+    actions = (
+        {
+            "_op_type": "delete",
+            "_index": index_name,
+            "_id": doc_id,
+        }
+        for doc_id in doc_ids
+    )
+
+    try:
+        helpers.bulk(client, actions)
+    except helpers.BulkIndexError as e:
+        logging.error(f"BulkIndexError occurred: {e.errors}")
+
