@@ -335,3 +335,72 @@ def task_delete_documents_by_key(self, keys, values, index_name=None, user_id=No
     except Exception as e:
         logging.error(f"Failed to delete documents with keys {keys} and values {values} from index {index_name}: {e}")
 
+
+@celery_app.task(bind=True, name=_('Compute metrics'), timelimit=-1)
+def task_index_documents(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None, bulk_size=5000, replace=False):
+    """
+    Task to compute and index metrics for specified collections within a given date range.
+
+    This task retrieves metrics for the specified collections and indexes them into an Elasticsearch
+    index. The metrics are computed for the provided date range or a range derived from the given
+    parameters.
+
+    Args:
+        collections (list, optional): List of collection identifiers to compute metrics for. Defaults to an empty list.
+        from_date (str, optional): Start date for the metrics computation in 'YYYY-MM-DD' format. Defaults to None.
+        until_date (str, optional): End date for the metrics computation in 'YYYY-MM-DD' format. Defaults to None.
+        days_to_go_back (int, optional): Number of days to go back from the current date to compute metrics. Defaults to None.
+        user_id (int, optional): ID of the user initiating the task. Defaults to None.
+        username (str, optional): Username of the user initiating the task. Defaults to None.
+        bulk_size (int, optional): Number of documents to send in each bulk request to Elasticsearch. Defaults to 5000.
+        replace (bool, optional): If True, replaces existing documents in Elasticsearch. Defaults to False.
+
+    Raises:
+        Exception: Logs errors if bulk indexing to Elasticsearch fails.
+
+    Notes:
+        - If no collections are provided, the task will compute metrics for all collections.
+        - The date range is determined by the combination of `from_date`, `until_date`, and `days_to_go_back`.
+        - Metrics are computed and indexed in bulk to optimize performance.
+    """
+    user = _get_user(self.request, username=username, user_id=user_id)
+
+    if not collections:
+        collections = Collection.acron3_list()
+
+    from_date_str, until_date_str = get_date_range_str(from_date, until_date, days_to_go_back)
+    dates = get_date_objs_from_date_range(from_date_str, until_date_str)
+
+    es_client = get_elasticsearch_client(settings.ES_URL, settings.ES_BASIC_AUTH, settings.ES_API_KEY)
+
+    for collection in collections:
+        logging.info(f'Computing metrics for collection {collection} from {from_date_str} to {until_date_str}')
+
+        bulk_data = []
+
+        for key, metric_data in compute_metrics_for_collection(collection, dates, replace).items():
+            bulk_data.append({
+                "_id": key,
+                "_source": metric_data,
+            })
+
+            if len(bulk_data) >= bulk_size:
+                try:
+                    index_documents(
+                        index_name=settings.ES_INDEX_NAME,
+                        documents={doc["_id"]: doc["_source"] for doc in bulk_data},
+                        client=es_client,
+                    )
+                    bulk_data = []
+                except Exception as e:
+                    logging.error(f"Failed to send bulk metrics to Elasticsearch: {e}")
+
+        if bulk_data:
+            try:
+                index_documents(
+                    index_name=settings.ES_INDEX_NAME,
+                    documents={doc["_id"]: doc["_source"] for doc in bulk_data},
+                    client=es_client,
+                )
+            except Exception as e:
+                logging.error(f"Failed to send remaining bulk metrics to Elasticsearch: {e}")
