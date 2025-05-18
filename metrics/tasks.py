@@ -472,3 +472,38 @@ def _process_user_sessions(collection, date, date_str, data):
     for user_session in UserSession.objects.filter(itemaccess__item__collection__acron3=collection, datetime__date=date_str):
         _process_item_accesses(collection, date, date_str, user_session, data)
 
+
+def _process_item_accesses(collection, date, date_str, user_session, data):
+    for item_access in user_session.itemaccess_set.iterator():
+        if item_access.item.collection.acron3 != collection:
+            continue
+
+        key = _generate_usage_key(
+            collection,
+            item_access.item.journal.scielo_issn,
+            item_access.item.article.pid_v2 or '',
+            item_access.item.article.pid_v3 or '',
+            item_access.item.article.pid_generic or '',
+            item_access.media_language,
+            item_access.country_code,
+            date_str,
+        )
+
+        compute_r5_metrics(
+            key,
+            data,
+            collection,
+            item_access.item.journal.scielo_issn,
+            item_access.item.article.pid_v2 or '',
+            item_access.item.article.pid_v3 or '',
+            item_access.item.article.pid_generic or '',
+            item_access.media_language,
+            item_access.country_code,
+            date_str,
+            date.year,
+            date.month,
+            date.day,
+            item_access.click_timestamps,
+            item_access.content_type,
+        )
+
