@@ -135,3 +135,22 @@ def index_document(index_name, doc_id, document, client=None, url=None, basic_au
         client = get_elasticsearch_client(url, basic_auth, api_key)
     client.index(index=index_name, id=doc_id, document=document)
 
+def delete_document(index_name, doc_id, client=None, url=None, basic_auth=None, api_key=None):
+    """
+    Delete a document from Elasticsearch.
+
+    :param index_name: Name of the index.
+    :param doc_id: ID of the document to delete.
+    :param client: Elasticsearch client instance. If None, a new client will be created.
+    :param url: Elasticsearch URL. If None, it will be taken from Django settings.
+    :param basic_auth: Basic authentication credentials. If None, it will be taken from Django settings.
+    :param api_key: API key. If None, it will be taken from Django settings.
+    """
+    if not client:
+        client = get_elasticsearch_client(url, basic_auth, api_key)
+
+    try:
+        client.delete(index=index_name, id=doc_id)
+    except NotFoundError as e:
+        logging.error(f"Failed to delete document {doc_id} from Elasticsearch: {e}")
+
