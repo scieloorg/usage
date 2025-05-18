@@ -37,15 +37,15 @@ class CollectionLogFileDateCountViewSet(SnippetViewSet):
     list_display = (
         "collection",
         "date",
-        "year",
-        "month",
         "found_log_files",
         "expected_log_files",
         "status",
+        "is_usage_metric_computed",
     )
     list_filter = (
         "collection",
         "status",
+        "is_usage_metric_computed",
         "year",
         "month"
     )
