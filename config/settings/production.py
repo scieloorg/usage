@@ -198,10 +198,3 @@ sentry_sdk.init(
     environment=env("SENTRY_ENVIRONMENT", default="production"),
     traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
 )
-
-# Your stuff...
-# ------------------------------------------------------------------------------
-USE_SOLR = env.bool("USE_SOLR", default=True)
-
-if USE_SOLR:
-    HAYSTACK_SIGNAL_PROCESSOR = "haystack.signals.RealtimeSignalProcessor"
