@@ -404,3 +404,38 @@ def task_index_documents(self, collections=[], from_date=None, until_date=None, 
                 )
             except Exception as e:
                 logging.error(f"Failed to send remaining bulk metrics to Elasticsearch: {e}")
+
+
+def compute_metrics_for_collection(collection, dates, replace=False):
+    """
+    Computes usage metrics for a given collection over a range of dates.
+
+    Args:
+        collection (str): The acronym of the collection for which metrics 
+            are to be computed.
+        dates (list[datetime.date]): A list of dates for which metrics 
+            should be computed.
+        replace (bool, optional): A flag indicating whether to replace 
+            existing metrics. Defaults to False.
+
+    Returns:
+        dict: A dictionary containing computed metrics, keyed by a 
+        generated usage key.
+    """
+    data = {}
+
+    for date in dates:
+        date_str = get_date_str(date)
+
+        if not _is_valid_log_file_status(collection, date_str):
+            continue
+
+        is_valid, clfdc = _is_valid_collection_log_file_date(collection, date_str, replace)
+        if not is_valid:
+            continue
+
+        _process_user_sessions(collection, date, date_str, data)
+        clfdc.is_usage_metric_computed = True
+        clfdc.save()
+
+    return data
