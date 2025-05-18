@@ -440,6 +440,26 @@ def compute_metrics_for_collection(collection, dates, replace=False):
 
     return data
 
+
+def _is_valid_collection_log_file_date(collection, date_str, replace):
+    try:
+        clfdc = CollectionLogFileDateCount.objects.get(date=date_str, collection__acron3=collection)
+
+        if clfdc.status != choices.COLLECTION_LOG_FILE_DATE_COUNT_OK:
+            print(f'CollectionLogFileDateCount status is not OK for {date_str}')
+            return False, None
+
+        if not replace and clfdc.is_usage_metric_computed:
+            print(f'Usage metric already computed for {date_str}')
+            return False, None
+
+        return True, clfdc
+
+    except CollectionLogFileDateCount.DoesNotExist:
+        print(f'CollectionLogFileDateCount does not exist for {date_str}')
+        return False, None
+
+
 def _is_valid_log_file_status(collection, date_str):
     for lfd in LogFileDate.objects.filter(date=date_str, log_file__collection__acron3=collection):
         if lfd.log_file.status not in (choices.LOG_FILE_STATUS_INVALIDATED, choices.LOG_FILE_STATUS_PROCESSED):
