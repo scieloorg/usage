@@ -307,3 +307,31 @@ def task_delete_index(self, index_name, user_id=None, username=None):
     except Exception as e:
         logging.error(f"Failed to delete index {index_name}: {e}")
 
+
+@celery_app.task(bind=True, name=_('Delete documents by key'), timelimit=-1)
+def task_delete_documents_by_key(self, keys, values, index_name=None, user_id=None, username=None):
+    """
+    Deletes documents from Elasticsearch based on the provided keys and values.
+
+    Args:
+        keys (list): List of document keys to delete.
+        values (dict): Additional values to filter documents for deletion. This is required.
+        index_name (str, optional): The name of the Elasticsearch index. Defaults to settings.ES_INDEX_NAME.
+        user_id (int, optional): The ID of the user initiating the task. Defaults to None.
+        username (str, optional): The username of the user initiating the task. Defaults to None.
+
+    Returns:
+        None.
+    """
+    user = _get_user(self.request, username=username, user_id=user_id)
+    es_client = get_elasticsearch_client(settings.ES_URL, settings.ES_BASIC_AUTH, settings.ES_API_KEY)
+
+    if not index_name:
+        index_name = settings.ES_INDEX_NAME
+
+    try:
+        delete_documents_by_key(client=es_client, index_name=index_name, keys=keys, values=values)
+        logging.info(f"Successfully deleted documents with keys: {keys} and values: {values} from index {index_name}.")
+    except Exception as e:
+        logging.error(f"Failed to delete documents with keys {keys} and values {values} from index {index_name}: {e}")
+
