@@ -279,3 +279,31 @@ def task_create_index(self, index_name, mappings=None, user_id=None, username=No
         logging.info(f"Index {index_name} created successfully.")
     except Exception as e:
         logging.error(f"Failed to create index {index_name}: {e}")
+
+
+@celery_app.task(bind=True, name=_('Delete index'), timelimit=-1)
+def task_delete_index(self, index_name, user_id=None, username=None):
+    """
+    Deletes an Elasticsearch index.
+
+    Args:
+        index_name (str): The name of the index to be deleted.
+        user_id (int, optional): The ID of the user initiating the task. Defaults to None.
+        username (str, optional): The username of the user initiating the task. Defaults to None.
+
+    Returns:
+        None.
+    """
+    user = _get_user(self.request, username=username, user_id=user_id)
+    es_client = get_elasticsearch_client(settings.ES_URL, settings.ES_BASIC_AUTH, settings.ES_API_KEY)
+
+    try:
+        if not es_client.indices.exists(index=index_name):
+            logging.info(f"Index {index_name} does not exist.")
+            return
+
+        es_client.indices.delete(index=index_name)
+        logging.info(f"Index {index_name} deleted successfully.")
+    except Exception as e:
+        logging.error(f"Failed to delete index {index_name}: {e}")
+
