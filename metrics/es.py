@@ -210,3 +210,31 @@ def delete_documents(index_name, doc_ids, client=None, url=None, basic_auth=None
     except helpers.BulkIndexError as e:
         logging.error(f"BulkIndexError occurred: {e.errors}")
 
+
+def delete_documents_by_key(index_name, key, values, client=None, url=None, basic_auth=None, api_key=None):
+    """
+    Delete multiple documents from Elasticsearch based on a specific key and its values.
+
+    :param index_name: Name of the index.
+    :param key: Key to search for in the documents.
+    :param values: List of values to match against the key.
+    :param client: Elasticsearch client instance. If None, a new client will be created.
+    :param url: Elasticsearch URL. If None, it will be taken from Django settings.
+    :param basic_auth: Basic authentication credentials. If None, it will be taken from Django settings.
+    :param api_key: API key. If None, it will be taken from Django settings.
+    """
+    if not client:
+        client = get_elasticsearch_client(url, basic_auth, api_key)
+
+    query = {
+        "query": {
+            "terms": {
+                key: values
+            }
+        }
+    }
+
+    try:
+        client.delete_by_query(index=index_name, body=query)
+    except Exception as e:
+        logging.error(f"Failed to delete documents by key {key} with values {values}: {e}")
