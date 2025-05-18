@@ -117,3 +117,21 @@ def delete_index(index_name, client=None, url=None, basic_auth=None, api_key=Non
     if not client:
         client = get_elasticsearch_client(url, basic_auth, api_key)
     client.indices.delete(index=index_name)
+
+
+def index_document(index_name, doc_id, document, client=None, url=None, basic_auth=None, api_key=None):
+    """
+    Index a document in Elasticsearch.
+
+    :param index_name: Name of the index.
+    :param doc_id: ID of the document.
+    :param document: Document to index.
+    :param client: Elasticsearch client instance. If None, a new client will be created.
+    :param url: Elasticsearch URL. If None, it will be taken from Django settings.
+    :param basic_auth: Basic authentication credentials. If None, it will be taken from Django settings.
+    :param api_key: API key. If None, it will be taken from Django settings.
+    """
+    if not client:
+        client = get_elasticsearch_client(url, basic_auth, api_key)
+    client.index(index=index_name, id=doc_id, document=document)
+
