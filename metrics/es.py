@@ -102,3 +102,18 @@ def create_index(index_name, mappings=None, client=None, url=None, basic_auth=No
         mappings=mappings,
     )
     logging.info(f"Index {index_name} created: {resp}")
+
+
+def delete_index(index_name, client=None, url=None, basic_auth=None, api_key=None):
+    """
+    Delete an Elasticsearch index.
+
+    :param index_name: Name of the index to delete.
+    :param client: Elasticsearch client instance. If None, a new client will be created.
+    :param url: Elasticsearch URL. If None, it will be taken from Django settings.
+    :param basic_auth: Basic authentication credentials. If None, it will be taken from Django settings.
+    :param api_key: API key. If None, it will be taken from Django settings.
+    """
+    if not client:
+        client = get_elasticsearch_client(url, basic_auth, api_key)
+    client.indices.delete(index=index_name)
