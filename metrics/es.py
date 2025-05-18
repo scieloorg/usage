@@ -4,13 +4,14 @@ from django.conf import settings
 import logging
 
 
-def get_elasticsearch_client(url=None, basic_auth=None, api_key=None):
+def get_elasticsearch_client(url=None, basic_auth=None, api_key=None, verify_certs=False):
     """
     Create an Elasticsearch client instance using Django settings.
 
     :param url: Elasticsearch URL. If None, it will be taken from Django settings.
     :param basic_auth: Basic authentication credentials. If None, it will be taken from Django settings.
     :param api_key: API key. If None, it will be taken from Django settings.
+    :param verify_certs: Whether to verify SSL certificates. If None, it will be taken from Django settings.
     """
     if not url:
         url = getattr(settings, "ES_URL", None)
@@ -21,12 +22,15 @@ def get_elasticsearch_client(url=None, basic_auth=None, api_key=None):
     if not api_key:
         api_key = getattr(settings, "ES_API_KEY", None)
 
+    if not verify_certs:
+        verify_certs = getattr(settings, "ES_VERIFY_CERTS", False)
+
     if basic_auth:
-        client = Elasticsearch(url, basic_auth=basic_auth)
+        client = Elasticsearch(url, basic_auth=basic_auth, verify_certs=verify_certs)
     elif api_key:
-        client = Elasticsearch(url, api_key=api_key)
+        client = Elasticsearch(url, api_key=api_key, verify_certs=verify_certs)
     else:
-        client = Elasticsearch(url)
+        client = Elasticsearch(url, verify_certs=verify_certs)
 
     return client
 
