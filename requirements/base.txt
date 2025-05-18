@@ -66,8 +66,10 @@ reverse-geocode==1.6  # https://pypi.org/project/reverse-geocode/
 -e git+https://github.com/scieloorg/scielo_log_validator@0.4.0#egg=scielo_log_validator
 
 # SciELO Usage COUNTER
+-e git+https://github.com/scieloorg/scielo_usage_counter@1.4.0#egg=scielo_usage_counter
+
+# Device Detector
 device-detector==0.10  # https://github.com/thinkwelltwd/device_detector
--e git+https://github.com/scieloorg/scielo_usage_counter@1.3.0#egg=scielo_usage_counter
 
 # langcodes
 # ------------------------------------------------------------------------------
@@ -83,14 +85,6 @@ packtools@https://github.com/scieloorg/packtools/archive/refs/tags/3.3.3.zip
 # ------------------------------------------------------------------------------
 Sickle==0.7.0
 
-# Solr
-# ------------------------------------------------------------------------------
-django_haystack==3.3.0
-
-# PySolr
-# ------------------------------------------------------------------------------
-pysolr==3.9.0
-
 # Tenacity
 # ------------------------------------------------------------------------------
 tenacity==8.3.0  # https://pypi.org/project/tenacity/
@@ -98,3 +92,7 @@ tenacity==8.3.0  # https://pypi.org/project/tenacity/
 # Articlemeta API
 # ------------------------------------------------------------------------------
 articlemetaapi==1.26.7
+
+# ElasticSearch
+# ------------------------------------------------------------------------------
+elasticsearch==8.18.1  # https://elasticsearch-py.readthedocs.io/en/v8.18.1/

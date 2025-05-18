@@ -123,12 +123,18 @@ class CollectionLogFileDateCount(CommonControlField):
         blank=True,
         null=True,
     )
+
+    is_usage_metric_computed = models.BooleanField(
+        verbose_name=_('Is Usage Metric Computed'),
+        default=False,
+    )
     
     status = models.CharField(
         verbose_name=_('Status'),
         choices=choices.COLLECTION_LOG_FILE_DATE_COUNT,
         max_length=3,
     )
+
     def set_status(self):
         if self.found_log_files < self.expected_log_files:
             self.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES
@@ -176,6 +182,7 @@ class CollectionLogFileDateCount(CommonControlField):
         FieldPanel('found_log_files'),
         FieldPanel('expected_log_files'),
         FieldPanel('status'),
+        FieldPanel('is_usage_metric_computed'),
     ]
 
     def __str__(self):

@@ -1,12 +1,17 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils.translation import gettext as _
 
 from scielo_usage_counter import log_handler
 from scielo_usage_counter import url_translator
+from scielo_usage_counter.counter import compute_r5_metrics
 
 from core.utils.utils import _get_user
 from core.utils.date_utils import (
+    get_date_str,
+    get_date_range_str,
+    get_date_objs_from_date_range,
     extract_minute_second_key,
     truncate_datetime_to_hour,
 )
@@ -14,16 +19,19 @@ from config import celery_app
 
 from article.models import Article
 from core.utils import standardizer
+from collection.models import Collection
 from journal.models import Journal
 from log_manager import choices
 from log_manager_config.models import (
     CollectionURLTranslatorClass,
     CollectionLogDirectory,
 )
-from log_manager.models import LogFile
+from log_manager.models import LogFile, CollectionLogFileDateCount, LogFileDate
 from resources.models import MMDB, RobotUserAgent
 from tracker.models import LogFileDiscardedLine
 from tracker import choices as tracker_choices
+
+from .es import create_index, delete_documents_by_key, index_documents, get_elasticsearch_client
 
 from .utils import (
     is_valid_item_access_data,
@@ -243,3 +251,285 @@ def _fetch_journal(collection, scielo_issn, log_file, line):
 
 def _log_discarded_line(log_file, line, error_type, message):
     LogFileDiscardedLine.create(log_file=log_file, data=line, error_type=error_type, message=message)
+
+
+@celery_app.task(bind=True, name=_('Create index'), timelimit=-1)
+def task_create_index(self, index_name, mappings=None, user_id=None, username=None):
+    """
+    Creates an Elasticsearch index with the specified settings and mappings.
+
+    Args:
+        index_name (str): The name of the index to be created.
+        mappings (dict, optional): The mappings for the index. Defaults to None.
+        user_id (int, optional): The ID of the user initiating the task. Defaults to None.
+        username (str, optional): The username of the user initiating the task. Defaults to None.
+
+    Returns:
+        None.
+    """
+    user = _get_user(self.request, username=username, user_id=user_id)
+    es_client = get_elasticsearch_client(settings.ES_URL, settings.ES_BASIC_AUTH, settings.ES_API_KEY)
+
+    try:
+        if es_client.indices.exists(index=index_name):
+            logging.info(f"Index {index_name} already exists.")
+            return
+
+        create_index(client=es_client, index_name=index_name, mappings=mappings)
+        logging.info(f"Index {index_name} created successfully.")
+    except Exception as e:
+        logging.error(f"Failed to create index {index_name}: {e}")
+
+
+@celery_app.task(bind=True, name=_('Delete index'), timelimit=-1)
+def task_delete_index(self, index_name, user_id=None, username=None):
+    """
+    Deletes an Elasticsearch index.
+
+    Args:
+        index_name (str): The name of the index to be deleted.
+        user_id (int, optional): The ID of the user initiating the task. Defaults to None.
+        username (str, optional): The username of the user initiating the task. Defaults to None.
+
+    Returns:
+        None.
+    """
+    user = _get_user(self.request, username=username, user_id=user_id)
+    es_client = get_elasticsearch_client(settings.ES_URL, settings.ES_BASIC_AUTH, settings.ES_API_KEY)
+
+    try:
+        if not es_client.indices.exists(index=index_name):
+            logging.info(f"Index {index_name} does not exist.")
+            return
+
+        es_client.indices.delete(index=index_name)
+        logging.info(f"Index {index_name} deleted successfully.")
+    except Exception as e:
+        logging.error(f"Failed to delete index {index_name}: {e}")
+
+
+@celery_app.task(bind=True, name=_('Delete documents by key'), timelimit=-1)
+def task_delete_documents_by_key(self, keys, values, index_name=None, user_id=None, username=None):
+    """
+    Deletes documents from Elasticsearch based on the provided keys and values.
+
+    Args:
+        keys (list): List of document keys to delete.
+        values (dict): Additional values to filter documents for deletion. This is required.
+        index_name (str, optional): The name of the Elasticsearch index. Defaults to settings.ES_INDEX_NAME.
+        user_id (int, optional): The ID of the user initiating the task. Defaults to None.
+        username (str, optional): The username of the user initiating the task. Defaults to None.
+
+    Returns:
+        None.
+    """
+    user = _get_user(self.request, username=username, user_id=user_id)
+    es_client = get_elasticsearch_client(settings.ES_URL, settings.ES_BASIC_AUTH, settings.ES_API_KEY)
+
+    if not index_name:
+        index_name = settings.ES_INDEX_NAME
+
+    try:
+        delete_documents_by_key(client=es_client, index_name=index_name, keys=keys, values=values)
+        logging.info(f"Successfully deleted documents with keys: {keys} and values: {values} from index {index_name}.")
+    except Exception as e:
+        logging.error(f"Failed to delete documents with keys {keys} and values {values} from index {index_name}: {e}")
+
+
+@celery_app.task(bind=True, name=_('Compute metrics'), timelimit=-1)
+def task_index_documents(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None, bulk_size=5000, replace=False):
+    """
+    Task to compute and index metrics for specified collections within a given date range.
+
+    This task retrieves metrics for the specified collections and indexes them into an Elasticsearch
+    index. The metrics are computed for the provided date range or a range derived from the given
+    parameters.
+
+    Args:
+        collections (list, optional): List of collection identifiers to compute metrics for. Defaults to an empty list.
+        from_date (str, optional): Start date for the metrics computation in 'YYYY-MM-DD' format. Defaults to None.
+        until_date (str, optional): End date for the metrics computation in 'YYYY-MM-DD' format. Defaults to None.
+        days_to_go_back (int, optional): Number of days to go back from the current date to compute metrics. Defaults to None.
+        user_id (int, optional): ID of the user initiating the task. Defaults to None.
+        username (str, optional): Username of the user initiating the task. Defaults to None.
+        bulk_size (int, optional): Number of documents to send in each bulk request to Elasticsearch. Defaults to 5000.
+        replace (bool, optional): If True, replaces existing documents in Elasticsearch. Defaults to False.
+
+    Raises:
+        Exception: Logs errors if bulk indexing to Elasticsearch fails.
+
+    Notes:
+        - If no collections are provided, the task will compute metrics for all collections.
+        - The date range is determined by the combination of `from_date`, `until_date`, and `days_to_go_back`.
+        - Metrics are computed and indexed in bulk to optimize performance.
+    """
+    user = _get_user(self.request, username=username, user_id=user_id)
+
+    if not collections:
+        collections = Collection.acron3_list()
+
+    from_date_str, until_date_str = get_date_range_str(from_date, until_date, days_to_go_back)
+    dates = get_date_objs_from_date_range(from_date_str, until_date_str)
+
+    es_client = get_elasticsearch_client(settings.ES_URL, settings.ES_BASIC_AUTH, settings.ES_API_KEY)
+
+    for collection in collections:
+        logging.info(f'Computing metrics for collection {collection} from {from_date_str} to {until_date_str}')
+
+        bulk_data = []
+
+        for key, metric_data in compute_metrics_for_collection(collection, dates, replace).items():
+            bulk_data.append({
+                "_id": key,
+                "_source": metric_data,
+            })
+
+            if len(bulk_data) >= bulk_size:
+                try:
+                    index_documents(
+                        index_name=settings.ES_INDEX_NAME,
+                        documents={doc["_id"]: doc["_source"] for doc in bulk_data},
+                        client=es_client,
+                    )
+                    bulk_data = []
+                except Exception as e:
+                    logging.error(f"Failed to send bulk metrics to Elasticsearch: {e}")
+
+        if bulk_data:
+            try:
+                index_documents(
+                    index_name=settings.ES_INDEX_NAME,
+                    documents={doc["_id"]: doc["_source"] for doc in bulk_data},
+                    client=es_client,
+                )
+            except Exception as e:
+                logging.error(f"Failed to send remaining bulk metrics to Elasticsearch: {e}")
+
+
+def compute_metrics_for_collection(collection, dates, replace=False):
+    """
+    Computes usage metrics for a given collection over a range of dates.
+
+    Args:
+        collection (str): The acronym of the collection for which metrics 
+            are to be computed.
+        dates (list[datetime.date]): A list of dates for which metrics 
+            should be computed.
+        replace (bool, optional): A flag indicating whether to replace 
+            existing metrics. Defaults to False.
+
+    Returns:
+        dict: A dictionary containing computed metrics, keyed by a 
+        generated usage key.
+    """
+    data = {}
+
+    for date in dates:
+        date_str = get_date_str(date)
+
+        if not _is_valid_log_file_status(collection, date_str):
+            continue
+
+        is_valid, clfdc = _is_valid_collection_log_file_date(collection, date_str, replace)
+        if not is_valid:
+            continue
+
+        _process_user_sessions(collection, date, date_str, data)
+        clfdc.is_usage_metric_computed = True
+        clfdc.save()
+
+    return data
+
+
+def _is_valid_collection_log_file_date(collection, date_str, replace):
+    try:
+        clfdc = CollectionLogFileDateCount.objects.get(date=date_str, collection__acron3=collection)
+
+        if clfdc.status != choices.COLLECTION_LOG_FILE_DATE_COUNT_OK:
+            print(f'CollectionLogFileDateCount status is not OK for {date_str}')
+            return False, None
+
+        if not replace and clfdc.is_usage_metric_computed:
+            print(f'Usage metric already computed for {date_str}')
+            return False, None
+
+        return True, clfdc
+
+    except CollectionLogFileDateCount.DoesNotExist:
+        print(f'CollectionLogFileDateCount does not exist for {date_str}')
+        return False, None
+
+
+def _is_valid_log_file_status(collection, date_str):
+    for lfd in LogFileDate.objects.filter(date=date_str, log_file__collection__acron3=collection):
+        if lfd.log_file.status not in (choices.LOG_FILE_STATUS_INVALIDATED, choices.LOG_FILE_STATUS_PROCESSED):
+            print(f'LogFile status is not PROCESSED for {date_str}')
+            return False
+    return True
+
+
+def _process_user_sessions(collection, date, date_str, data):
+    for user_session in UserSession.objects.filter(itemaccess__item__collection__acron3=collection, datetime__date=date_str):
+        _process_item_accesses(collection, date, date_str, user_session, data)
+
+
+def _process_item_accesses(collection, date, date_str, user_session, data):
+    for item_access in user_session.itemaccess_set.iterator():
+        if item_access.item.collection.acron3 != collection:
+            continue
+
+        key = _generate_usage_key(
+            collection,
+            item_access.item.journal.scielo_issn,
+            item_access.item.article.pid_v2 or '',
+            item_access.item.article.pid_v3 or '',
+            item_access.item.article.pid_generic or '',
+            item_access.media_language,
+            item_access.country_code,
+            date_str,
+        )
+
+        compute_r5_metrics(
+            key,
+            data,
+            collection,
+            item_access.item.journal.scielo_issn,
+            item_access.item.article.pid_v2 or '',
+            item_access.item.article.pid_v3 or '',
+            item_access.item.article.pid_generic or '',
+            item_access.media_language,
+            item_access.country_code,
+            date_str,
+            date.year,
+            date.month,
+            date.day,
+            item_access.click_timestamps,
+            item_access.content_type,
+        )
+
+
+def _generate_usage_key(collection, journal, pid_v2, pid_v3, pid_generic, media_language, country_code, date_str):
+    """"
+    Generates a unique key for the given parameters.
+
+    :param collection: collection acrononym with 3 characters
+    :param journal: journal ISSN (e.g., scielo_issn)
+    :param pid_v2: PID v2
+    :param pid_v3: PID v3
+    :param pid_generic: generic PID
+    :param media_language: media language
+    :param country_code: country code
+    :param date_str: date string in the format YYYY-MM-DD
+
+    :return: a string that uniquely identifies the combination of parameters
+    """
+    return '|'.join([
+        collection,
+        journal,
+        pid_v2 or '',
+        pid_v3 or '',
+        pid_generic or '',
+        media_language,
+        country_code,
+        date_str
+    ])

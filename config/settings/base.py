@@ -108,7 +108,6 @@ THIRD_PARTY_APPS = [
     "wagtailcaptcha",
     "wagtailmenus",
     "rest_framework",
-    "haystack",
 ]
 
 LOCAL_APPS = [
@@ -403,35 +402,11 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
-# django haystack
-# ------------------------------------------------------------------------------
-HAYSTACK_CONNECTIONS = {
-    "default": {
-        "ENGINE": "haystack.backends.solr_backend.SolrEngine",
-        "URL": "%s%s" % (env("SOLR_URL", default="http://solr:8983/solr/"), "metrics"),
-        "ADMIN_URL": "http://solr:8983/solr/admin/cores",
-        "SILENTLY_FAIL": False,
-        "SOLR_TIMEOUT": 10,
-    },
-    "metrics": {
-        "ENGINE": "haystack.backends.solr_backend.SolrEngine",
-        "URL": "%s%s" % (env("SOLR_URL", default="http://solr:8983/solr/"), "metrics"),
-        "ADMIN_URL": "http://solr:8983/solr/admin/cores",
-        "SILENTLY_FAIL": False,
-        "SOLR_TIMEOUT": 10,
-    },
-    "log_manager": {
-        "ENGINE": "haystack.backends.solr_backend.SolrEngine",
-        "URL": "%s%s" % (env("SOLR_URL", default="http://solr:8983/solr/"), "log_manager"),
-        "ADMIN_URL": "http://solr:8983/solr/admin/cores",
-        "SILENTLY_FAIL": False,
-        "SOLR_TIMEOUT": 10,
-    },
-}
-
-USE_SOLR = env.bool("USE_SOLR", default=False)
-
-if USE_SOLR:
-    HAYSTACK_SIGNAL_PROCESSOR = "haystack.signals.RealtimeSignalProcessor"
-
 SEARCH_PAGINATION_ITEMS_PER_PAGE = 10
+
+# Elasticsearch
+# ------------------------------------------------------------------------------
+ES_URL = env("ES_URL", default="http://192.168.0.33:9200/")
+ES_INDEX_NAME = env("ES_INDEX_NAME", default="usage-daily")
+ES_API_KEY = env("ES_API_KEY", default="")
+ES_BASIC_AUTH = env("ES_BASIC_AUTH", default=("elastic", "iHktg66E"))
