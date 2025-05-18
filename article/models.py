@@ -91,7 +91,7 @@ class Article(CommonControlField):
     )
 
     def __str__(self):
-        return f'{self.collection.acron3} - {self.scielo_issn} - {self.pid_v2}'
+        return f'{self.collection.acron3} - {self.scielo_issn} - {self.pid_v2 or self.pid_v3 or self.pid_generic}'
 
     @classmethod
     def metadata(cls, collection=None):
