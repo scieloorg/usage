@@ -135,6 +135,34 @@ def index_document(index_name, doc_id, document, client=None, url=None, basic_au
         client = get_elasticsearch_client(url, basic_auth, api_key)
     client.index(index=index_name, id=doc_id, document=document)
 
+
+def index_documents(index_name, documents, client=None, url=None, basic_auth=None, api_key=None):
+    """
+    Index multiple documents in Elasticsearch.
+
+    :param index_name: Name of the index.
+    :param documents: Dictionary of documents to index, where keys are document IDs and values are the documents.
+    :param client: Elasticsearch client instance. If None, a new client will be created.
+    :param url: Elasticsearch URL. If None, it will be taken from Django settings.
+    :param basic_auth: Basic authentication credentials. If None, it will be taken from Django settings.
+    :param api_key: API key. If None, it will be taken from Django settings.
+    """
+    if not client:
+        client = get_elasticsearch_client(url, basic_auth, api_key)
+    
+    helpers.bulk(
+        client,
+        (
+            {
+                "_index": index_name,
+                "_id": doc_id,
+                "_source": document,
+            }
+            for doc_id, document in documents.items()
+        ),
+    )
+
+
 def delete_document(index_name, doc_id, client=None, url=None, basic_auth=None, api_key=None):
     """
     Delete a document from Elasticsearch.
