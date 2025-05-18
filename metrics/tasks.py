@@ -439,3 +439,11 @@ def compute_metrics_for_collection(collection, dates, replace=False):
         clfdc.save()
 
     return data
+
+def _is_valid_log_file_status(collection, date_str):
+    for lfd in LogFileDate.objects.filter(date=date_str, log_file__collection__acron3=collection):
+        if lfd.log_file.status not in (choices.LOG_FILE_STATUS_INVALIDATED, choices.LOG_FILE_STATUS_PROCESSED):
+            print(f'LogFile status is not PROCESSED for {date_str}')
+            return False
+    return True
+
