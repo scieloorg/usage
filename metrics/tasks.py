@@ -1,12 +1,17 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils.translation import gettext as _
 
 from scielo_usage_counter import log_handler
 from scielo_usage_counter import url_translator
+from scielo_usage_counter.counter import compute_r5_metrics
 
 from core.utils.utils import _get_user
 from core.utils.date_utils import (
+    get_date_str,
+    get_date_range_str,
+    get_date_objs_from_date_range,
     extract_minute_second_key,
     truncate_datetime_to_hour,
 )
@@ -14,16 +19,19 @@ from config import celery_app
 
 from article.models import Article
 from core.utils import standardizer
+from collection.models import Collection
 from journal.models import Journal
 from log_manager import choices
 from log_manager_config.models import (
     CollectionURLTranslatorClass,
     CollectionLogDirectory,
 )
-from log_manager.models import LogFile
+from log_manager.models import LogFile, CollectionLogFileDateCount, LogFileDate
 from resources.models import MMDB, RobotUserAgent
 from tracker.models import LogFileDiscardedLine
 from tracker import choices as tracker_choices
+
+from .es import create_index, delete_documents_by_key, index_documents, get_elasticsearch_client
 
 from .utils import (
     is_valid_item_access_data,
@@ -243,3 +251,31 @@ def _fetch_journal(collection, scielo_issn, log_file, line):
 
 def _log_discarded_line(log_file, line, error_type, message):
     LogFileDiscardedLine.create(log_file=log_file, data=line, error_type=error_type, message=message)
+
+
+@celery_app.task(bind=True, name=_('Create index'), timelimit=-1)
+def task_create_index(self, index_name, mappings=None, user_id=None, username=None):
+    """
+    Creates an Elasticsearch index with the specified settings and mappings.
+
+    Args:
+        index_name (str): The name of the index to be created.
+        mappings (dict, optional): The mappings for the index. Defaults to None.
+        user_id (int, optional): The ID of the user initiating the task. Defaults to None.
+        username (str, optional): The username of the user initiating the task. Defaults to None.
+
+    Returns:
+        None.
+    """
+    user = _get_user(self.request, username=username, user_id=user_id)
+    es_client = get_elasticsearch_client(settings.ES_URL, settings.ES_BASIC_AUTH, settings.ES_API_KEY)
+
+    try:
+        if es_client.indices.exists(index=index_name):
+            logging.info(f"Index {index_name} already exists.")
+            return
+
+        create_index(client=es_client, index_name=index_name, mappings=mappings)
+        logging.info(f"Index {index_name} created successfully.")
+    except Exception as e:
+        logging.error(f"Failed to create index {index_name}: {e}")
