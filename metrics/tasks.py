@@ -507,3 +507,29 @@ def _process_item_accesses(collection, date, date_str, user_session, data):
             item_access.content_type,
         )
 
+
+def _generate_usage_key(collection, journal, pid_v2, pid_v3, pid_generic, media_language, country_code, date_str):
+    """"
+    Generates a unique key for the given parameters.
+
+    :param collection: collection acrononym with 3 characters
+    :param journal: journal ISSN (e.g., scielo_issn)
+    :param pid_v2: PID v2
+    :param pid_v3: PID v3
+    :param pid_generic: generic PID
+    :param media_language: media language
+    :param country_code: country code
+    :param date_str: date string in the format YYYY-MM-DD
+
+    :return: a string that uniquely identifies the combination of parameters
+    """
+    return '|'.join([
+        collection,
+        journal,
+        pid_v2 or '',
+        pid_v3 or '',
+        pid_generic or '',
+        media_language,
+        country_code,
+        date_str
+    ])
