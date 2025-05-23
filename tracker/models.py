@@ -16,6 +16,53 @@ from tracker import choices
 from .exceptions import *
 
 
+class ArticleEvent(CommonControlField):
+    event_type = models.CharField(
+        _("Event Type"),
+        choices=choices.ARTICLE_EVENT_TYPE,
+        max_length=3,
+        null=True,
+        blank=True,
+    )
+
+    message = models.TextField(
+        _("Message"),
+        null=True,
+        blank=True,
+    )
+
+    data = models.JSONField(
+        _("Data"),
+        default=dict,
+    )
+
+    handled = models.BooleanField(
+        _("Handled"),
+        default=False
+    )
+
+    @classmethod
+    def create(cls, event_type, message, data, user):
+        try:
+            obj = cls()
+            obj.creator = user
+            obj.created = datetime.now(datetime.timezone.utc)
+            obj.updated_by = user
+            obj.updated = obj.created
+            obj.event_type = event_type
+            obj.message = message
+            obj.data = data
+            obj.save()
+        except Exception as exc:
+            raise ArticleEventError(
+                f"Unable to create ArticleEvent ({data} - {event_type} - {message}). EXCEPTION {exc}"
+            )
+        return obj
+        
+    def __str__(self):
+        return f"{self.event_type} - {self.message}"
+
+
 class LogFileDiscardedLine(CommonControlField):
     log_file = models.ForeignKey(
         LogFile, 
