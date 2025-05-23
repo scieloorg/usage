@@ -2,14 +2,19 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.db import DataError
 from django.utils.translation import gettext as _
 
 from collection.models import Collection
 from config import celery_app
-from core.utils import date_utils, standardizer
+from core.utils import date_utils
 from core.utils.utils import _get_user
 
 from journal.models import Journal
+
+from tracker.models import ArticleEvent
+from tracker.choices import ARTICLE_EVENT_TYPE_MULTIPLE_OBJS_RETURNED, ARTICLE_EVENT_TYPE_DATA_ERROR
+
 from . import models, utils
 
 
@@ -52,17 +57,36 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
                 logging.info(f'Collection not found: {obj.get("collection")}')
                 continue
 
-            article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=jou.scielo_issn, pid_v2=obj.get('code'))
-            if created or force_update:
-                article.files = obj.get('files') or {}
-                article.processing_date = obj.get('processing_date') or ''
-                article.publication_date = obj.get('publication_date') or ''
-                article.publication_year = obj.get('publication_year') or ''
-                article.default_lang = obj.get('default_language') or ''
-                article.text_langs = obj.get('text_langs') or ''
+            try:
+                article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=jou.scielo_issn, pid_v2=obj.get('code'))
+                if created or force_update:
+                    article.files = obj.get('files') or {}
+                    article.processing_date = obj.get('processing_date') or ''
+                    article.publication_date = obj.get('publication_date') or ''
+                    article.publication_year = obj.get('publication_year') or ''
+                    article.default_lang = obj.get('default_language') or ''
+                    article.text_langs = obj.get('text_langs') or ''
 
-            article.save()
-            logging.info(f'Article {"created" if created else "updated"}: {article}')
+                article.save()
+                logging.info(f'Article {"created" if created else "updated"}: {article}')
+            except article.MultipleObjectsReturned as e:
+                logging.error(f'Error getting Article: {e}. Collection: {col_obj}, ISSN: {jou.scielo_issn}, PIDv2: {obj.get("code")}')
+                ArticleEvent.create(
+                    user=user,
+                    event_type=ARTICLE_EVENT_TYPE_MULTIPLE_OBJS_RETURNED,
+                    message=f'Error getting Article: {e}. Collection: {col_obj}, ISSN: {jou.scielo_issn}, PIDv2: {obj.get("code")}',
+                    data=obj
+                )
+                continue
+            except DataError as e:
+                logging.error(f'Error saving Article: {e}. Collection: {col_obj}, ISSN: {jou.scielo_issn}, PIDv2: {obj.get("code")}')
+                ArticleEvent.create(
+                    user=user,
+                    event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
+                    message=f'Error saving Article: {e}. Collection: {col_obj}, ISSN: {jou.scielo_issn}, PIDv2: {obj.get("code")}',
+                    data=obj
+                )
+                continue
 
         offset += limit
 
@@ -94,8 +118,14 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
 
             try:
                 article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=journal.scielo_issn, pid_v2=doc.get('pid_v2'))
-            except Exception as e:
-                logging.error(f'Error creating Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
+            except article.MultipleObjectsReturned as e:
+                logging.error(f'Error getting Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
+                ArticleEvent.create(
+                    user=user,
+                    event_type=ARTICLE_EVENT_TYPE_MULTIPLE_OBJS_RETURNED,
+                    message=f'Error creating Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}',
+                    data=doc
+                )
                 continue
 
             if created or force_update:
@@ -109,8 +139,18 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
                     except IndexError:
                         article.publication_year = ''
 
-                article.save()
-                logging.debug(f'Article {"created" if created else "updated"}: {article}')            
+                try:
+                    article.save()
+                    logging.debug(f'Article {"created" if created else "updated"}: {article}')            
+                except DataError as e:
+                    logging.error(f'Error saving Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
+                    ArticleEvent.create(
+                        user=user,
+                        event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
+                        message=f'Error saving Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}',
+                        data=doc
+                    )
+                    continue
 
         page += 1
         if page > int(response.get('pages', 0)):
@@ -138,18 +178,37 @@ def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None
             logging.error(f'Preprint ID not found in record: {record}')
             continue
 
-        article, created = models.Article.objects.get_or_create(collection=col_obj, pid_generic=data['pid_generic'])
-        if created or force_update:
-            article.text_langs = data.get('text_langs')
-            article.default_lang = data.get('default_language')
-            article.publication_date = data.get('publication_date')
-            article.publication_year = data.get('publication_year')
-            
-            # Preprints do not have a scielo_issn yet
-            article.scielo_issn = '0000-0000'
+        try:
+            article, created = models.Article.objects.get_or_create(collection=col_obj, pid_generic=data['pid_generic'])
+            if created or force_update:
+                article.text_langs = data.get('text_langs')
+                article.default_lang = data.get('default_language')
+                article.publication_date = data.get('publication_date')
+                article.publication_year = data.get('publication_year')
+                
+                # Preprints do not have a scielo_issn yet
+                article.scielo_issn = '0000-0000'
 
-            article.save()
-            logging.debug(f'Article {"created" if created else "updated"}: {article}')
+                article.save()
+                logging.debug(f'Article {"created" if created else "updated"}: {article}')
+        except models.Article.MultipleObjectsReturned as e:
+            logging.error(f'Error creating Article: {e}. Collection: {col_obj}, PID: {data["pid_generic"]}')
+            ArticleEvent.create(
+                user=user,
+                event_type=ARTICLE_EVENT_TYPE_MULTIPLE_OBJS_RETURNED,
+                message=f'Error creating Article: {e}. Collection: {col_obj}, PID: {data["pid_generic"]}',
+                data=data
+            )
+            continue
+        except DataError as e:
+            logging.error(f'Error saving Article: {e}. Collection: {col_obj}, PID: {data["pid_generic"]}')
+            ArticleEvent.create(
+                user=user,
+                event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
+                message=f'Error saving Article: {e}. Collection: {col_obj}, PID: {data["pid_generic"]}',
+                data=data
+            )
+            continue
 
 
 @celery_app.task(bind=True, name=_('Load dataset metadata from Dataverse'), timelimit=-1)
@@ -170,19 +229,38 @@ def task_load_dataset_metadata_from_dataverse(self, from_date=None, until_date=N
             logging.error(f'Dataset DOI not found in record: {record}')
             continue
 
-        dataset, created = models.Article.objects.get_or_create(collection=col_obj, pid_generic=dataset_doi)
-        if created or force_update:
-            dataset.publication_date = record.get('dataset_published')
+        try:
+            dataset, created = models.Article.objects.get_or_create(collection=col_obj, pid_generic=dataset_doi)
+            if created or force_update:
+                dataset.publication_date = record.get('dataset_published')
 
-            file_persistent_id = record.get('file_persistent_id')
-            file_id = record.get('file_id')
-            file_name = record.get('file_name')
-            file_url = record.get('file_url')
+                file_persistent_id = record.get('file_persistent_id')
+                file_id = record.get('file_id')
+                file_name = record.get('file_name')
+                file_url = record.get('file_url')
 
-            if file_id:
-                dataset.files[file_id] = {'name': file_name, 'url': file_url, 'file_persisent_id': file_persistent_id}
+                if file_id:
+                    dataset.files[file_id] = {'name': file_name, 'url': file_url, 'file_persisent_id': file_persistent_id}
 
-            dataset.save()
-            logging.debug(f'Dataset {"created" if created else "updated"}: {dataset}')
+                dataset.save()
+                logging.debug(f'Dataset {"created" if created else "updated"}: {dataset}')
+        except models.Article.MultipleObjectsReturned as e:
+            logging.error(f'Error creating Dataset: {e}. Collection: {col_obj}, PID: {dataset_doi}')
+            ArticleEvent.create(
+                user=user,
+                event_type=ARTICLE_EVENT_TYPE_MULTIPLE_OBJS_RETURNED,
+                message=f'Error creating Dataset: {e}. Collection: {col_obj}, PID: {dataset_doi}',
+                data=record
+            )
+            continue
+        except DataError as e:
+            logging.error(f'Error saving Dataset: {e}. Collection: {col_obj}, PID: {dataset_doi}')
+            ArticleEvent.create(
+                user=user,
+                event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
+                message=f'Error saving Dataset: {e}. Collection: {col_obj}, PID: {dataset_doi}',
+                data=record
+            )
+            continue
 
     return True

@@ -21,3 +21,6 @@ class EventReportDeleteEventsError(Exception):
 
 class LogFileDiscardedLineCreateError(Exception):
     ...
+
+class ArticleEventError(Exception):
+    ...
