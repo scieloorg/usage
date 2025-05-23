@@ -4,7 +4,7 @@ from wagtail.snippets.models import register_snippet
 
 from config.menu import get_menu_order
 
-from .models import LogFileDiscardedLine, UnexpectedEvent
+from .models import UnexpectedEvent, LogFileDiscardedLine, ArticleEvent
 
 
 class UnexpectedEventSnippetViewSet(SnippetViewSet):
@@ -64,6 +64,35 @@ class LogFileDiscardedLineSnippetViewSet(SnippetViewSet):
         "handled",
     )
 
+class ArticleEventSnippetViewSet(SnippetViewSet):
+    model = ArticleEvent
+    menu_label = _("Article Events")
+    icon = 'warning'
+    menu_order = get_menu_order("tracker")
+    add_to_admin_menu = False
+
+    list_display = (
+        "event_type",
+        "message",
+        "data",
+        "handled",
+    )
+
+    list_filter = (
+        "event_type",
+        "handled",
+    )
+
+    search_fields = (
+        "message",
+    )
+    inspect_view_fields = (
+        "event_type",
+        "message",
+        "data",
+        "handled",
+    )
+
 
 class TrackerSnippetViewSetGroup(SnippetViewSetGroup):
     menu_name = 'tracker'
@@ -74,6 +103,7 @@ class TrackerSnippetViewSetGroup(SnippetViewSetGroup):
     items = (
         UnexpectedEventSnippetViewSet,
         LogFileDiscardedLineSnippetViewSet,
+        ArticleEventSnippetViewSet,
     )
 
 
