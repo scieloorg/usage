@@ -72,7 +72,6 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
             except models.Article.MultipleObjectsReturned as e:
                 logging.error(f'Error getting Article: {e}. Collection: {col_obj}, ISSN: {jou.scielo_issn}, PIDv2: {obj.get("code")}')
                 ArticleEvent.create(
-                    user=user,
                     event_type=ARTICLE_EVENT_TYPE_MULTIPLE_OBJS_RETURNED,
                     message=f'Error getting Article: {e}. Collection: {col_obj}, ISSN: {jou.scielo_issn}, PIDv2: {obj.get("code")}',
                     data=obj
@@ -81,7 +80,6 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
             except DataError as e:
                 logging.error(f'Error saving Article: {e}. Collection: {col_obj}, ISSN: {jou.scielo_issn}, PIDv2: {obj.get("code")}')
                 ArticleEvent.create(
-                    user=user,
                     event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
                     message=f'Error saving Article: {e}. Collection: {col_obj}, ISSN: {jou.scielo_issn}, PIDv2: {obj.get("code")}',
                     data=obj
@@ -121,7 +119,6 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
             except models.Article.MultipleObjectsReturned as e:
                 logging.error(f'Error getting Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
                 ArticleEvent.create(
-                    user=user,
                     event_type=ARTICLE_EVENT_TYPE_MULTIPLE_OBJS_RETURNED,
                     message=f'Error creating Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}',
                     data=doc
@@ -145,7 +142,6 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
                 except DataError as e:
                     logging.error(f'Error saving Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
                     ArticleEvent.create(
-                        user=user,
                         event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
                         message=f'Error saving Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}',
                         data=doc
@@ -194,7 +190,6 @@ def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None
         except models.Article.MultipleObjectsReturned as e:
             logging.error(f'Error creating Article: {e}. Collection: {col_obj}, PID: {data["pid_generic"]}')
             ArticleEvent.create(
-                user=user,
                 event_type=ARTICLE_EVENT_TYPE_MULTIPLE_OBJS_RETURNED,
                 message=f'Error creating Article: {e}. Collection: {col_obj}, PID: {data["pid_generic"]}',
                 data=data
@@ -203,7 +198,6 @@ def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None
         except DataError as e:
             logging.error(f'Error saving Article: {e}. Collection: {col_obj}, PID: {data["pid_generic"]}')
             ArticleEvent.create(
-                user=user,
                 event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
                 message=f'Error saving Article: {e}. Collection: {col_obj}, PID: {data["pid_generic"]}',
                 data=data
@@ -247,7 +241,6 @@ def task_load_dataset_metadata_from_dataverse(self, from_date=None, until_date=N
         except models.Article.MultipleObjectsReturned as e:
             logging.error(f'Error creating Dataset: {e}. Collection: {col_obj}, PID: {dataset_doi}')
             ArticleEvent.create(
-                user=user,
                 event_type=ARTICLE_EVENT_TYPE_MULTIPLE_OBJS_RETURNED,
                 message=f'Error creating Dataset: {e}. Collection: {col_obj}, PID: {dataset_doi}',
                 data=record
@@ -256,7 +249,6 @@ def task_load_dataset_metadata_from_dataverse(self, from_date=None, until_date=N
         except DataError as e:
             logging.error(f'Error saving Dataset: {e}. Collection: {col_obj}, PID: {dataset_doi}')
             ArticleEvent.create(
-                user=user,
                 event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
                 message=f'Error saving Dataset: {e}. Collection: {col_obj}, PID: {dataset_doi}',
                 data=record

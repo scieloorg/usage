@@ -42,13 +42,9 @@ class ArticleEvent(CommonControlField):
     )
 
     @classmethod
-    def create(cls, event_type, message, data, user):
+    def create(cls, event_type, message, data):
         try:
             obj = cls()
-            obj.creator = user
-            obj.created = datetime.now(datetime.timezone.utc)
-            obj.updated_by = user
-            obj.updated = obj.created
             obj.event_type = event_type
             obj.message = message
             obj.data = data
