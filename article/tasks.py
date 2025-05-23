@@ -69,7 +69,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
 
                 article.save()
                 logging.info(f'Article {"created" if created else "updated"}: {article}')
-            except article.MultipleObjectsReturned as e:
+            except models.Article.MultipleObjectsReturned as e:
                 logging.error(f'Error getting Article: {e}. Collection: {col_obj}, ISSN: {jou.scielo_issn}, PIDv2: {obj.get("code")}')
                 ArticleEvent.create(
                     user=user,
@@ -118,7 +118,7 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
 
             try:
                 article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=journal.scielo_issn, pid_v2=doc.get('pid_v2'))
-            except article.MultipleObjectsReturned as e:
+            except models.Article.MultipleObjectsReturned as e:
                 logging.error(f'Error getting Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
                 ArticleEvent.create(
                     user=user,
