@@ -29,7 +29,7 @@ def get_date_obj(date_str: str, format: str = "%Y-%m-%d") -> datetime.date:
     try:
         return datetime.strptime(date_str, format).date()
     except (ValueError, TypeError):
-        logging.error("Invalid date format. Use YYYY-MM-DD.")
+        ...
 
 
 def get_date_range_str(from_date_str: str = None, until_date_str: str = None, days_to_go_back: int = None) -> tuple[str, str]:
