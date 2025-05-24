@@ -61,6 +61,7 @@ class LogFileSnippetViewSet(SnippetViewSet):
         "stat_result",
         "collection", 
         "status", 
+        "validation",
         "hash"
     )
     list_filter = ("status", "collection")

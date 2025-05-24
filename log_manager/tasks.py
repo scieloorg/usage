@@ -1,7 +1,9 @@
 import logging
+import json
 import os
 
 from django.conf import settings
+from django.core.serializers.json import DjangoJSONEncoder
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext as _
@@ -19,6 +21,8 @@ from . import (
     utils,
 )
 
+
+LOGFILE_STAT_RESULT_CTIME_INDEX = 9
 
 User = get_user_model()
 
@@ -83,37 +87,60 @@ def _add_log_file(user, collection, root, name, visible_dates):
 
 
 @celery_app.task(bind=True, name=_('Validate log files'), timelimit=-1)
-def task_validate_log_files(self, collections=[], user_id=None, username=None):
+def task_validate_log_files(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None, ignore_date=False):
     """
     Task to validate log files in the database.
 
     Parameters:
         collections (list, optional): List of collection acronyms. Defaults to [].
+        from_date (str, optional): The start date for log discovery in YYYY-MM-DD format. Defaults to None.
+        until_date (str, optional): The end date for log discovery in YYYY-MM-DD format. Defaults to None.
+        days_to_go_back (int, optional): The number of days to go back from today for log discovery. Defaults to None.
         user_id (int, optional): The ID of the user initiating the task. Defaults to None.
         username (str, optional): The username of the user initiating the task. Defaults to None.
+        ignore_date (bool, optional): If True, ignore the date of the log file. Defaults to False.
     """
     user = _get_user(self.request, username=username, user_id=user_id)
 
+    logging.info(f'Validating log files for collections: {collections}.')
+
+    visible_dates = _get_visible_dates(from_date, until_date, days_to_go_back)
+
+    if not ignore_date:
+        logging.info(f'Interval: {visible_dates[0]} to {visible_dates[-1]}.')
+
     for col in collections or Collection.acron3_list():
         for log_file in models.LogFile.objects.filter(status=choices.LOG_FILE_STATUS_CREATED, collection__acron3=col):
-            logging.info(f'Validating log file {log_file.path} for collection {log_file.collection.acron3}.')
+            file_ctime = date_utils.get_date_obj_from_timestamp(log_file.stat_result[LOGFILE_STAT_RESULT_CTIME_INDEX])
+            if file_ctime in visible_dates or ignore_date:
+                logging.info(f'Validating log file {log_file.path} for collection {log_file.collection.acron3}.')
 
-            buffer_size, sample_size = _fetch_validation_parameters(col)
-            
-            val_results = utils.validate_file(path=log_file.path, buffer_size=buffer_size, sample_size=sample_size)
-            if val_results.get('is_valid', {}).get('all', False):
-                models.LogFileDate.create_or_update(
-                    user=user,
-                    log_file=log_file,
-                    date=val_results.get('probably_date', ''),
-                )
-                log_file.status = choices.LOG_FILE_STATUS_QUEUED
+                buffer_size, sample_size = _fetch_validation_parameters(col)
+                
+                val_result = utils.validate_file(path=log_file.path, buffer_size=buffer_size, sample_size=sample_size)
+                if 'datetimes' in val_result.get('content', {}).get('summary', {}):
+                    del val_result['content']['summary']['datetimes']
 
-            else:
-                log_file.status = choices.LOG_FILE_STATUS_INVALIDATED
+                try:
+                    log_file.validation['result'] = json.dumps(val_result, cls=DjangoJSONEncoder) if val_result else {}
+                    log_file.validation['parameters'] = {'buffer_size': buffer_size, 'sample_size': sample_size}
+                except json.JSONDecodeError as e:
+                    logging.error(f'Error serializing validation result: {e}')
+                    log_file.validation = {}
 
-            logging.info(f'Log file {log_file.path} ({log_file.collection.acron3}) has status {log_file.status}.')
-            log_file.save()
+                if val_result.get('is_valid', {}).get('all', False):
+                    models.LogFileDate.create_or_update(
+                        user=user,
+                        log_file=log_file,
+                        date=val_result.get('probably_date', ''),
+                    )
+                    log_file.status = choices.LOG_FILE_STATUS_QUEUED
+
+                else:
+                    log_file.status = choices.LOG_FILE_STATUS_INVALIDATED
+
+                logging.info(f'Log file {log_file.path} ({log_file.collection.acron3}) has status {log_file.status}.')
+                log_file.save()
 
 
 def _fetch_validation_parameters(collection, default_buffer_size=0.1, default_sample_size=2048):
@@ -170,30 +197,51 @@ def _check_missing_logs_for_date(user, collection, date):
 
 
 @celery_app.task(bind=True, name=_('Generate log files count report'))
-def task_log_files_count_status_report(self, collection, user_id=None, username=None):
-    col = models.Collection.objects.get(acron3=collection)
-    subject = _(f'Log Files Report for {col.main_name}')
-    
-    message = _(f'Dear collection {col.main_name},\n\nThis message is to inform you of the results of the Usage Log Validation service. Here are the results:\n\n')
-    
-    missing = models.CollectionLogFileDateCount.objects.filter(collection__acron3=collection, status=choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES)
-    extra = models.CollectionLogFileDateCount.objects.filter(collection__acron3=collection, status=choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES)
-    ok = models.CollectionLogFileDateCount.objects.filter(collection__acron3=collection, status=choices.COLLECTION_LOG_FILE_DATE_COUNT_OK)
+def task_log_files_count_status_report(self, collections=[], from_date=None, until_date=None, user_id=None, username=None):
+    from_date, until_date = date_utils.get_date_range_str(from_date, until_date)
+    possible_dates_n = len(date_utils.get_date_objs_from_date_range(from_date, until_date))
 
-    if missing.count() > 0:
-        message += _(f'There are {missing.count()} missing log files.\n')
-    if extra.count() > 0:
-        message += _(f'There are {extra.count()} extra log files.\n')
-    if ok.count() > 0:
-        message += _(f'There are {ok.count()} dates with correct log files.\n')
+    from_date_obj = date_utils.get_date_obj(from_date)
+    until_date_obj = date_utils.get_date_obj(until_date)
 
-    if missing.count() > 0 or extra.count() > 0:
-        message += _(f'\nPlease check the script that shares the logs.\n')
+    for collection in collections or Collection.acron3_list():
+        col = models.Collection.objects.get(acron3=collection)
+        subject = _(f'Usage Log Validation Results ({from_date} to {until_date})')
+        message = _(f'This message provides the results of the Usage Log Validation for the period {from_date} to {until_date}:\n\n')
         
-    message += _(f'\nYou can view the complete report results at {settings.WAGTAILADMIN_BASE_URL}/admin/snippets/log_manager/collectionlogfiledatecount/?collection={col.pk}>.')
+        missing = models.CollectionLogFileDateCount.objects.filter(
+            collection__acron3=collection,
+            status=choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES,
+            date__gte=from_date_obj,
+            date__lte=until_date_obj,
+        )
+        extra = models.CollectionLogFileDateCount.objects.filter(
+            collection__acron3=collection, 
+            status=choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES,
+            date__gte=from_date_obj,
+            date__lte=until_date_obj,
+        )
+        ok = models.CollectionLogFileDateCount.objects.filter(
+            collection__acron3=collection, 
+            status=choices.COLLECTION_LOG_FILE_DATE_COUNT_OK,
+            date__gte=from_date_obj,
+            date__lte=until_date_obj,
+        )
 
-    logging.info(f'Sending email to collection {col.main_name}. Subject: {subject}. Message: {message}')
-    _send_message(subject, message, collection)
+        if missing.count() > 0:
+            message += _(f'- There are {missing.count()} missing log files.\n')
+        if extra.count() > 0:
+            message += _(f'- There are {extra.count()} extra log files.\n')
+        if ok.count() > 0:
+            message += _(f'- There are {ok.count()} dates with correct log files.\n')
+
+        if missing.count() > 0 or extra.count() > 0:
+            message += _(f'\nPlease review the script responsible for sharing the log files.\n')
+            
+        message += _(f'\nYou can view the full report at {settings.WAGTAILADMIN_BASE_URL}/admin/snippets/log_manager/collectionlogfiledatecount/?collection={col.pk}>.')
+
+        logging.info(f'Sending email to collection {col.main_name}. Subject: {subject}. Message: {message}')
+        _send_message(subject, message, collection)
 
 
 def _send_message(subject, message, collection):
