@@ -107,7 +107,7 @@ EMAIL_SUBJECT_PREFIX = env(
 # Admin URL regex.
 DJANGO_ADMIN_URL = env("DJANGO_ADMIN_URL")
 # https://docs.wagtail.org/en/stable/reference/settings.html#wagtailadmin-base-url
-WAGTAILADMIN_BASE_URL = env("WAGTAIL_ADMIN_URL")
+WAGTAILADMIN_BASE_URL = env("WAGTAILADMIN_BASE_URL")
 
 # Anymail
 # ------------------------------------------------------------------------------
