@@ -204,6 +204,13 @@ class LogFile(CommonControlField):
         null=False,
     )
 
+    validation = models.JSONField(
+        _("Validation"), 
+        null=True, 
+        blank=True,
+        default=dict,
+    )
+
     collection = models.ForeignKey(
         Collection,
         verbose_name=_("Collection"),
@@ -217,6 +224,7 @@ class LogFile(CommonControlField):
         FieldPanel('path'),
         FieldPanel('stat_result'),
         FieldPanel('status'),
+        FieldPanel('validation'),
         AutocompletePanel('collection'),
     ]
 
