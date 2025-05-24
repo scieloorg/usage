@@ -116,6 +116,22 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
 
             try:
                 article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=journal.scielo_issn, pid_v2=doc.get('pid_v2'))
+
+                if created or force_update:
+                    article.pid_v3 = doc.get('pid_v3') or ''
+                    if not created:
+                        article.pid_v2 = doc.get('pid_v2') or ''
+                        article.publication_date = doc.get('publication_date') or ''
+                        article.default_lang = doc.get('default_language') or ''
+            
+                        try:
+                            article.publication_year = article.publication_date[:4]
+                        except IndexError:
+                            article.publication_year = ''
+
+                article.save()
+                logging.info(f'Article {"created" if created else "updated"}: {article}')
+
             except models.Article.MultipleObjectsReturned as e:
                 logging.error(f'Error getting Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
                 ArticleEvent.create(
@@ -124,29 +140,14 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
                     data=doc
                 )
                 continue
-
-            if created or force_update:
-                article.pid_v3 = doc.get('pid_v3') or ''
-                if not created:
-                    article.pid_v2 = doc.get('pid_v2') or ''
-                    article.publication_date = doc.get('publication_date') or ''
-                    article.default_lang = doc.get('default_language') or ''
-                    try:
-                        article.publication_year = article.publication_date[:4]
-                    except IndexError:
-                        article.publication_year = ''
-
-                try:
-                    article.save()
-                    logging.debug(f'Article {"created" if created else "updated"}: {article}')            
-                except DataError as e:
-                    logging.error(f'Error saving Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
-                    ArticleEvent.create(
-                        event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
-                        message=f'Error saving Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}',
-                        data=doc
-                    )
-                    continue
+            except DataError as e:
+                logging.error(f'Error saving Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}')
+                ArticleEvent.create(
+                    event_type=ARTICLE_EVENT_TYPE_DATA_ERROR,
+                    message=f'Error saving Article: {e}. Collection: {col_obj}, Journal: {journal.scielo_issn}, PIDv2: {doc.get("pid_v2")}',
+                    data=doc
+                )
+                continue
 
         page += 1
         if page > int(response.get('pages', 0)):
