@@ -197,30 +197,51 @@ def _check_missing_logs_for_date(user, collection, date):
 
 
 @celery_app.task(bind=True, name=_('Generate log files count report'))
-def task_log_files_count_status_report(self, collection, user_id=None, username=None):
-    col = models.Collection.objects.get(acron3=collection)
-    subject = _(f'Log Files Report for {col.main_name}')
-    
-    message = _(f'Dear collection {col.main_name},\n\nThis message is to inform you of the results of the Usage Log Validation service. Here are the results:\n\n')
-    
-    missing = models.CollectionLogFileDateCount.objects.filter(collection__acron3=collection, status=choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES)
-    extra = models.CollectionLogFileDateCount.objects.filter(collection__acron3=collection, status=choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES)
-    ok = models.CollectionLogFileDateCount.objects.filter(collection__acron3=collection, status=choices.COLLECTION_LOG_FILE_DATE_COUNT_OK)
+def task_log_files_count_status_report(self, collections=[], from_date=None, until_date=None, user_id=None, username=None):
+    from_date, until_date = date_utils.get_date_range_str(from_date, until_date)
+    possible_dates_n = len(date_utils.get_date_objs_from_date_range(from_date, until_date))
 
-    if missing.count() > 0:
-        message += _(f'There are {missing.count()} missing log files.\n')
-    if extra.count() > 0:
-        message += _(f'There are {extra.count()} extra log files.\n')
-    if ok.count() > 0:
-        message += _(f'There are {ok.count()} dates with correct log files.\n')
+    from_date_obj = date_utils.get_date_obj(from_date)
+    until_date_obj = date_utils.get_date_obj(until_date)
 
-    if missing.count() > 0 or extra.count() > 0:
-        message += _(f'\nPlease check the script that shares the logs.\n')
+    for collection in collections or Collection.acron3_list():
+        col = models.Collection.objects.get(acron3=collection)
+        subject = _(f'Usage Log Validation Results ({from_date} to {until_date})')
+        message = _(f'This message provides the results of the Usage Log Validation for the period {from_date} to {until_date}:\n\n')
         
-    message += _(f'\nYou can view the complete report results at {settings.WAGTAILADMIN_BASE_URL}/admin/snippets/log_manager/collectionlogfiledatecount/?collection={col.pk}>.')
+        missing = models.CollectionLogFileDateCount.objects.filter(
+            collection__acron3=collection,
+            status=choices.COLLECTION_LOG_FILE_DATE_COUNT_MISSING_FILES,
+            date__gte=from_date_obj,
+            date__lte=until_date_obj,
+        )
+        extra = models.CollectionLogFileDateCount.objects.filter(
+            collection__acron3=collection, 
+            status=choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES,
+            date__gte=from_date_obj,
+            date__lte=until_date_obj,
+        )
+        ok = models.CollectionLogFileDateCount.objects.filter(
+            collection__acron3=collection, 
+            status=choices.COLLECTION_LOG_FILE_DATE_COUNT_OK,
+            date__gte=from_date_obj,
+            date__lte=until_date_obj,
+        )
 
-    logging.info(f'Sending email to collection {col.main_name}. Subject: {subject}. Message: {message}')
-    _send_message(subject, message, collection)
+        if missing.count() > 0:
+            message += _(f'- There are {missing.count()} missing log files.\n')
+        if extra.count() > 0:
+            message += _(f'- There are {extra.count()} extra log files.\n')
+        if ok.count() > 0:
+            message += _(f'- There are {ok.count()} dates with correct log files.\n')
+
+        if missing.count() > 0 or extra.count() > 0:
+            message += _(f'\nPlease review the script responsible for sharing the log files.\n')
+            
+        message += _(f'\nYou can view the full report at {settings.WAGTAILADMIN_BASE_URL}/admin/snippets/log_manager/collectionlogfiledatecount/?collection={col.pk}>.')
+
+        logging.info(f'Sending email to collection {col.main_name}. Subject: {subject}. Message: {message}')
+        _send_message(subject, message, collection)
 
 
 def _send_message(subject, message, collection):
