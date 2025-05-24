@@ -74,8 +74,6 @@ def task_parse_logs(self, collections=[], from_date=None, until_date=None, user_
                 logging.debug(f'Log file {lf.path} does not have a valid probably date.')
                 continue
 
-            print(probably_date, from_date_obj, until_date_obj)
-
             if probably_date <= from_date_obj or probably_date >= until_date_obj:
                 continue
 
