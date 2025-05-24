@@ -9,6 +9,7 @@ from scielo_usage_counter.counter import compute_r5_metrics
 
 from core.utils.utils import _get_user
 from core.utils.date_utils import (
+    get_date_obj,
     get_date_str,
     get_date_range_str,
     get_date_objs_from_date_range,
@@ -40,27 +41,65 @@ from .utils import (
 from .models import UserAgent, UserSession, Item, ItemAccess
 
 import logging
+import json
 
 
 User = get_user_model()
 
+
 @celery_app.task(bind=True, name=_('Compute access'), timelimit=-1)
-def task_parse_logs(self, collection, user_id=None, username=None):
+def task_parse_logs(self, collections=[], from_date=None, until_date=None, user_id=None, username=None):
     """
     Parses log files associated with a given collection.
 
     Args:
-        collection (str): Acronym associated with the collection for which logs are being parsed.
+        collections (list, optional): List of collection acronyms to parse logs for. Defaults to all collections.
+        from_date (str, optional): Start date for log parsing in 'YYYY-MM-DD' format. Defaults to None.
+        until_date (str, optional): End date for log parsing in 'YYYY-MM-DD' format. Defaults to None.
         user_id
         username
 
     Returns:
         None.
-    """    
-    for lf in LogFile.objects.filter(status=choices.LOG_FILE_STATUS_QUEUED, collection__acron3=collection):
-        logging.info(f'PARSING file {lf.path}')
-        task_parse_log.apply_async(args=(lf.hash, user_id, username))
-        
+    """
+    from_date, until_date = get_date_range_str(from_date, until_date)
+    
+    from_date_obj = get_date_obj(from_date)
+    until_date_obj = get_date_obj(until_date)
+
+    for collection in collections or Collection.acron3_list():
+        for lf in LogFile.objects.filter(status=choices.LOG_FILE_STATUS_QUEUED, collection__acron3=collection):
+            probably_date = _extract_date_from_validation(lf.validation)
+            if not probably_date:
+                logging.debug(f'Log file {lf.path} does not have a valid probably date.')
+                continue
+
+            print(probably_date, from_date_obj, until_date_obj)
+
+            if probably_date <= from_date_obj or probably_date >= until_date_obj:
+                continue
+
+            logging.info(f'PARSING file {lf.path}')
+            task_parse_log.apply_async(args=(lf.hash, user_id, username))
+
+
+def _extract_date_from_validation(validation):
+    """
+    Extracts the date from the validation dict of a log file.
+
+    Args:
+        validation (dict): The validation dict of the log file.
+
+    Returns:
+        datetime.date: The extracted date.
+    """
+    try:
+        date_str = validation.get('probably_date')
+        return get_date_obj(date_str, '%Y-%m-%d')
+    except Exception as e:
+        logging.error(f"Failed to extract date from validation: {e}")
+        return None
+
 
 @celery_app.task(bind=True, name=_('Parse one log'), timelimit=-1)
 def task_parse_log(self, log_file_hash, user_id=None, username=None):
