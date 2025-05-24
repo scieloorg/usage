@@ -22,6 +22,8 @@ from . import (
 )
 
 
+LOGFILE_STAT_RESULT_CTIME_INDEX = 9
+
 User = get_user_model()
 
 
@@ -85,37 +87,60 @@ def _add_log_file(user, collection, root, name, visible_dates):
 
 
 @celery_app.task(bind=True, name=_('Validate log files'), timelimit=-1)
-def task_validate_log_files(self, collections=[], user_id=None, username=None):
+def task_validate_log_files(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None, ignore_date=False):
     """
     Task to validate log files in the database.
 
     Parameters:
         collections (list, optional): List of collection acronyms. Defaults to [].
+        from_date (str, optional): The start date for log discovery in YYYY-MM-DD format. Defaults to None.
+        until_date (str, optional): The end date for log discovery in YYYY-MM-DD format. Defaults to None.
+        days_to_go_back (int, optional): The number of days to go back from today for log discovery. Defaults to None.
         user_id (int, optional): The ID of the user initiating the task. Defaults to None.
         username (str, optional): The username of the user initiating the task. Defaults to None.
+        ignore_date (bool, optional): If True, ignore the date of the log file. Defaults to False.
     """
     user = _get_user(self.request, username=username, user_id=user_id)
 
+    logging.info(f'Validating log files for collections: {collections}.')
+
+    visible_dates = _get_visible_dates(from_date, until_date, days_to_go_back)
+
+    if not ignore_date:
+        logging.info(f'Interval: {visible_dates[0]} to {visible_dates[-1]}.')
+
     for col in collections or Collection.acron3_list():
         for log_file in models.LogFile.objects.filter(status=choices.LOG_FILE_STATUS_CREATED, collection__acron3=col):
-            logging.info(f'Validating log file {log_file.path} for collection {log_file.collection.acron3}.')
+            file_ctime = date_utils.get_date_obj_from_timestamp(log_file.stat_result[LOGFILE_STAT_RESULT_CTIME_INDEX])
+            if file_ctime in visible_dates or ignore_date:
+                logging.info(f'Validating log file {log_file.path} for collection {log_file.collection.acron3}.')
 
-            buffer_size, sample_size = _fetch_validation_parameters(col)
-            
-            val_results = utils.validate_file(path=log_file.path, buffer_size=buffer_size, sample_size=sample_size)
-            if val_results.get('is_valid', {}).get('all', False):
-                models.LogFileDate.create_or_update(
-                    user=user,
-                    log_file=log_file,
-                    date=val_results.get('probably_date', ''),
-                )
-                log_file.status = choices.LOG_FILE_STATUS_QUEUED
+                buffer_size, sample_size = _fetch_validation_parameters(col)
+                
+                val_result = utils.validate_file(path=log_file.path, buffer_size=buffer_size, sample_size=sample_size)
+                if 'datetimes' in val_result.get('content', {}).get('summary', {}):
+                    del val_result['content']['summary']['datetimes']
 
-            else:
-                log_file.status = choices.LOG_FILE_STATUS_INVALIDATED
+                try:
+                    log_file.validation['result'] = json.dumps(val_result, cls=DjangoJSONEncoder) if val_result else {}
+                    log_file.validation['parameters'] = {'buffer_size': buffer_size, 'sample_size': sample_size}
+                except json.JSONDecodeError as e:
+                    logging.error(f'Error serializing validation result: {e}')
+                    log_file.validation = {}
 
-            logging.info(f'Log file {log_file.path} ({log_file.collection.acron3}) has status {log_file.status}.')
-            log_file.save()
+                if val_result.get('is_valid', {}).get('all', False):
+                    models.LogFileDate.create_or_update(
+                        user=user,
+                        log_file=log_file,
+                        date=val_result.get('probably_date', ''),
+                    )
+                    log_file.status = choices.LOG_FILE_STATUS_QUEUED
+
+                else:
+                    log_file.status = choices.LOG_FILE_STATUS_INVALIDATED
+
+                logging.info(f'Log file {log_file.path} ({log_file.collection.acron3}) has status {log_file.status}.')
+                log_file.save()
 
 
 def _fetch_validation_parameters(collection, default_buffer_size=0.1, default_sample_size=2048):
