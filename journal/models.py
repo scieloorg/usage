@@ -69,17 +69,23 @@ class Journal(CommonControlField):
 
     @classmethod
     def metadata(cls, collection=None):
-        objs = cls.objects.all() if not collection else cls.objects.filter(collection=collection)
-        for j in objs:
+        queryset = cls.objects.all()
+        if collection:
+            queryset = queryset.filter(collection=collection)
+
+        for journal in queryset.only(
+            'acronym', 'collection__acron3', 'issns', 'publisher_name',
+            'scielo_issn', 'subject_areas', 'title', 'wos_subject_areas'
+        ):
             yield {
-                'acronym': j.acronym,
-                'collection': j.collection.acron3,
-                'issns': j.issns,
-                'publisher_name': j.publisher_name,
-                'scielo_issn': j.scielo_issn,
-                'subject_areas': j.subject_areas,
-                'title': j.title,
-                'wos_subject_areas': j.wos_subject_areas,
+                'acronym': journal.acronym,
+                'collection': journal.collection.acron3,
+                'issns': set([v for v in journal.issns.values() if v]),
+                'publisher_name': journal.publisher_name,
+                'scielo_issn': journal.scielo_issn,
+                'subject_areas': journal.subject_areas,
+                'title': journal.title,
+                'wos_subject_areas': journal.wos_subject_areas,
             }
 
     class Meta:
