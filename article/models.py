@@ -95,8 +95,24 @@ class Article(CommonControlField):
 
     @classmethod
     def metadata(cls, collection=None):
-        objs = cls.objects.all() if not collection else cls.objects.filter(collection=collection)
-        for a in objs:
+        qs = cls.objects.select_related('collection').only(
+            'collection__acron3',
+            'default_lang',
+            'files',
+            'pid_v2',
+            'pid_v3',
+            'pid_generic',
+            'processing_date',
+            'publication_date',
+            'publication_year',
+            'scielo_issn',
+            'text_langs',
+        )
+
+        if collection:
+            qs = qs.filter(collection=collection)
+
+        for a in qs.iterator():
             yield {
                 'collection': a.collection.acron3,
                 'default_lang': a.default_lang,
