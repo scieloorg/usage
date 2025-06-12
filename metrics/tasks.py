@@ -374,7 +374,7 @@ def task_delete_documents_by_key(self, keys, values, index_name=None, user_id=No
         logging.error(f"Failed to delete documents with keys {keys} and values {values} from index {index_name}: {e}")
 
 
-@celery_app.task(bind=True, name=_('Compute metrics'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Index metrics'), timelimit=-1)
 def task_index_documents(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None, bulk_size=5000, replace=False):
     """
     Task to compute and index metrics for specified collections within a given date range.
