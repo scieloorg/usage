@@ -217,8 +217,8 @@ def _check_missing_logs_for_date(user, collection, date):
 
 
 @celery_app.task(bind=True, name=_('Generate log files count report'))
-def task_log_files_count_status_report(self, collections=[], from_date=None, until_date=None, user_id=None, username=None):
-    from_date, until_date = date_utils.get_date_range_str(from_date, until_date)
+def task_log_files_count_status_report(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None):
+    from_date, until_date = date_utils.get_date_range_str(from_date, until_date, days_to_go_back)
     
     from_date_obj = date_utils.get_date_obj(from_date)
     until_date_obj = date_utils.get_date_obj(until_date)
