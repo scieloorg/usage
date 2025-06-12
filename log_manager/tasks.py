@@ -169,7 +169,7 @@ def _fetch_validation_parameters(collection, default_buffer_size=0.1, default_sa
 
 
 @celery_app.task(bind=True, name=_('Check missing log files'))
-def task_check_missing_logs_for_date_range(self, collections=[], from_date=None, until_date=None, user_id=None, username=None):
+def task_check_missing_logs_for_date_range(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None):
     """
     Task to check for missing log files in the defined date range.
 
@@ -177,6 +177,7 @@ def task_check_missing_logs_for_date_range(self, collections=[], from_date=None,
         collections (list, optional): List of collection acronyms. Defaults to [].
         from_date (str, optional): The start date for log discovery in YYYY-MM-DD format. Defaults to None.
         until_date (str, optional): The end date for log discovery in YYYY-MM-DD format. Defaults to None.
+        days_to_go_back (int, optional): The number of days to go back from today for log discovery. Defaults to None.
         user_id (int, optional): The ID of the user initiating the task. Defaults to None.
         username (str, optional): The username of the user initiating the task. Defaults to None.
 
@@ -186,9 +187,11 @@ def task_check_missing_logs_for_date_range(self, collections=[], from_date=None,
     """
     user = _get_user(self.request, username=username, user_id=user_id)
 
+    from_date_str, until_date_str = date_utils.get_date_range_str(from_date, until_date, days_to_go_back)
+
     for col in collections or Collection.acron3_list():
         collection = Collection.objects.get(acron3=col)
-        for date in date_utils.get_date_objs_from_date_range(from_date, until_date):
+        for date in date_utils.get_date_objs_from_date_range(from_date_str, until_date_str):
             logging.info(f'Checking missings logs for collection {col} and date {date}')
             _check_missing_logs_for_date(user, collection, date)
 
@@ -214,8 +217,8 @@ def _check_missing_logs_for_date(user, collection, date):
 
 
 @celery_app.task(bind=True, name=_('Generate log files count report'))
-def task_log_files_count_status_report(self, collections=[], from_date=None, until_date=None, user_id=None, username=None):
-    from_date, until_date = date_utils.get_date_range_str(from_date, until_date)
+def task_log_files_count_status_report(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None):
+    from_date, until_date = date_utils.get_date_range_str(from_date, until_date, days_to_go_back)
     
     from_date_obj = date_utils.get_date_obj(from_date)
     until_date_obj = date_utils.get_date_obj(until_date)

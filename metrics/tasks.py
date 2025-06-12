@@ -48,7 +48,7 @@ User = get_user_model()
 
 
 @celery_app.task(bind=True, name=_('Compute access'), timelimit=-1)
-def task_parse_logs(self, collections=[], from_date=None, until_date=None, user_id=None, username=None):
+def task_parse_logs(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None):
     """
     Parses log files associated with a given collection.
 
@@ -56,13 +56,14 @@ def task_parse_logs(self, collections=[], from_date=None, until_date=None, user_
         collections (list, optional): List of collection acronyms to parse logs for. Defaults to all collections.
         from_date (str, optional): Start date for log parsing in 'YYYY-MM-DD' format. Defaults to None.
         until_date (str, optional): End date for log parsing in 'YYYY-MM-DD' format. Defaults to None.
+        days_to_go_back (int, optional): Number of days to go back from the current date to parse logs. Defaults to None.
         user_id
         username
 
     Returns:
         None.
     """
-    from_date, until_date = get_date_range_str(from_date, until_date)
+    from_date, until_date = get_date_range_str(from_date, until_date, days_to_go_back)
     
     from_date_obj = get_date_obj(from_date)
     until_date_obj = get_date_obj(until_date)
@@ -373,7 +374,7 @@ def task_delete_documents_by_key(self, keys, values, index_name=None, user_id=No
         logging.error(f"Failed to delete documents with keys {keys} and values {values} from index {index_name}: {e}")
 
 
-@celery_app.task(bind=True, name=_('Compute metrics'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Index metrics'), timelimit=-1)
 def task_index_documents(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None, bulk_size=5000, replace=False):
     """
     Task to compute and index metrics for specified collections within a given date range.

@@ -36,6 +36,11 @@ def get_date_range_str(from_date_str: str = None, until_date_str: str = None, da
     """
     Get the date range to be used in the queries.
 
+    If both from_date_str and until_date_str are provided, they will be used.
+    If only one is provided, it will be used as the start or end date, and the other will be calculated based on a 7-day range.
+    If neither is provided, the function will default to the last 7 days from today.
+    If days_to_go_back is provided, it will override the from_date_str and until_date_str.
+
     Args:
         from_date_str: Date to start the query.
         until_date_str: Date to end the query.
