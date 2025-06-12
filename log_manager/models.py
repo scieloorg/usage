@@ -19,6 +19,7 @@ class LogFileDate(CommonControlField):
         verbose_name=_("Date"),
         null=False,
         blank=False,
+        db_index=True,
     )
 
     log_file = models.ForeignKey(
@@ -26,6 +27,7 @@ class LogFileDate(CommonControlField):
         verbose_name=_('Log File'),
         blank=True,
         on_delete=models.DO_NOTHING,
+        db_index=True,
     )
 
     base_form_class = CoreAdminModelForm
@@ -43,6 +45,9 @@ class LogFileDate(CommonControlField):
             'date',
             'log_file',
         )
+        indexes = [
+            models.Index(fields=['date', 'log_file']),
+        ]
 
     @classmethod
     def create_or_update(cls, user, log_file, date):
