@@ -1,6 +1,8 @@
+from collections import defaultdict
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from scielo_usage_counter import log_handler
@@ -41,7 +43,6 @@ from .utils import (
 from .models import UserAgent, UserSession, Item, ItemAccess
 
 import logging
-import json
 
 
 User = get_user_model()
