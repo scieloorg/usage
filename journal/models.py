@@ -12,6 +12,7 @@ class Journal(CommonControlField):
         on_delete=models.CASCADE,
         blank=False,
         null=False,
+        db_index=True,
     )
 
     scielo_issn = models.CharField(
@@ -19,6 +20,7 @@ class Journal(CommonControlField):
         max_length=9,
         blank=False,
         null=False,
+        db_index=True,
     )
 
     issns = models.JSONField(
