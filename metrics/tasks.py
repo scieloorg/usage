@@ -285,6 +285,20 @@ def _fetch_art_jou_ids(utm, item_access_data):
 
 
 def _process_lines(lp, utm, log_file):
+    """
+    Processes each line of the log file, translating URLs and registering item accesses.
+    
+    Args:
+        lp (LogParser): The log parser instance.
+        utm (URLTranslationManager): The URL translation manager instance.
+        log_file (LogFile): The log file being processed.
+    
+    Returns:
+        None.
+    """
+    logging.info(f'Loading metadata cache for {log_file.collection}')
+    cache = _load_metrics_objs_cache(log_file)
+
     logging.info(f'Processing {lp.logfile}')
     for line in lp.parse():
         if not _process_line(line, utm, log_file):
