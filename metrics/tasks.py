@@ -329,7 +329,7 @@ def _process_line(line, utm, log_file, cache):
         return False
     
     item_access_data = {
-        'collection': log_file.collection,
+        'collection': log_file.collection.acron3,
         'scielo_issn': translated_url.get('scielo_issn'),
         'pid_v2': standardizer.standardize_pid_v2(translated_url.get('pid_v2')),
         'pid_v3': standardizer.standardize_pid_v3(translated_url.get('pid_v3')),
@@ -346,8 +346,26 @@ def _process_line(line, utm, log_file, cache):
             _(f'It was not possible to identify the necessary information for the URL {line.get("url")}')
         )
         return False
+    
+    jou_id, art_id = _fetch_art_jou_ids(utm, item_access_data)
 
-    _register_item_access(item_access_data, line, log_file)
+    if not jou_id:
+        _log_discarded_line(
+            log_file, line,
+            tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_MISSING_JOURNAL,
+            _('There is no journal registered for the given ISSN')
+        )
+        return False
+    
+    if not art_id:
+        _log_discarded_line(
+            log_file, line,
+            tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_MISSING_ARTICLE,
+            _('There is no article registered for the given PID')
+        )
+        return False
+    
+    _register_item_access(item_access_data, line, jou_id, art_id, cache)
     return True
 
 
