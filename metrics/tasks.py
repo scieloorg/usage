@@ -301,7 +301,7 @@ def _process_lines(lp, utm, log_file):
 
     logging.info(f'Processing {lp.logfile}')
     for line in lp.parse():
-        if not _process_line(line, utm, log_file):
+        if not _process_line(line, utm, log_file, cache):
             continue
 
     logging.info(f'File {log_file.path} has been parsed.')
