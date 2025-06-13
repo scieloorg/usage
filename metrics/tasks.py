@@ -128,6 +128,15 @@ def task_parse_log(self, log_file_hash, user_id=None, username=None):
 
 
 def _initialize_log_file(log_file_hash):
+    """
+    Initializes the log file for parsing by setting its status to 'parsing'.
+    
+    Args:
+        log_file_hash (str): The hash of the log file to be initialized.
+    
+    Returns:
+        LogFile: The initialized log file object, or None if it does not exist.
+    """
     try:
         log_file = LogFile.get(hash=log_file_hash)
         log_file.status = choices.LOG_FILE_STATUS_PARSING
@@ -139,6 +148,12 @@ def _initialize_log_file(log_file_hash):
 
 
 def _fetch_required_resources():
+    """
+    Fetches the necessary resources for parsing logs, including robot user agents and MMDB files.
+    
+    Returns:
+        tuple: A tuple containing the list of robot user agents and the latest MMDB object.
+    """
     robots_list = RobotUserAgent.get_all_patterns()
     if not robots_list:
         logging.error('There are no robots available in the database.')
@@ -153,6 +168,17 @@ def _fetch_required_resources():
 
 
 def _setup_parsing_environment(log_file, robots_list, mmdb):
+    """
+    Sets up the environment for parsing the log file, including initializing the log parser and URL translator manager.
+    
+    Args:
+        log_file (LogFile): The log file to be parsed.
+        robots_list (list): List of robot user agents.
+        mmdb (MMDB): The MMDB object containing geolocation data.
+    
+    Returns:
+        tuple: A tuple containing the LogParser instance and URLTranslationManager instance.
+    """
     lp = log_handler.LogParser(mmdb_data=mmdb.data, robots_list=robots_list, output_mode='dict')
     lp.logfile = log_file.path
 
