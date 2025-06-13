@@ -137,3 +137,7 @@ class Article(CommonControlField):
             'pid_v3',
             'pid_generic',
         )
+        indexes = [
+            models.Index(fields=['collection', 'scielo_issn'], name='collection_scielo_issn_idx'),
+        ]
+
