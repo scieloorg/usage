@@ -451,6 +451,15 @@ def _register_item_access(item_access_data, line, jou_id, art_id, cache):
 
 
 def _log_discarded_line(log_file, line, error_type, message):
+    """
+    Logs a discarded line from the log file and creates a record in the database.
+
+    Args:
+        log_file (LogFile): The log file being processed.
+        line (dict): The log line that was discarded.
+        error_type (str): The type of error that caused the line to be discarded.
+        message (str): A message describing the reason for discarding the line.
+    """
     LogFileDiscardedLine.create(log_file=log_file, data=line, error_type=error_type, message=message)
 
 
@@ -644,6 +653,17 @@ def compute_metrics_for_collection(collection, dates, replace=False):
 
 
 def _is_valid_collection_log_file_date(collection, date_str, replace):
+    """
+    Checks if the CollectionLogFileDateCount exists and is valid for the given date.
+
+    Args:
+        collection (str): The acronym of the collection.
+        date_str (str): The date string in 'YYYY-MM-DD' format.
+        replace (bool): Whether to replace existing metrics.
+    
+    Returns:
+        tuple: A tuple containing a boolean indicating if the date is valid and the CollectionLogFileDateCount object if it exists.
+    """
     try:
         clfdc = CollectionLogFileDateCount.objects.get(date=date_str, collection__acron3=collection)
 
@@ -663,6 +683,16 @@ def _is_valid_collection_log_file_date(collection, date_str, replace):
 
 
 def _is_valid_log_file_status(collection, date_str):
+    """
+    Checks if all LogFileDate objects for the given date and collection have a valid status.
+    
+    Args:
+        collection (str): The acronym of the collection.
+        date_str (str): The date string in 'YYYY-MM-DD' format.
+    
+    Returns:
+        bool: True if all LogFileDate objects have a valid status, False otherwise.
+    """
     for lfd in LogFileDate.objects.filter(date=date_str, log_file__collection__acron3=collection):
         if lfd.log_file.status not in (choices.LOG_FILE_STATUS_INVALIDATED, choices.LOG_FILE_STATUS_PROCESSED):
             logging.info(f'LogFile status is not PROCESSED for {date_str}')
