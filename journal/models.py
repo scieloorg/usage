@@ -80,6 +80,7 @@ class Journal(CommonControlField):
             'scielo_issn', 'subject_areas', 'title', 'wos_subject_areas'
         ):
             yield {
+                'id': journal.id,
                 'acronym': journal.acronym,
                 'collection': journal.collection.acron3,
                 'issns': set([v for v in journal.issns.values() if v]),

@@ -114,6 +114,7 @@ class Article(CommonControlField):
 
         for a in qs.iterator():
             yield {
+                'id': a.id,
                 'collection': a.collection.acron3,
                 'default_lang': a.default_lang,
                 'files': a.files,
