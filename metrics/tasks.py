@@ -309,7 +309,19 @@ def _process_lines(lp, utm, log_file):
     log_file.save()
 
 
-def _process_line(line, utm, log_file):
+def _process_line(line, utm, log_file, cache):
+    """
+    Processes a single line from the log file, translating the URL and registering item access if valid.
+    
+    Args:
+        line (dict): A dictionary representing a single log line.
+        utm (URLTranslationManager): The URL translation manager instance.
+        log_file (LogFile): The log file being processed.
+        cache (dict): A cache containing pre-fetched objects to avoid redundant database queries.
+    
+    Returns:
+        bool: True if the line was processed successfully, False otherwise.
+    """
     try:
         translated_url = utm.translate(line.get('url'))
     except Exception as e:
