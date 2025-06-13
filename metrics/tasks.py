@@ -255,6 +255,35 @@ def _load_metrics_objs_cache(log_file):
     logging.info(f'Loaded {len(cache["item_accesses"])} item accesses for {log_file.collection}')
 
     return cache
+
+
+def _fetch_art_jou_ids(utm, item_access_data):
+    """
+    Fetches the journal and article IDs based on the item access data.
+    
+    Args:
+        utm (URLTranslationManager): The URL translation manager instance.
+        item_access_data (dict): A dictionary containing item access data, including ISSN and PIDs.
+    
+    Returns:
+        tuple: A tuple containing the journal ID and article ID, or (None, None) if not found.
+    """
+    issn = item_access_data.get('scielo_issn')
+    if not issn:
+        return (None, None)
+    
+    pid_v2 = item_access_data.get('pid_v2')
+    pid_v3 = item_access_data.get('pid_v3')
+    pid_generic = item_access_data.get('pid_generic')
+    if not issn or not pid_v2 and not pid_v3 and not pid_generic:
+        return (None, None)
+    
+    jou_db_id = utm.journals_metadata['issn_to_db_id'].get(issn)
+    art_db_id = utm.articles_metadata['pid_v2_to_db_id'].get(pid_v2) or utm.articles_metadata['pid_v3_to_db_id'].get(pid_v3) or utm.articles_metadata['pid_generic_to_db_id'].get(pid_generic)
+
+    return (jou_db_id, art_db_id)
+
+
 def _process_lines(lp, utm, log_file):
     logging.info(f'Processing {lp.logfile}')
     for line in lp.parse():
