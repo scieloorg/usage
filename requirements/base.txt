@@ -66,7 +66,7 @@ reverse-geocode==1.6  # https://pypi.org/project/reverse-geocode/
 -e git+https://github.com/scieloorg/scielo_log_validator@0.4.0#egg=scielo_log_validator
 
 # SciELO Usage COUNTER
--e git+https://github.com/scieloorg/scielo_usage_counter@1.4.0#egg=scielo_usage_counter
+-e git+https://github.com/scieloorg/scielo_usage_counter@1.5.0#egg=scielo_usage_counter
 
 # Device Detector
 device-detector==0.10  # https://github.com/thinkwelltwd/device_detector

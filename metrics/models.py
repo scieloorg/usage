@@ -89,6 +89,7 @@ class UserSession(models.Model):
         verbose_name=_("Datetime"),
         null=False,
         blank=False,
+        db_index=True,
     )
 
     user_agent = models.ForeignKey(
@@ -208,3 +209,6 @@ class ItemAccess(models.Model):
             'media_language',
             'content_type',
         )
+        indexes = [
+            models.Index(fields=['item', 'user_session']),
+        ]

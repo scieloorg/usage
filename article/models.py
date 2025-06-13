@@ -114,6 +114,7 @@ class Article(CommonControlField):
 
         for a in qs.iterator():
             yield {
+                'id': a.id,
                 'collection': a.collection.acron3,
                 'default_lang': a.default_lang,
                 'files': a.files,
@@ -137,3 +138,7 @@ class Article(CommonControlField):
             'pid_v3',
             'pid_generic',
         )
+        indexes = [
+            models.Index(fields=['collection', 'scielo_issn'], name='collection_scielo_issn_idx'),
+        ]
+

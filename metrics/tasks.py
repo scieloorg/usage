@@ -1,6 +1,8 @@
+from collections import defaultdict
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from scielo_usage_counter import log_handler
@@ -41,7 +43,6 @@ from .utils import (
 from .models import UserAgent, UserSession, Item, ItemAccess
 
 import logging
-import json
 
 
 User = get_user_model()
@@ -127,6 +128,15 @@ def task_parse_log(self, log_file_hash, user_id=None, username=None):
 
 
 def _initialize_log_file(log_file_hash):
+    """
+    Initializes the log file for parsing by setting its status to 'parsing'.
+    
+    Args:
+        log_file_hash (str): The hash of the log file to be initialized.
+    
+    Returns:
+        LogFile: The initialized log file object, or None if it does not exist.
+    """
     try:
         log_file = LogFile.get(hash=log_file_hash)
         log_file.status = choices.LOG_FILE_STATUS_PARSING
@@ -138,6 +148,12 @@ def _initialize_log_file(log_file_hash):
 
 
 def _fetch_required_resources():
+    """
+    Fetches the necessary resources for parsing logs, including robot user agents and MMDB files.
+    
+    Returns:
+        tuple: A tuple containing the list of robot user agents and the latest MMDB object.
+    """
     robots_list = RobotUserAgent.get_all_patterns()
     if not robots_list:
         logging.error('There are no robots available in the database.')
@@ -152,6 +168,17 @@ def _fetch_required_resources():
 
 
 def _setup_parsing_environment(log_file, robots_list, mmdb):
+    """
+    Sets up the environment for parsing the log file, including initializing the log parser and URL translator manager.
+    
+    Args:
+        log_file (LogFile): The log file to be parsed.
+        robots_list (list): List of robot user agents.
+        mmdb (MMDB): The MMDB object containing geolocation data.
+    
+    Returns:
+        tuple: A tuple containing the LogParser instance and URLTranslationManager instance.
+    """
     lp = log_handler.LogParser(mmdb_data=mmdb.data, robots_list=robots_list, output_mode='dict')
     lp.logfile = log_file.path
 
@@ -177,10 +204,104 @@ def _setup_parsing_environment(log_file, robots_list, mmdb):
     return lp, utm
 
 
+def _load_metrics_objs_cache(log_file):
+    """
+    Loads the necessary objects into a cache for efficient access during log processing.
+    
+    Args:
+        log_file (LogFile): The log file being processed.
+    
+    Returns:
+        dict: A cache containing items, user agents, user sessions, and item accesses.
+    """
+    logging.info(f'Loading metrics objects cache for {log_file.collection}')
+    cache = {
+        'items': {},
+        'user_agents': {},
+        'user_sessions': {},
+        'item_accesses': {},
+    }
+
+    items_qs = Item.objects.filter(collection=log_file.collection).select_related('journal', 'article', 'collection')
+    for it in items_qs:
+        key = (it.collection.acron3, it.journal_id, it.article_id)
+        cache['items'][key] = it
+    logging.info(f'Loaded {len(cache["items"])} items for {log_file.collection}')
+
+    user_agents_qs = UserAgent.objects.all()
+    for ua in user_agents_qs:
+        key = (ua.name, ua.version)
+        cache['user_agents'][key] = ua
+    logging.info(f'Loaded {len(cache["user_agents"])} user agents')
+
+    date_str = log_file.validation.get('probably_date')
+    user_sessions_qs = UserSession.objects.filter(datetime__date=date_str).select_related('user_agent')
+    for us in user_sessions_qs:
+        key = (us.datetime, us.user_agent_id, us.user_ip)
+        cache['user_sessions'][key] = us
+    logging.info(f'Loaded {len(cache["user_sessions"])} user sessions for {date_str}')
+
+    item_accesses_qs = ItemAccess.objects.filter(item__collection=log_file.collection)
+    for ia in item_accesses_qs:
+        key = (
+            ia.item_id,
+            ia.user_session_id,
+            ia.media_format,
+            ia.media_language,
+            ia.country_code,
+            ia.content_type,
+        )
+        cache['item_accesses'][key] = ia
+    logging.info(f'Loaded {len(cache["item_accesses"])} item accesses for {log_file.collection}')
+
+    return cache
+
+
+def _fetch_art_jou_ids(utm, item_access_data):
+    """
+    Fetches the journal and article IDs based on the item access data.
+    
+    Args:
+        utm (URLTranslationManager): The URL translation manager instance.
+        item_access_data (dict): A dictionary containing item access data, including ISSN and PIDs.
+    
+    Returns:
+        tuple: A tuple containing the journal ID and article ID, or (None, None) if not found.
+    """
+    issn = item_access_data.get('scielo_issn')
+    if not issn:
+        return (None, None)
+    
+    pid_v2 = item_access_data.get('pid_v2')
+    pid_v3 = item_access_data.get('pid_v3')
+    pid_generic = item_access_data.get('pid_generic')
+    if not issn or not pid_v2 and not pid_v3 and not pid_generic:
+        return (None, None)
+    
+    jou_db_id = utm.journals_metadata['issn_to_db_id'].get(issn)
+    art_db_id = utm.articles_metadata['pid_v2_to_db_id'].get(pid_v2) or utm.articles_metadata['pid_v3_to_db_id'].get(pid_v3) or utm.articles_metadata['pid_generic_to_db_id'].get(pid_generic)
+
+    return (jou_db_id, art_db_id)
+
+
 def _process_lines(lp, utm, log_file):
+    """
+    Processes each line of the log file, translating URLs and registering item accesses.
+    
+    Args:
+        lp (LogParser): The log parser instance.
+        utm (URLTranslationManager): The URL translation manager instance.
+        log_file (LogFile): The log file being processed.
+    
+    Returns:
+        None.
+    """
+    logging.info(f'Loading metadata cache for {log_file.collection}')
+    cache = _load_metrics_objs_cache(log_file)
+
     logging.info(f'Processing {lp.logfile}')
     for line in lp.parse():
-        if not _process_line(line, utm, log_file):
+        if not _process_line(line, utm, log_file, cache):
             continue
 
     logging.info(f'File {log_file.path} has been parsed.')
@@ -188,7 +309,19 @@ def _process_lines(lp, utm, log_file):
     log_file.save()
 
 
-def _process_line(line, utm, log_file):
+def _process_line(line, utm, log_file, cache):
+    """
+    Processes a single line from the log file, translating the URL and registering item access if valid.
+    
+    Args:
+        line (dict): A dictionary representing a single log line.
+        utm (URLTranslationManager): The URL translation manager instance.
+        log_file (LogFile): The log file being processed.
+        cache (dict): A cache containing pre-fetched objects to avoid redundant database queries.
+    
+    Returns:
+        bool: True if the line was processed successfully, False otherwise.
+    """
     try:
         translated_url = utm.translate(line.get('url'))
     except Exception as e:
@@ -196,7 +329,7 @@ def _process_line(line, utm, log_file):
         return False
     
     item_access_data = {
-        'collection': log_file.collection,
+        'collection': log_file.collection.acron3,
         'scielo_issn': translated_url.get('scielo_issn'),
         'pid_v2': standardizer.standardize_pid_v2(translated_url.get('pid_v2')),
         'pid_v3': standardizer.standardize_pid_v3(translated_url.get('pid_v3')),
@@ -213,81 +346,120 @@ def _process_line(line, utm, log_file):
             _(f'It was not possible to identify the necessary information for the URL {line.get("url")}')
         )
         return False
-
-    _register_item_access(item_access_data, line, log_file)
-    return True
-
-
-def _register_item_access(item_access_data, line, log_file):
-    # ItemAccess data
-    collection = item_access_data.get('collection')
-    scielo_issn = item_access_data.get('scielo_issn')
-    pid_v2 = item_access_data.get('pid_v2')
-    pid_v3 = item_access_data.get('pid_v3')
-    pid_generic = item_access_data.get('pid_generic')
-    media_format = item_access_data.get('media_format')
-    media_language = item_access_data.get('media_language')
-    content_type = item_access_data.get('content_type')
-
-    # UserAgent and UserSession data
-    client_name = line.get('client_name')
-    client_version = line.get('client_version')
-    local_datetime = line.get('local_datetime')
-    country_code = line.get('country_code')
-    ip_address = line.get('ip_address')
-
-    art_obj = _fetch_article(collection, pid_v2, pid_v3, pid_generic, log_file, line)
-    if not art_obj:
-        return
-
-    jou_obj = _fetch_journal(collection, scielo_issn, log_file, line)
-    if not jou_obj:
-        return
     
-    truncated_datetime = truncate_datetime_to_hour(local_datetime)
-    ms_key = extract_minute_second_key(local_datetime)
+    jou_id, art_id = _fetch_art_jou_ids(utm, item_access_data)
 
-    it, _it = Item.objects.get_or_create(collection=collection, journal=jou_obj, article=art_obj)
-    ua, _ua = UserAgent.objects.get_or_create(name=client_name, version=client_version)
-    us, _us = UserSession.objects.get_or_create(datetime=truncated_datetime, user_agent=ua, user_ip=ip_address)
-    ita, _ita = ItemAccess.objects.get_or_create(
-        item=it, user_session=us, media_format=media_format,
-        media_language=media_language, country_code=country_code, content_type=content_type
-    )
-
-    # Update the access count
-    ita.click_timestamps[ms_key] = ita.click_timestamps.get(ms_key, 0) + 1
-
-    ita.save()
-
-
-def _fetch_article(collection, pid_v2, pid_v3, pid_generic, log_file, line):
-    try:
-        if pid_generic:
-            return Article.objects.get(Q(collection=collection) & Q(pid_generic=pid_generic))
-        return Article.objects.get(Q(collection=collection) & (Q(pid_v2=pid_v2) | Q(pid_v3=pid_v3)))
-    except Article.DoesNotExist:
+    if not jou_id:
+        _log_discarded_line(
+            log_file, line,
+            tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_MISSING_JOURNAL,
+            _('There is no journal registered for the given ISSN')
+        )
+        return False
+    
+    if not art_id:
         _log_discarded_line(
             log_file, line,
             tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_MISSING_ARTICLE,
             _('There is no article registered for the given PID')
         )
-        return None
+        return False
+    
+    _register_item_access(item_access_data, line, jou_id, art_id, cache)
+    return True
 
 
-def _fetch_journal(collection, scielo_issn, log_file, line):
-    try:
-        return Journal.objects.get(Q(collection=collection) & Q(scielo_issn=scielo_issn))
-    except Journal.DoesNotExist:
-        _log_discarded_line(
-            log_file, line,
-            tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_MISSING_JOURNAL,
-            _('There is no journal registered for the given collection and ISSN')
+def _register_item_access(item_access_data, line, jou_id, art_id, cache):
+    """
+    Registers an item access in the database, creating necessary objects if they do not exist.
+
+    Args:
+        item_access_data (dict): Data related to the item access, including collection, journal, article, media format, etc.
+        line (dict): The log line being processed.
+        jou_id (int): The ID of the journal.
+        art_id (int): The ID of the article.
+        cache (dict): A cache containing pre-fetched objects to avoid redundant database queries.
+    """
+    col_acron3 = item_access_data.get('collection')
+    media_format = item_access_data.get('media_format')
+    media_language = item_access_data.get('media_language')
+    content_type = item_access_data.get('content_type')
+
+    client_name = line.get('client_name')
+    client_version = line.get('client_version')
+    local_datetime = line.get('local_datetime')
+    country_code = line.get('country_code')
+    ip_address = line.get('ip_address')
+    
+    truncated_datetime = truncate_datetime_to_hour(local_datetime)
+    if timezone.is_naive(truncated_datetime):
+        truncated_datetime = timezone.make_aware(truncated_datetime)
+    ms_key = extract_minute_second_key(local_datetime)
+
+    item_key = (col_acron3, jou_id, art_id)
+    if item_key not in cache['items']:
+        collection_obj = Collection.objects.get(acron3=col_acron3)
+        journal_obj = Journal.objects.get(id=jou_id)
+        article_obj = Article.objects.get(id=art_id)  
+        it, _it = Item.objects.get_or_create(
+            collection=collection_obj,
+            journal=journal_obj,
+            article=article_obj,
         )
-        return None
+        cache['items'][item_key] = it
+    else:
+        it = cache['items'][item_key]
+
+    user_agent_key = (client_name, client_version)
+    if user_agent_key not in cache['user_agents']:
+        ua, _ua = UserAgent.objects.get_or_create(
+            name=client_name, 
+            version=client_version
+        )
+        cache['user_agents'][user_agent_key] = ua
+    else:
+        ua = cache['user_agents'][user_agent_key]
+
+    us_key = (truncated_datetime, ua.id, ip_address)
+    if us_key not in cache['user_sessions']:
+        us, _us = UserSession.objects.get_or_create(
+            datetime=truncated_datetime,
+            user_agent=ua,
+            user_ip=ip_address
+        )
+        cache['user_sessions'][us_key] = us
+    else:
+        us = cache['user_sessions'][us_key]
+
+    item_access_key = (it.id, us.id, media_format, media_language, country_code, content_type)
+    if item_access_key not in cache['item_accesses']:
+        ita, _ita = ItemAccess.objects.get_or_create(
+            item=it,
+            user_session=us,
+            media_format=media_format,
+            media_language=media_language,
+            country_code=country_code,
+            content_type=content_type,
+            click_timestamps={ms_key: 1}
+        )
+        cache['item_accesses'][item_access_key] = ita
+    else:
+        ita = cache['item_accesses'][item_access_key]
+
+    ita.click_timestamps[ms_key] = ita.click_timestamps.get(ms_key, 0) + 1
+    ita.save()
 
 
 def _log_discarded_line(log_file, line, error_type, message):
+    """
+    Logs a discarded line from the log file and creates a record in the database.
+
+    Args:
+        log_file (LogFile): The log file being processed.
+        line (dict): The log line that was discarded.
+        error_type (str): The type of error that caused the line to be discarded.
+        message (str): A message describing the reason for discarding the line.
+    """
     LogFileDiscardedLine.create(log_file=log_file, data=line, error_type=error_type, message=message)
 
 
@@ -472,6 +644,7 @@ def compute_metrics_for_collection(collection, dates, replace=False):
         if not is_valid:
             continue
 
+        logging.info(f"Computing metrics for {date_str}")
         _process_user_sessions(collection, date, date_str, data)
         clfdc.is_usage_metric_computed = True
         clfdc.save()
@@ -480,70 +653,123 @@ def compute_metrics_for_collection(collection, dates, replace=False):
 
 
 def _is_valid_collection_log_file_date(collection, date_str, replace):
+    """
+    Checks if the CollectionLogFileDateCount exists and is valid for the given date.
+
+    Args:
+        collection (str): The acronym of the collection.
+        date_str (str): The date string in 'YYYY-MM-DD' format.
+        replace (bool): Whether to replace existing metrics.
+    
+    Returns:
+        tuple: A tuple containing a boolean indicating if the date is valid and the CollectionLogFileDateCount object if it exists.
+    """
     try:
         clfdc = CollectionLogFileDateCount.objects.get(date=date_str, collection__acron3=collection)
 
         if clfdc.status != choices.COLLECTION_LOG_FILE_DATE_COUNT_OK:
-            print(f'CollectionLogFileDateCount status is not OK for {date_str}')
+            logging.info(f'CollectionLogFileDateCount status is not OK for {date_str}')
             return False, None
 
         if not replace and clfdc.is_usage_metric_computed:
-            print(f'Usage metric already computed for {date_str}')
+            logging.info(f'Usage metric already computed for {date_str}')
             return False, None
 
         return True, clfdc
 
     except CollectionLogFileDateCount.DoesNotExist:
-        print(f'CollectionLogFileDateCount does not exist for {date_str}')
+        logging.info(f'CollectionLogFileDateCount does not exist for {date_str}')
         return False, None
 
 
 def _is_valid_log_file_status(collection, date_str):
+    """
+    Checks if all LogFileDate objects for the given date and collection have a valid status.
+    
+    Args:
+        collection (str): The acronym of the collection.
+        date_str (str): The date string in 'YYYY-MM-DD' format.
+    
+    Returns:
+        bool: True if all LogFileDate objects have a valid status, False otherwise.
+    """
     for lfd in LogFileDate.objects.filter(date=date_str, log_file__collection__acron3=collection):
         if lfd.log_file.status not in (choices.LOG_FILE_STATUS_INVALIDATED, choices.LOG_FILE_STATUS_PROCESSED):
-            print(f'LogFile status is not PROCESSED for {date_str}')
+            logging.info(f'LogFile status is not PROCESSED for {date_str}')
             return False
     return True
 
 
 def _process_user_sessions(collection, date, date_str, data):
-    for user_session in UserSession.objects.filter(itemaccess__item__collection__acron3=collection, datetime__date=date_str):
-        _process_item_accesses(collection, date, date_str, user_session, data)
+    """
+    Processes user sessions for a given collection and date, computing metrics for each item access.
 
+    Args:
+        collection (str): The acronym of the collection.
+        date (datetime.date): The date for which to compute metrics.
+        date_str (str): The date string in 'YYYY-MM-DD' format.
+        data (dict): A dictionary to store computed metrics.
+    """
+    all_item_accesses = ItemAccess.objects.filter(
+        item__collection__acron3=collection,
+        user_session__datetime__date=date_str
+    ).select_related(
+        'item__journal',
+        'item__article',
+        'item__collection',
+        'user_session'
+    ).only(
+        'item__journal__scielo_issn',
+        'item__article__pid_v2',
+        'item__article__pid_v3',
+        'item__article__pid_generic',
+        'item__collection__acron3',
+        'media_language',
+        'country_code',
+        'click_timestamps',
+        'content_type',
+        'user_session__datetime',
+        'user_session__user_agent__name',
+        'user_session__user_agent__version',
+        'user_session__user_ip',
+    ).iterator()
 
-def _process_item_accesses(collection, date, date_str, user_session, data):
-    for item_access in user_session.itemaccess_set.iterator():
+    user_sessions_data = defaultdict(list)
+    for item_access in all_item_accesses:
         if item_access.item.collection.acron3 != collection:
             continue
+        user_sessions_data[item_access.user_session].append(item_access)
 
-        key = _generate_usage_key(
-            collection,
-            item_access.item.journal.scielo_issn,
-            item_access.item.article.pid_v2 or '',
-            item_access.item.article.pid_v3 or '',
-            item_access.item.article.pid_generic or '',
-            item_access.media_language,
-            item_access.country_code,
-            date_str,
-        )
+    for user_session, item_accesses_list in user_sessions_data.items():
+        for item_access in item_accesses_list:
+            key = _generate_usage_key(
+                collection,
+                item_access.item.journal.scielo_issn,
+                item_access.item.article.pid_v2 or '',
+                item_access.item.article.pid_v3 or '',
+                item_access.item.article.pid_generic or '',
+                item_access.media_language,
+                item_access.country_code,
+                date_str,
+            )
 
-        compute_r5_metrics(
-            key,
-            data,
-            collection,
-            item_access.item.journal.scielo_issn,
-            item_access.item.article.pid_v2 or '',
-            item_access.item.article.pid_v3 or '',
-            item_access.item.article.pid_generic or '',
-            item_access.media_language,
-            item_access.country_code,
-            date_str,
-            date.year,
-            date.month,
-            date.day,
-            item_access.click_timestamps,
-            item_access.content_type,
-        )
+            compute_r5_metrics(
+                key,
+                data,
+                collection,
+                item_access.item.journal.scielo_issn,
+                item_access.item.article.pid_v2 or '',
+                item_access.item.article.pid_v3 or '',
+                item_access.item.article.pid_generic or '',
+                item_access.media_language,
+                item_access.country_code,
+                date_str,
+                date.year,
+                date.month,
+                date.day,
+                item_access.click_timestamps,
+                item_access.content_type,
+            )
 
 
 def _generate_usage_key(collection, journal, pid_v2, pid_v3, pid_generic, media_language, country_code, date_str):

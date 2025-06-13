@@ -12,6 +12,7 @@ class Journal(CommonControlField):
         on_delete=models.CASCADE,
         blank=False,
         null=False,
+        db_index=True,
     )
 
     scielo_issn = models.CharField(
@@ -19,6 +20,7 @@ class Journal(CommonControlField):
         max_length=9,
         blank=False,
         null=False,
+        db_index=True,
     )
 
     issns = models.JSONField(
@@ -78,6 +80,7 @@ class Journal(CommonControlField):
             'scielo_issn', 'subject_areas', 'title', 'wos_subject_areas'
         ):
             yield {
+                'id': journal.id,
                 'acronym': journal.acronym,
                 'collection': journal.collection.acron3,
                 'issns': set([v for v in journal.issns.values() if v]),
