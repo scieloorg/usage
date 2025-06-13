@@ -701,43 +701,75 @@ def _is_valid_log_file_status(collection, date_str):
 
 
 def _process_user_sessions(collection, date, date_str, data):
-    for user_session in UserSession.objects.filter(itemaccess__item__collection__acron3=collection, datetime__date=date_str):
-        _process_item_accesses(collection, date, date_str, user_session, data)
+    """
+    Processes user sessions for a given collection and date, computing metrics for each item access.
 
+    Args:
+        collection (str): The acronym of the collection.
+        date (datetime.date): The date for which to compute metrics.
+        date_str (str): The date string in 'YYYY-MM-DD' format.
+        data (dict): A dictionary to store computed metrics.
+    """
+    all_item_accesses = ItemAccess.objects.filter(
+        item__collection__acron3=collection,
+        user_session__datetime__date=date_str
+    ).select_related(
+        'item__journal',
+        'item__article',
+        'item__collection',
+        'user_session'
+    ).only(
+        'item__journal__scielo_issn',
+        'item__article__pid_v2',
+        'item__article__pid_v3',
+        'item__article__pid_generic',
+        'item__collection__acron3',
+        'media_language',
+        'country_code',
+        'click_timestamps',
+        'content_type',
+        'user_session__datetime',
+        'user_session__user_agent__name',
+        'user_session__user_agent__version',
+        'user_session__user_ip',
+    ).iterator()
 
-def _process_item_accesses(collection, date, date_str, user_session, data):
-    for item_access in user_session.itemaccess_set.iterator():
+    user_sessions_data = defaultdict(list)
+    for item_access in all_item_accesses:
         if item_access.item.collection.acron3 != collection:
             continue
+        user_sessions_data[item_access.user_session].append(item_access)
 
-        key = _generate_usage_key(
-            collection,
-            item_access.item.journal.scielo_issn,
-            item_access.item.article.pid_v2 or '',
-            item_access.item.article.pid_v3 or '',
-            item_access.item.article.pid_generic or '',
-            item_access.media_language,
-            item_access.country_code,
-            date_str,
-        )
+    for user_session, item_accesses_list in user_sessions_data.items():
+        for item_access in item_accesses_list:
+            key = _generate_usage_key(
+                collection,
+                item_access.item.journal.scielo_issn,
+                item_access.item.article.pid_v2 or '',
+                item_access.item.article.pid_v3 or '',
+                item_access.item.article.pid_generic or '',
+                item_access.media_language,
+                item_access.country_code,
+                date_str,
+            )
 
-        compute_r5_metrics(
-            key,
-            data,
-            collection,
-            item_access.item.journal.scielo_issn,
-            item_access.item.article.pid_v2 or '',
-            item_access.item.article.pid_v3 or '',
-            item_access.item.article.pid_generic or '',
-            item_access.media_language,
-            item_access.country_code,
-            date_str,
-            date.year,
-            date.month,
-            date.day,
-            item_access.click_timestamps,
-            item_access.content_type,
-        )
+            compute_r5_metrics(
+                key,
+                data,
+                collection,
+                item_access.item.journal.scielo_issn,
+                item_access.item.article.pid_v2 or '',
+                item_access.item.article.pid_v3 or '',
+                item_access.item.article.pid_generic or '',
+                item_access.media_language,
+                item_access.country_code,
+                date_str,
+                date.year,
+                date.month,
+                date.day,
+                item_access.click_timestamps,
+                item_access.content_type,
+            )
 
 
 def _generate_usage_key(collection, journal, pid_v2, pid_v3, pid_generic, media_language, country_code, date_str):
