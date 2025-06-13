@@ -369,73 +369,85 @@ def _process_line(line, utm, log_file, cache):
     return True
 
 
-def _register_item_access(item_access_data, line, log_file):
-    # ItemAccess data
-    collection = item_access_data.get('collection')
-    scielo_issn = item_access_data.get('scielo_issn')
-    pid_v2 = item_access_data.get('pid_v2')
-    pid_v3 = item_access_data.get('pid_v3')
-    pid_generic = item_access_data.get('pid_generic')
+def _register_item_access(item_access_data, line, jou_id, art_id, cache):
+    """
+    Registers an item access in the database, creating necessary objects if they do not exist.
+
+    Args:
+        item_access_data (dict): Data related to the item access, including collection, journal, article, media format, etc.
+        line (dict): The log line being processed.
+        jou_id (int): The ID of the journal.
+        art_id (int): The ID of the article.
+        cache (dict): A cache containing pre-fetched objects to avoid redundant database queries.
+    """
+    col_acron3 = item_access_data.get('collection')
     media_format = item_access_data.get('media_format')
     media_language = item_access_data.get('media_language')
     content_type = item_access_data.get('content_type')
 
-    # UserAgent and UserSession data
     client_name = line.get('client_name')
     client_version = line.get('client_version')
     local_datetime = line.get('local_datetime')
     country_code = line.get('country_code')
     ip_address = line.get('ip_address')
-
-    art_obj = _fetch_article(collection, pid_v2, pid_v3, pid_generic, log_file, line)
-    if not art_obj:
-        return
-
-    jou_obj = _fetch_journal(collection, scielo_issn, log_file, line)
-    if not jou_obj:
-        return
     
     truncated_datetime = truncate_datetime_to_hour(local_datetime)
+    if timezone.is_naive(truncated_datetime):
+        truncated_datetime = timezone.make_aware(truncated_datetime)
     ms_key = extract_minute_second_key(local_datetime)
 
-    it, _it = Item.objects.get_or_create(collection=collection, journal=jou_obj, article=art_obj)
-    ua, _ua = UserAgent.objects.get_or_create(name=client_name, version=client_version)
-    us, _us = UserSession.objects.get_or_create(datetime=truncated_datetime, user_agent=ua, user_ip=ip_address)
-    ita, _ita = ItemAccess.objects.get_or_create(
-        item=it, user_session=us, media_format=media_format,
-        media_language=media_language, country_code=country_code, content_type=content_type
-    )
+    item_key = (col_acron3, jou_id, art_id)
+    if item_key not in cache['items']:
+        collection_obj = Collection.objects.get(acron3=col_acron3)
+        journal_obj = Journal.objects.get(id=jou_id)
+        article_obj = Article.objects.get(id=art_id)  
+        it, _it = Item.objects.get_or_create(
+            collection=collection_obj,
+            journal=journal_obj,
+            article=article_obj,
+        )
+        cache['items'][item_key] = it
+    else:
+        it = cache['items'][item_key]
 
-    # Update the access count
+    user_agent_key = (client_name, client_version)
+    if user_agent_key not in cache['user_agents']:
+        ua, _ua = UserAgent.objects.get_or_create(
+            name=client_name, 
+            version=client_version
+        )
+        cache['user_agents'][user_agent_key] = ua
+    else:
+        ua = cache['user_agents'][user_agent_key]
+
+    us_key = (truncated_datetime, ua.id, ip_address)
+    if us_key not in cache['user_sessions']:
+        us, _us = UserSession.objects.get_or_create(
+            datetime=truncated_datetime,
+            user_agent=ua,
+            user_ip=ip_address
+        )
+        cache['user_sessions'][us_key] = us
+    else:
+        us = cache['user_sessions'][us_key]
+
+    item_access_key = (it.id, us.id, media_format, media_language, country_code, content_type)
+    if item_access_key not in cache['item_accesses']:
+        ita, _ita = ItemAccess.objects.get_or_create(
+            item=it,
+            user_session=us,
+            media_format=media_format,
+            media_language=media_language,
+            country_code=country_code,
+            content_type=content_type,
+            click_timestamps={ms_key: 1}
+        )
+        cache['item_accesses'][item_access_key] = ita
+    else:
+        ita = cache['item_accesses'][item_access_key]
+
     ita.click_timestamps[ms_key] = ita.click_timestamps.get(ms_key, 0) + 1
-
     ita.save()
-
-
-def _fetch_article(collection, pid_v2, pid_v3, pid_generic, log_file, line):
-    try:
-        if pid_generic:
-            return Article.objects.get(Q(collection=collection) & Q(pid_generic=pid_generic))
-        return Article.objects.get(Q(collection=collection) & (Q(pid_v2=pid_v2) | Q(pid_v3=pid_v3)))
-    except Article.DoesNotExist:
-        _log_discarded_line(
-            log_file, line,
-            tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_MISSING_ARTICLE,
-            _('There is no article registered for the given PID')
-        )
-        return None
-
-
-def _fetch_journal(collection, scielo_issn, log_file, line):
-    try:
-        return Journal.objects.get(Q(collection=collection) & Q(scielo_issn=scielo_issn))
-    except Journal.DoesNotExist:
-        _log_discarded_line(
-            log_file, line,
-            tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_MISSING_JOURNAL,
-            _('There is no journal registered for the given collection and ISSN')
-        )
-        return None
 
 
 def _log_discarded_line(log_file, line, error_type, message):
