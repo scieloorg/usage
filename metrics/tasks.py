@@ -351,7 +351,12 @@ def _process_line(line, utm, log_file, cache):
         )
         return False
     
-    _register_item_access(item_access_data, line, jou_id, art_id, cache)
+    try:
+        _register_item_access(item_access_data, line, jou_id, art_id, cache)
+    except Exception as e:
+        _log_discarded_line(log_file, line, tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_DATABASE_ERROR, str(e))
+        return False
+
     return True
 
 
