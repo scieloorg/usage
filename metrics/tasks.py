@@ -617,9 +617,12 @@ def task_index_documents(self, collections=[], from_date=None, until_date=None, 
     for collection in collections:
         logging.info(f'Computing metrics for collection {collection} from {from_date_str} to {until_date_str}')
 
-        bulk_data = []
+        clfdc_to_update = []
 
-        for key, metric_data in compute_metrics_for_collection(collection, dates, replace).items():
+        bulk_data = []
+        metrics_result = compute_metrics_for_collection(collection, dates, replace, clfdc_to_update)
+
+        for key, metric_data in metrics_result.items():
             bulk_data.append({
                 "_id": key,
                 "_source": metric_data,
@@ -635,6 +638,7 @@ def task_index_documents(self, collections=[], from_date=None, until_date=None, 
                     bulk_data = []
                 except Exception as e:
                     logging.error(f"Failed to send bulk metrics to Elasticsearch: {e}")
+                    clfdc_to_update = []
 
         if bulk_data:
             try:
@@ -645,9 +649,14 @@ def task_index_documents(self, collections=[], from_date=None, until_date=None, 
                 )
             except Exception as e:
                 logging.error(f"Failed to send remaining bulk metrics to Elasticsearch: {e}")
+                clfdc_to_update = []
+
+        for clfdc in clfdc_to_update:
+            clfdc.is_usage_metric_computed = True
+            clfdc.save()
 
 
-def compute_metrics_for_collection(collection, dates, replace=False):
+def compute_metrics_for_collection(collection, dates, replace=False, clfdc_to_update=None):
     """
     Computes usage metrics for a given collection over a range of dates.
 
@@ -658,12 +667,16 @@ def compute_metrics_for_collection(collection, dates, replace=False):
             should be computed.
         replace (bool, optional): A flag indicating whether to replace 
             existing metrics. Defaults to False.
+        clfdc_to_update (list, optional): List to append clfdc objects that should be marked as computed after successful export.
 
     Returns:
         dict: A dictionary containing computed metrics, keyed by a 
         generated usage key.
     """
     data = {}
+
+    if clfdc_to_update is None:
+        clfdc_to_update = []
 
     for date in dates:
         date_str = get_date_str(date)
@@ -677,8 +690,7 @@ def compute_metrics_for_collection(collection, dates, replace=False):
 
         logging.info(f"Computing metrics for {date_str}")
         _process_user_sessions(collection, date, date_str, data)
-        clfdc.is_usage_metric_computed = True
-        clfdc.save()
+        clfdc_to_update.append(clfdc)
 
     return data
 
@@ -801,6 +813,8 @@ def _process_user_sessions(collection, date, date_str, data):
                 item_access.click_timestamps,
                 item_access.content_type,
             )
+
+    return True
 
 
 def _generate_usage_key(collection, journal, pid_v2, pid_v3, pid_generic, media_language, country_code, date_str):
