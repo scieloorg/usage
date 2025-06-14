@@ -48,7 +48,7 @@ import logging
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name=_('Compute access'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Parse logs'), timelimit=-1)
 def task_parse_logs(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None):
     """
     Parses log files associated with a given collection.
