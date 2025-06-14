@@ -124,7 +124,15 @@ def task_parse_log(self, log_file_hash, user_id=None, username=None):
         return
 
     log_parser, url_translator_manager = _setup_parsing_environment(log_file, robots_list, mmdb)
-    _process_lines(log_parser, url_translator_manager, log_file)
+    success = _process_lines(log_parser, url_translator_manager, log_file)
+
+    if not success:
+        logging.error(f'Failed to parse log file {log_file.path}.')
+        return
+    
+    log_file.status = choices.LOG_FILE_STATUS_PROCESSED
+    log_file.save()
+    logging.info(f'Log file {log_file.path} has been successfully parsed.')
 
 
 def _initialize_log_file(log_file_hash):
@@ -284,9 +292,7 @@ def _process_lines(lp, utm, log_file):
         if not _process_line(line, utm, log_file, cache):
             continue
 
-    logging.info(f'File {log_file.path} has been parsed.')
-    log_file.status = choices.LOG_FILE_STATUS_PROCESSED
-    log_file.save()
+    return True
 
 
 def _process_line(line, utm, log_file, cache):
