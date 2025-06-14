@@ -212,7 +212,7 @@ def _load_metrics_objs_cache(log_file):
         log_file (LogFile): The log file being processed.
     
     Returns:
-        dict: A cache containing items, user agents, user sessions, and item accesses.
+        dict: A cache containing items and user agents.
     """
     logging.info(f'Loading metrics objects cache for {log_file.collection}')
     cache = {
@@ -233,26 +233,6 @@ def _load_metrics_objs_cache(log_file):
         key = (ua.name, ua.version)
         cache['user_agents'][key] = ua
     logging.info(f'Loaded {len(cache["user_agents"])} user agents')
-
-    date_str = log_file.validation.get('probably_date')
-    user_sessions_qs = UserSession.objects.filter(datetime__date=date_str).select_related('user_agent')
-    for us in user_sessions_qs:
-        key = (us.datetime, us.user_agent_id, us.user_ip)
-        cache['user_sessions'][key] = us
-    logging.info(f'Loaded {len(cache["user_sessions"])} user sessions for {date_str}')
-
-    item_accesses_qs = ItemAccess.objects.filter(item__collection=log_file.collection)
-    for ia in item_accesses_qs:
-        key = (
-            ia.item_id,
-            ia.user_session_id,
-            ia.media_format,
-            ia.media_language,
-            ia.country_code,
-            ia.content_type,
-        )
-        cache['item_accesses'][key] = ia
-    logging.info(f'Loaded {len(cache["item_accesses"])} item accesses for {log_file.collection}')
 
     return cache
 
