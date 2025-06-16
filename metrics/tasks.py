@@ -277,18 +277,13 @@ def _process_line(line, utm, log_file):
     except Exception as e:
         _log_discarded_line(log_file, line, tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_URL_TRANSLATION, str(e))
         return False
+   
+    try:
+        item_access_data = _extract_item_access_data(log_file.collection.acron3, translated_url)
+    except Exception as e:
+        _log_discarded_line(log_file, line, tracker_choices.LOG_FILE_DISCARDED_LINE_REASON_URL_TRANSLATION, str(e))
+        return False
     
-    item_access_data = {
-        'collection': log_file.collection.acron3,
-        'scielo_issn': translated_url.get('scielo_issn'),
-        'pid_v2': standardizer.standardize_pid_v2(translated_url.get('pid_v2')),
-        'pid_v3': standardizer.standardize_pid_v3(translated_url.get('pid_v3')),
-        'pid_generic': standardizer.standardize_pid_generic(translated_url.get('pid_generic')),
-        'media_language': standardizer.standardize_language_code(translated_url.get('media_language')),
-        'media_format': translated_url.get('media_format'),
-        'content_type': translated_url.get('content_type'),
-    }
-
     if not is_valid_item_access_data(item_access_data):
         _log_discarded_line(
             log_file, line,
@@ -322,6 +317,31 @@ def _process_line(line, utm, log_file):
         return False
 
     return True
+
+
+def _extract_item_access_data(collection_acron3, translated_url):
+    """
+    Extracts item access data from the translated URL and standardizes it.
+
+    Args:
+        collection_acron3 (str): The acronym of the collection.
+        translated_url (dict): The translated URL containing metadata.
+    
+    Returns:
+        dict: A dictionary containing standardized item access data, or None if the data is invalid.
+    """
+    item_access_data = {
+        'collection': collection_acron3,
+        'scielo_issn': translated_url.get('scielo_issn'),
+        'pid_v2': standardizer.standardize_pid_v2(translated_url.get('pid_v2')),
+        'pid_v3': standardizer.standardize_pid_v3(translated_url.get('pid_v3')),
+        'pid_generic': standardizer.standardize_pid_generic(translated_url.get('pid_generic')),
+        'media_language': standardizer.standardize_language_code(translated_url.get('media_language')),
+        'media_format': translated_url.get('media_format'),
+        'content_type': translated_url.get('content_type'),
+    }
+        
+    return item_access_data
 
 
 def _register_item_access(item_access_data, line, jou_id, art_id):
