@@ -240,12 +240,20 @@ class LogFile(CommonControlField):
         blank=False,
     )
 
+    last_processed_line = models.IntegerField(
+        _("Last Processed Line"),
+        blank=True,
+        default=0,
+    )
+
     panels = [
         FieldPanel('hash'),
         FieldPanel('path'),
         FieldPanel('stat_result'),
         FieldPanel('status'),
         FieldPanel('validation'),
+        FieldPanel('summary'),
+        FieldPanel('last_processed_line'),
         AutocompletePanel('collection'),
     ]
 
