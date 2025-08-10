@@ -143,6 +143,7 @@ def extract_item_access_data(collection_acron3:str, translated_url: dict):
         'journal_subject_area_capes': translated_url.get('journal_subject_area_capes'),
         'journal_subject_area_wos': translated_url.get('journal_subject_area_wos'),
         'journal_acronym': translated_url.get('journal_acronym'),
+        'journal_publisher_name': translated_url.get('journal_publisher_name'),
     }
         
     return item_access_data
@@ -269,6 +270,7 @@ def update_results_with_item_access_data(results: dict, item_access_data: dict, 
                 'subject_area_capes': item_access_data.get('journal_subject_area_capes'),
                 'subject_area_wos': item_access_data.get('journal_subject_area_wos'),
                 'acronym': item_access_data.get('journal_acronym'),
+                'publisher_name': item_access_data.get('journal_publisher_name'),
             },
         }
 

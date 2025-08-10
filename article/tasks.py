@@ -20,7 +20,7 @@ from . import models, utils
 
 User = get_user_model()
 
-@celery_app.task(bind=True, name=_('Load article data from Article Meta'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Load article data from Article Meta'), timelimit=-1, queue='load')
 def task_load_article_from_article_meta(self, from_date=None, until_date=None, days_to_go_back=None, collection=None, issn=None, force_update=True, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
 
@@ -91,7 +91,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
     return True
 
 
-@celery_app.task(bind=True, name=_('Load article data from OPAC'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Load article data from OPAC'), timelimit=-1, queue='load')
 def task_load_article_from_opac(self, collection='scl', from_date=None, until_date=None, days_to_go_back=None, page=1, force_update=True, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
 
@@ -156,7 +156,7 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
     return True
 
 
-@celery_app.task(bind=True, name=_('Load preprint data from SciELO Preprints'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Load preprint data from SciELO Preprints'), timelimit=-1, queue='load')
 def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None, days_to_go_back=None, force_update=True, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
 
@@ -206,7 +206,7 @@ def task_load_preprints_from_preprints_api(self, from_date=None, until_date=None
             continue
 
 
-@celery_app.task(bind=True, name=_('Load dataset metadata from Dataverse'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Load dataset metadata from Dataverse'), timelimit=-1, queue='load')
 def task_load_dataset_metadata_from_dataverse(self, from_date=None, until_date=None, days_to_go_back=None, force_update=True, user_id=None, username=None):
     user = _get_user(self.request, username=username, user_id=user_id)
 

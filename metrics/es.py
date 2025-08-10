@@ -28,6 +28,9 @@ DEFAULT_ES_INDEX_USAGE_MAPPINGS = {
                 "acronym": {
                     "type": "keyword"
                 },
+                "publisher": {
+                    "type": "keyword"
+                }
             }
         },
         "pid": {

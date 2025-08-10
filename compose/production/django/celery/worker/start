@@ -4,5 +4,22 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+# Worker padrão
+celery -A config.celery_app worker -l INFO --concurrency=1 -n worker.default@%h &
 
-exec celery -A config.celery_app worker -l INFO --concurrency=1
+# Worker para load e validação de dados
+celery -A config.celery_app worker -l INFO --concurrency=4 -Q load -n worker.load@%h &
+
+# Worker para parse_scl (coleções extra-grandes)
+celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_xlarge -n worker.parse_xlarge@%h &
+
+# Worker para chl col mex (coleções grandes)
+celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_large -n worker.parse_large@%h &
+
+# Worker para cri esp psi prt ven (coleções médias)
+celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_medium -n worker.parse_medium@%h &
+
+# Worker para arg bol cub data ecu per preprints pry rve spa sss sza ury wid (coleções pequenas)
+celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small -n worker.parse_small@%h &
+
+wait

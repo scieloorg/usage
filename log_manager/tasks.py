@@ -26,7 +26,7 @@ LOGFILE_STAT_RESULT_CTIME_INDEX = 9
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name=_('Search for log files'))
+@celery_app.task(bind=True, name=_('Search for log files'), queue='load')
 def task_search_log_files(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None):
     """
     Task to search for log files in the directories defined in the CollectionLogDirectory model.
@@ -85,7 +85,7 @@ def _add_log_file(user, collection, root, name, visible_dates):
         )
 
 
-@celery_app.task(bind=True, name=_('Validate log files'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Validate log files'), timelimit=-1, queue='load')
 def task_validate_log_files(self, collections=[], from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None, ignore_date=False):
     """
     Task to validate log files in the database.
@@ -113,7 +113,7 @@ def task_validate_log_files(self, collections=[], from_date=None, until_date=Non
                 task_validate_log_file.apply_async(args=(log_file.hash, user_id, username))
 
 
-@celery_app.task(bind=True, name=_('Validate log file'), timelimit=-1)
+@celery_app.task(bind=True, name=_('Validate log file'), timelimit=-1, queue='load')
 def task_validate_log_file(self, log_file_hash, user_id=None, username=None):
     """
     Task to validate a specific log file.
