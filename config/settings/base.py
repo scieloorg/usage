@@ -411,3 +411,29 @@ ES_INDEX_NAME = env("ES_INDEX_NAME", default="usage")
 ES_API_KEY = env("ES_API_KEY", default="")
 ES_BASIC_AUTH = env("ES_BASIC_AUTH", default=("elastic", "iHktg66E"))
 ES_VERIFY_CERTS = env.bool("ES_VERIFY_CERTS", default=False)
+
+# Collection size categories
+# ------------------------------------------------------------------------------
+EXTRA_LARGE_COLLECTIONS = env.list("EXTRA_LARGE_COLLECTIONS", default=["scl"])
+LARGE_COLLECTIONS = env.list("LARGE_COLLECTIONS", default=["chl", "col", "mex"])
+MEDIUM_COLLECTIONS = env.list("MEDIUM_COLLECTIONS", default=["cri", "esp", "psi", "prt", "ven"])
+SMALL_COLLECTIONS = env.list("SMALL_COLLECTIONS", default=["arg", "bol", "cub", "data", "ecu", "per", "preprints", "pry", "rve", "spa", "sss", "sza", "ury", "wid"])
+
+# Collection size mapping
+def _build_collection_size_map():
+    """Build mapping of collection acronyms to their size categories."""
+    size_map = {}
+    size_categories = {
+        "xlarge": EXTRA_LARGE_COLLECTIONS,
+        "large": LARGE_COLLECTIONS,
+        "medium": MEDIUM_COLLECTIONS,
+        "small": SMALL_COLLECTIONS,
+    }
+    
+    for size, collections in size_categories.items():
+        for acron3 in collections:
+            size_map[acron3] = size
+    
+    return size_map
+
+COLLECTION_ACRON3_SIZE_MAP = _build_collection_size_map()
