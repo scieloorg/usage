@@ -121,8 +121,8 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
                     article.pid_v3 = doc.get('pid_v3') or ''
                     if not created:
                         article.pid_v2 = doc.get('pid_v2') or ''
-                        article.publication_date = doc.get('publication_date') or ''
-                        article.default_lang = doc.get('default_language') or ''
+                        article.publication_date = doc.get('publication_date') or article.publication_date or ''
+                        article.default_lang = doc.get('default_language') or article.default_lang or ''
             
                         try:
                             article.publication_year = article.publication_date[:4]
