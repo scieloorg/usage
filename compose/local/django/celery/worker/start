@@ -3,5 +3,22 @@
 set -o errexit
 set -o nounset
 
+# Worker padrão
+watchgod celery.__main__.main --args -A config.celery_app worker -l INFO --concurrency=1 -n worker.default@%h &
 
-watchgod celery.__main__.main --args -A config.celery_app worker -l INFO --concurrency=1
+# Worker para load e validação de dados
+watchgod celery.__main__.main --args -A config.celery_app worker -l INFO --concurrency=4 -Q load -n worker.load@%h &
+
+# Worker para scl
+watchgod celery.__main__.main --args -A config.celery_app worker -l INFO --concurrency=1 -Q parse_xlarge -n worker.parse_xlarge@%h &
+
+# Worker para chl col mex
+watchgod celery.__main__.main --args -A config.celery_app worker -l INFO --concurrency=1 -Q parse_large -n worker.parse_large@%h &
+
+# Worker para cri esp psi prt ven
+watchgod celery.__main__.main --args -A config.celery_app worker -l INFO --concurrency=1 -Q parse_medium -n worker.parse_medium@%h &
+
+# Worker para arg bol cub data ecu per preprints pry rve spa sss sza ury wid
+watchgod celery.__main__.main --args -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small -n worker.parse_small@%h &
+
+wait
