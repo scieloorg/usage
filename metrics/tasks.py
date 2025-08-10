@@ -70,8 +70,15 @@ def task_parse_logs(self, collections=[], from_date=None, until_date=None, days_
     from_date_obj = get_date_obj(from_date)
     until_date_obj = get_date_obj(until_date)
 
+    # Set status filters based on the include_logs_with_error and replace flags
+    status_filters = [choices.LOG_FILE_STATUS_QUEUED]
+    if include_logs_with_error:
+        status_filters.append(choices.LOG_FILE_STATUS_ERROR)
+    if replace:
+        status_filters.append(choices.LOG_FILE_STATUS_PROCESSED)
+
     for collection in collections or Collection.acron3_list():
-        for lf in LogFile.objects.filter(status=choices.LOG_FILE_STATUS_QUEUED, collection__acron3=collection):
+        for lf in LogFile.objects.filter(status__in=status_filters, collection__acron3=collection):
             probably_date = _extract_date_from_validation(lf.validation)
             if not probably_date:
                 logging.debug(f'Log file {lf.path} does not have a valid probably date.')
