@@ -27,6 +27,10 @@ from .utils import parser_utils, index_utils
 User = get_user_model()
 
 
+def extract_celery_queue_name(collection_acronym):
+    return f"parse_{settings.COLLECTION_ACRON3_SIZE_MAP.get(collection_acronym, 'small')}"
+
+
 @celery_app.task(bind=True, name=_('Parse logs'), timelimit=-1)
 def task_parse_logs(self, collections=[], include_logs_with_error=True, batch_size=5000, replace=False, track_errors=False, from_date=None, until_date=None, days_to_go_back=None, user_id=None, username=None):
     """
@@ -69,8 +73,13 @@ def task_parse_logs(self, collections=[], include_logs_with_error=True, batch_si
             if probably_date < from_date_obj or probably_date > until_date_obj:
                 continue
 
+            queue_name = extract_celery_queue_name(collection)
+
             logging.info(f'PARSING file {lf.path}')
-            task_parse_log.apply_async(args=(lf.hash, batch_size, replace, track_errors, user_id, username))
+            task_parse_log.apply_async(
+                args=(lf.hash, batch_size, replace, track_errors, user_id, username),
+                queue=queue_name,
+            )
 
 
 @celery_app.task(bind=True, name=_('Parse one log'), timelimit=-1)
