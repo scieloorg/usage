@@ -137,3 +137,65 @@ class StandardizerStandardizeDOI(TestCase):
         doi = 'doi:https://doi.org/10.1590/S0102-67202020000100001'
         standardized = standardizer.standardize_doi(doi)
         self.assertEqual(standardized, '10.1590/S0102-67202020000100001')
+
+
+class TestStandardizeYearOfPublication(TestCase):
+    def test_standardize_year_of_publication_four_digit_year(self):
+        """Test that a four-digit year is returned as-is"""
+        year = "2023"
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, "2023")
+    
+    def test_standardize_year_of_publication_integer_year(self):
+        """Test that an integer year is converted to string"""
+        year = 2023
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, "2023")
+    
+    def test_standardize_year_of_publication_year_range(self):
+        """Test that a year range returns the first year"""
+        year = "2020-2023"
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, "2020")
+    
+    def test_standardize_year_of_publication_year_with_slash(self):
+        """Test that a year with slash returns the first year"""
+        year = "2020/2023"
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, "2020")
+    
+    def test_standardize_year_of_publication_year_with_extra_text(self):
+        """Test that year with extra text extracts the year"""
+        year = "Published in 2023"
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, "")
+    
+    def test_standardize_year_of_publication_invalid_year(self):
+        """Test that invalid year returns None or empty string"""
+        year = "invalid"
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, '')
+    
+    def test_standardize_year_of_publication_empty_string(self):
+        """Test that empty string returns None or empty string"""
+        year = ""
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, '')
+    
+    def test_standardize_year_of_publication_none_input(self):
+        """Test that None input returns None"""
+        year = None
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, '')
+    
+    def test_standardize_year_of_publication_two_digit_year(self):
+        """Test that two-digit year is converted to four-digit year"""
+        year = "23"
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, '')
+    
+    def test_standardize_year_of_publication_year_with_parentheses(self):
+        """Test that year in parentheses is extracted"""
+        year = "(2023)"
+        result = standardizer.standardize_year_of_publication(year)
+        self.assertEqual(result, '')
