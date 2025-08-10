@@ -225,6 +225,13 @@ class LogFile(CommonControlField):
         default=dict,
     )
 
+    summary = models.JSONField(
+        _("Summary"),
+        null=True,
+        blank=True,
+        default=dict,
+    )
+
     collection = models.ForeignKey(
         Collection,
         verbose_name=_("Collection"),
