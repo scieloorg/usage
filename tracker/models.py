@@ -89,14 +89,15 @@ class LogFileDiscardedLine(CommonControlField):
     )
 
     @classmethod
-    def create(cls, log_file, error_type, data, message):
+    def create(cls, log_file, error_type, data, message, save=False):
         try:
             obj = cls()
             obj.log_file = log_file
             obj.error_type = error_type
             obj.data = data
             obj.message = message
-            obj.save()
+            if save:
+                obj.save()
         except Exception as exc:
             raise LogFileDiscardedLineCreateError(
                 f"Unable to create LogFileDiscardedLine ({data} - {error_type} - {message}). EXCEPTION {exc}"
