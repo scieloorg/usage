@@ -60,7 +60,7 @@ def task_load_article_from_article_meta(self, from_date=None, until_date=None, d
             try:
                 article, created = models.Article.objects.get_or_create(collection=col_obj, scielo_issn=jou.scielo_issn, pid_v2=obj.get('code'))
                 if created or force_update:
-                    article.files = obj.get('files') or {}
+                    article.files = obj.get('pdfs') or {}
                     article.processing_date = obj.get('processing_date') or ''
                     article.publication_date = obj.get('publication_date') or ''
                     article.publication_year = obj.get('publication_year') or ''
@@ -121,8 +121,8 @@ def task_load_article_from_opac(self, collection='scl', from_date=None, until_da
                     article.pid_v3 = doc.get('pid_v3') or ''
                     if not created:
                         article.pid_v2 = doc.get('pid_v2') or ''
-                        article.publication_date = doc.get('publication_date') or ''
-                        article.default_lang = doc.get('default_language') or ''
+                        article.publication_date = doc.get('publication_date') or article.publication_date or ''
+                        article.default_lang = doc.get('default_language') or article.default_lang or ''
             
                         try:
                             article.publication_year = article.publication_date[:4]

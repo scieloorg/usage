@@ -218,3 +218,30 @@ def standardize_pid_generic(pid_generic):
         return pid_generic_based_on_doi
     
     return pid_generic.strip().upper()
+
+
+def standardize_year_of_publication(year_of_publication):
+    """
+    Standardizes a year of publication.
+
+    Parameters:
+        year_of_publication (str): The year of publication to be standardized.
+
+    Returns:
+        str: The standardized year of publication or an empty string if the input is not a valid year.
+    """
+    if not year_of_publication:
+        return ''
+    
+    # Truncate to 4 characters if longer
+    if isinstance(year_of_publication, str) and len(year_of_publication) > 4:
+        year_of_publication = year_of_publication[:4]
+
+    try:
+        year = int(year_of_publication)
+        if 1500 <= year <= 2100:
+            return str(year)
+    except ValueError:
+        pass
+   
+    return ''

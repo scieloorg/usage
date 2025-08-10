@@ -40,11 +40,13 @@ class CollectionLogFileDateCountViewSet(SnippetViewSet):
         "found_log_files",
         "expected_log_files",
         "status",
+        "exported_files_count",
         "is_usage_metric_computed",
     )
     list_filter = (
         "collection",
         "status",
+        "exported_files_count",
         "is_usage_metric_computed",
         "year",
         "month"
@@ -62,6 +64,8 @@ class LogFileSnippetViewSet(SnippetViewSet):
         "collection", 
         "status", 
         "validation",
+        "summary",
+        "last_processed_line",
         "hash"
     )
     list_filter = ("status", "collection")

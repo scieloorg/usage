@@ -407,7 +407,7 @@ SEARCH_PAGINATION_ITEMS_PER_PAGE = 10
 # Elasticsearch
 # ------------------------------------------------------------------------------
 ES_URL = env("ES_URL", default="http://192.168.0.33:9200/")
-ES_INDEX_NAME = env("ES_INDEX_NAME", default="usage-daily")
+ES_INDEX_NAME = env("ES_INDEX_NAME", default="usage")
 ES_API_KEY = env("ES_API_KEY", default="")
 ES_BASIC_AUTH = env("ES_BASIC_AUTH", default=("elastic", "iHktg66E"))
 ES_VERIFY_CERTS = env.bool("ES_VERIFY_CERTS", default=False)

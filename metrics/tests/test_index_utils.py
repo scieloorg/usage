@@ -10,10 +10,10 @@ from scielo_usage_counter.values import (
     DEFAULT_SCIELO_ISSN,
 )
 
-from metrics.utils import is_valid_item_access_data
+from metrics.utils import index_utils
 
 
-class TestUtils(unittest.TestCase):
+class TestIndexUtils(unittest.TestCase):    
     def test_is_valid_item_access_data_valid(self):
         data = {
             'scielo_issn': '1234-5678',
@@ -22,7 +22,8 @@ class TestUtils(unittest.TestCase):
             'media_format': MEDIA_FORMAT_PDF,
             'content_type': CONTENT_TYPE_FULL_TEXT,
         }
-        self.assertTrue(is_valid_item_access_data(data))
+        result, _ = index_utils.is_valid_item_access_data(data)
+        self.assertTrue(result)
 
     def test_is_valid_item_access_data_missing_scielo_issn(self):
         data = {
@@ -32,7 +33,8 @@ class TestUtils(unittest.TestCase):
             'media_format': MEDIA_FORMAT_PDF,
             'content_type': CONTENT_TYPE_FULL_TEXT,
         }
-        self.assertFalse(is_valid_item_access_data(data))
+        result, _ = index_utils.is_valid_item_access_data(data)
+        self.assertFalse(result)
 
     def test_is_valid_item_access_data_undefined_media_format(self):
         data = {
@@ -42,7 +44,8 @@ class TestUtils(unittest.TestCase):
             'media_format': MEDIA_FORMAT_UNDEFINED,
             'content_type': CONTENT_TYPE_FULL_TEXT,
         }
-        self.assertFalse(is_valid_item_access_data(data))
+        result, _ = index_utils.is_valid_item_access_data(data)
+        self.assertFalse(result)
 
     def test_is_valid_item_access_data_undefined_content_type(self):
         data = {
@@ -52,7 +55,8 @@ class TestUtils(unittest.TestCase):
             'media_format': MEDIA_FORMAT_PDF,
             'content_type': CONTENT_TYPE_UNDEFINED,
         }
-        self.assertFalse(is_valid_item_access_data(data))
+        result, _ = index_utils.is_valid_item_access_data(data)
+        self.assertFalse(result)
 
     def test_is_valid_item_access_data_missing_pid_v2_and_pid_v3(self):
         data = {
@@ -62,7 +66,8 @@ class TestUtils(unittest.TestCase):
             'media_format': MEDIA_FORMAT_PDF,
             'content_type': CONTENT_TYPE_FULL_TEXT,
         }
-        self.assertFalse(is_valid_item_access_data(data))
+        result, _ = index_utils.is_valid_item_access_data(data)
+        self.assertFalse(result)
 
     def test_is_valid_item_access_data_media_format_html(self):
         data = {
@@ -72,7 +77,8 @@ class TestUtils(unittest.TestCase):
             'media_format': MEDIA_FORMAT_HTML,
             'content_type': CONTENT_TYPE_FULL_TEXT,
         }
-        self.assertTrue(is_valid_item_access_data(data))
+        result, _ = index_utils.is_valid_item_access_data(data)
+        self.assertTrue(result)
 
     def test_is_valid_item_access_data_content_type_abstract(self):
         data = {
@@ -82,7 +88,8 @@ class TestUtils(unittest.TestCase):
             'media_format': MEDIA_FORMAT_PDF,
             'content_type': CONTENT_TYPE_ABSTRACT
         }
-        self.assertTrue(is_valid_item_access_data(data))
+        result, _ = index_utils.is_valid_item_access_data(data)
+        self.assertTrue(result)
 
     def test_is_valid_item_acess_data_dataverse(self):
         data = {
@@ -93,4 +100,5 @@ class TestUtils(unittest.TestCase):
             'media_format': MEDIA_FORMAT_HTML,
             'content_type': CONTENT_TYPE_ABSTRACT,
         }
-        self.assertTrue(is_valid_item_access_data(data))
+        result, _ = index_utils.is_valid_item_access_data(data)
+        self.assertTrue(result)

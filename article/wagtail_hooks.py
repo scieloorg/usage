@@ -22,7 +22,7 @@ class ArticleSnippetViewSet(SnippetViewSet):
         "pid_v3",
         "pid_generic",
         "files",
-        "publication_date",
+        "publication_year",
     )
     list_filter = (
         "collection",

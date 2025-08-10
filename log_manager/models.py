@@ -133,6 +133,11 @@ class CollectionLogFileDateCount(CommonControlField):
         verbose_name=_('Is Usage Metric Computed'),
         default=False,
     )
+
+    exported_files_count = models.SmallIntegerField(
+        verbose_name=_('Exported Files Count'),
+        default=0,
+    )
     
     status = models.CharField(
         verbose_name=_('Status'),
@@ -147,7 +152,11 @@ class CollectionLogFileDateCount(CommonControlField):
             self.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_EXTRA_FILES
         else:
             self.status = choices.COLLECTION_LOG_FILE_DATE_COUNT_OK
-    
+
+    def set_is_usage_metric_computed(self):
+        if self.exported_files_count == self.found_log_files:
+            self.is_usage_metric_computed = True
+             
     @classmethod
     def create_or_update(cls, user, collection, date, expected_log_files, found_log_files):
         obj, created = cls.objects.get_or_create(
@@ -216,6 +225,13 @@ class LogFile(CommonControlField):
         default=dict,
     )
 
+    summary = models.JSONField(
+        _("Summary"),
+        null=True,
+        blank=True,
+        default=dict,
+    )
+
     collection = models.ForeignKey(
         Collection,
         verbose_name=_("Collection"),
@@ -224,12 +240,20 @@ class LogFile(CommonControlField):
         blank=False,
     )
 
+    last_processed_line = models.IntegerField(
+        _("Last Processed Line"),
+        blank=True,
+        default=0,
+    )
+
     panels = [
         FieldPanel('hash'),
         FieldPanel('path'),
         FieldPanel('stat_result'),
         FieldPanel('status'),
         FieldPanel('validation'),
+        FieldPanel('summary'),
+        FieldPanel('last_processed_line'),
         AutocompletePanel('collection'),
     ]
 
