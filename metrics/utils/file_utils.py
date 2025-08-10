@@ -2,17 +2,6 @@ import csv
 import io
 import tarfile
 
-from scielo_usage_counter.values import (
-    CONTENT_TYPE_UNDEFINED,
-    MEDIA_FORMAT_UNDEFINED,
-)
-
-from scielo_usage_counter.translator.classic import URLTranslatorClassicSite
-from scielo_usage_counter.translator.dataverse import URLTranslatorDataverseSite
-from scielo_usage_counter.translator.opac import URLTranslatorOPACSite
-from scielo_usage_counter.translator.opac_alpha import URLTranslatorOPACAlphaSite
-from scielo_usage_counter.translator.preprints import URLTranslatorPreprintsSite
-
 
 def get_load_data_function(file_path):
     """
@@ -81,58 +70,3 @@ def load_tar_gz(file_path, delimiter='\t'):
                     delimiter=delimiter, 
                     is_stream=True
                 )
-
-
-def is_valid_item_access_data(data):
-    """
-    Validates the item access data based on the provided parameters.
-
-    Parameters:
-        data (dict): A dictionary containing the following keys:
-            - scielo_issn (str): The ISSN of the SciELO journal.
-            - pid_v2 (str): The PID version 2 of the document.
-            - pid_v3 (str): The PID version 3 of the document.
-            - media_format (str): The media format of the document.
-            - content_type (str): The content type of the document.
-
-    Returns:
-        bool: True if the item access data is valid, False otherwise."
-    """
-    if not isinstance(data, dict):
-        return False
-
-    scielo_issn = data.get('scielo_issn')
-    media_format = data.get('media_format')
-    content_type = data.get('content_type')
-    pid_v2 = data.get('pid_v2')
-    pid_v3 = data.get('pid_v3')
-    pid_generic = data.get('pid_generic')
-
-    if not all([
-        scielo_issn,
-        media_format and media_format != MEDIA_FORMAT_UNDEFINED,
-        content_type and content_type != CONTENT_TYPE_UNDEFINED,
-        pid_v2 or pid_v3 or pid_generic,
-    ]):
-        return False
-    return True
-
-
-def translator_class_name_to_obj(name):
-    """
-    Translates a class name to a class object."
-
-    Parameters:
-        name (str): The name of the URL translator site.
-    """
-    if not name:
-        return None
-    
-    translator_classes = {
-        'classic': URLTranslatorClassicSite,
-        'dataverse': URLTranslatorDataverseSite,
-        'opac': URLTranslatorOPACSite,
-        'opac_alpha': URLTranslatorOPACAlphaSite,
-        'preprints': URLTranslatorPreprintsSite
-    }
-    return translator_classes.get(name.lower())
