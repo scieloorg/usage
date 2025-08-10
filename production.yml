@@ -38,17 +38,6 @@ services:
     links:
       - postgres
   
-  solr:
-      image: solr:9.3
-      restart: always
-      ports:
-         - "8983:8983"
-      volumes:
-          - ./index:/var/solr
-      environment:
-          - SOLR_JAVA_MEM=-Xms512m -Xmx512m
-          - SOLR_HEAP=512m
-
   postgres:
     build:
       context: .
