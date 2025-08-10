@@ -15,7 +15,7 @@ from . import models, utils
 User = get_user_model()
 
 
-@celery_app.task(bind=True, name=_('Load journal data from Article Meta'))
+@celery_app.task(bind=True, name=_('Load journal data from Article Meta'), queue='load')
 def task_load_journal_data_from_article_meta(self, collections=[], force_update=True, user_id=None, username=None, mode='thrift'):
     user = _get_user(user_id, username)
 
