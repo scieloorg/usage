@@ -46,11 +46,11 @@ def task_search_log_files(self, collections=[], from_date=None, until_date=None,
 
         col_configs_dirs = lmc_models.CollectionLogDirectory.objects.filter(collection__acron3=col, active=True)
         if len(col_configs_dirs) == 0:
-            raise lmc_exceptions.UndefinedCollectionLogDirectoryError(_(f'Error. Please, add a CollectionLogDirectory for the collection {col}.'))
+            logging.error(f'No CollectionLogDirectory found for collection {col}.')
 
         supported_logfile_extensions = lmc_models.SupportedLogFile.objects.values_list('file_extension', flat=True)
         if len(supported_logfile_extensions) == 0:
-            raise lmc_exceptions.UndefinedSupportedLogFile(_('Error. Please, add a SupportedLogFile for each of the supported log file formats.'))
+            logging.error('No SupportedLogFile found. Please, add a SupportedLogFile for each of the supported log file formats.')
 
         for cd in col_configs_dirs:
             for root, _sub_dirs, files in os.walk(cd.path):
@@ -99,14 +99,14 @@ def task_validate_log_files(self, collections=[], from_date=None, until_date=Non
         username (str, optional): The username of the user initiating the task. Defaults to None.
         ignore_date (bool, optional): If True, ignore the date of the log file. Defaults to False.
     """
-    logging.info(f'Validating log files for collections: {collections}.')
+    cols = collections or Collection.acron3_list()
+    logging.info(f'Validating log files for collections: {cols}.')
 
     visible_dates = _get_visible_dates(from_date, until_date, days_to_go_back)
-
     if not ignore_date:
         logging.info(f'Interval: {visible_dates[0]} to {visible_dates[-1]}.')
 
-    for col in collections or Collection.acron3_list():
+    for col in cols:
         for log_file in models.LogFile.objects.filter(status=choices.LOG_FILE_STATUS_CREATED, collection__acron3=col):
             file_ctime = date_utils.get_date_obj_from_timestamp(log_file.stat_result[LOGFILE_STAT_RESULT_CTIME_INDEX])
             if file_ctime in visible_dates or ignore_date:
@@ -191,11 +191,11 @@ def task_check_missing_logs_for_date_range(self, collections=[], from_date=None,
     for col in collections or Collection.acron3_list():
         collection = Collection.objects.get(acron3=col)
         for date in date_utils.get_date_objs_from_date_range(from_date_str, until_date_str):
-            logging.info(f'Checking missings logs for collection {col} and date {date}')
-            _check_missing_logs_for_date(user, collection, date)
+            logging.info(f'Couting logs for collection {col} and date {date}')
+            count_logs_for_date(user, collection, date)
 
 
-def _check_missing_logs_for_date(user, collection, date):
+def count_logs_for_date(user, collection, date):
     try:
         n_expected_files = lmc_models.CollectionLogFilesPerDay.get_number_of_expected_files_by_day(collection=collection.acron3, date=date)
     except lmc_exceptions.UndefinedCollectionFilesPerDayError:
