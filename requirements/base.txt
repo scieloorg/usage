@@ -27,7 +27,7 @@ djangorestframework-simplejwt==5.3.1  # https://django-rest-framework-simplejwt.
 
 # Wagtail
 # ------------------------------------------------------------------------------
-wagtail==6.3.2  # https://github.com/wagtail/wagtail
+wagtail==7.3.1  # https://github.com/wagtail/wagtail
 
 # Wagtail Recaptcha
 # ------------------------------------------------------------------------------
