@@ -5,6 +5,15 @@ from django.utils.html import format_html
 from wagtail import hooks
 
 
+HIDDEN_MAIN_MENU_ITEMS = {
+    "documents",
+    "explorer",
+    "images",
+    "reports",
+    "snippets",
+}
+
+
 @hooks.register("insert_global_admin_css", order=100)
 def global_admin_css():
     """Add /static/css/custom.css to the admin."""
@@ -24,3 +33,10 @@ def global_admin_js():
 @hooks.register("construct_homepage_summary_items", order=1)
 def remove_all_summary_items(request, items):
     items.clear()
+
+
+@hooks.register("construct_main_menu")
+def hide_generic_main_menu_items(request, menu_items):
+    menu_items[:] = [
+        item for item in menu_items if item.name not in HIDDEN_MAIN_MENU_ITEMS
+    ]

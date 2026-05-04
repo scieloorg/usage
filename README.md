@@ -2,8 +2,6 @@
 
 A modernized platform for processing and indexing SciELO usage logs into OpenSearch, adhering to COUNTER R5.1 standards.
 
-**Version**: 2.0.0
-
 ## Quick Start (Dev Installation)
 
 To build and run the application locally:
@@ -30,6 +28,10 @@ make django_fast                     # tests with --failfast
 make django_migrate                  # apply migrations
 make django_makemigrations           # generate new migrations
 make django_createsuperuser          # create Wagtail admin user
+make logs                            # follow all service logs
+make ps                              # list compose services
+make django_bash                     # open a bash shell in the django container
+make django_compilemessages          # compile translation files
 ```
 
 **Run a single test file/path:**
@@ -86,21 +88,48 @@ Metadata is kept in sync with SciELO sources (ArticleMeta, OPAC, Books, etc.) vi
 
 ## Environment Variables
 
+Runtime configuration is loaded from `.envs/.local/` or `.envs/.production/` through the Compose files.
+
+### Core Services
+
 | Variable | Default | Description |
 |---|---|---|
-| `OPENSEARCH_URL` | — | OpenSearch cluster URL |
-| `OPENSEARCH_BASIC_AUTH` | — | OpenSearch basic auth credentials (`user:pass`) |
+| `OPENSEARCH_URL` | `http://localhost:9200/` | OpenSearch cluster URL |
+| `OPENSEARCH_INDEX_NAME` | `usage` | OpenSearch index prefix |
+| `OPENSEARCH_BASIC_AUTH` | `admin:admin` | OpenSearch basic auth credentials |
 | `OPENSEARCH_VERIFY_CERTS` | `False` | Verify SSL certificates for OpenSearch connections |
 | `USE_LOCAL_SCIELO_LIBS` | `0` | Mount local `scielo_log_validator` and `scielo_usage_counter` repos for development |
 | `DJANGO_SETTINGS_MODULE` | `config.settings.local` | Django settings module |
 | `REDIS_URL` | — | Redis connection URL for Celery |
 
-## OpenSearch Storage Strategy (Hybrid Monthly)
+### Collector Endpoints
 
-To optimize storage and performance, this system employs a **Hybrid Granularity** approach in OpenSearch:
+| Variable | Default | Description |
+|---|---|---|
+| `ARTICLEMETA_COLLECT_URL` | `http://articlemeta.scielo.org/api/v1/article/counter_dict` | ArticleMeta counter metadata endpoint |
+| `ARTICLEMETA_MAX_RETRIES` | `5` | ArticleMeta retry attempts |
+| `ARTICLEMETA_SLEEP_TIME` | `30` | Delay between ArticleMeta retries, in seconds |
+| `OPAC_ENDPOINT` | `https://www.scielo.br/api/v1/counter_dict` | OPAC counter metadata endpoint |
+| `OPAC_MAX_RETRIES` | `5` | OPAC retry attempts |
+| `OPAC_SLEEP_TIME` | `30` | Delay between OPAC retries, in seconds |
+| `OAI_PMH_PREPRINT_ENDPOINT` | `https://preprints.scielo.org/index.php/scielo/oai` | SciELO Preprints OAI-PMH endpoint |
+| `OAI_METADATA_PREFIX` | `oai_dc` | OAI-PMH metadata prefix |
+| `OAI_PMH_MAX_RETRIES` | `5` | OAI-PMH retry attempts |
+| `DATAVERSE_ENDPOINT` | `https://data.scielo.org/api` | SciELO Data Dataverse API endpoint |
+| `DATAVERSE_ROOT_COLLECTION` | `scielodata` | Dataverse root collection alias |
+| `DATAVERSE_SLEEP_TIME` | `30` | Dataverse request timeout/retry delay, in seconds |
+| `SCIELO_BOOKS_BASE_URL` | `http://localhost:5984` | SciELO Books CouchDB base URL |
+| `SCIELO_BOOKS_DB_NAME` | `scielobooks_1a` | SciELO Books CouchDB database name |
+| `SCIELO_BOOKS_TIMEOUT` | `60` | SciELO Books request timeout, in seconds |
+| `SCIELO_BOOKS_LIMIT` | `1000` | SciELO Books changes-feed page size |
 
-- **Monthly Partitioning**: Indices are partitioned by month (e.g., `usage_monthly_books_2026`).
-- **One Document per Month**: Each article/PID has exactly **one document per month**, drastically reducing the total document count (up to 30x reduction).
+## OpenSearch Storage Strategy
+
+The OpenSearch export keeps monthly usage documents with nested daily metrics, while index names depend on collection size:
+
+- **Large and xlarge collections**: annual indices, such as `usage_monthly_scl_2024` and `usage_yearly_scl_2024`.
+- **Small collections**: stable collection indices, such as `usage_monthly_books` and `usage_yearly_books`.
+- **One Document per Month**: Each document/PID has one monthly document per metric scope.
 - **Daily Nested Metrics**: Daily granularity is preserved inside each monthly document using a `daily_metrics` object.
 - **Atomic Upserts**: Data is merged using OpenSearch **Painless Scripts**, allowing multiple logs for the same day/month to be processed without data duplication or loss.
 
@@ -112,9 +141,15 @@ All pipelines can be monitored through the **Wagtail Admin**:
 - **Daily Metric Jobs**: Track the history of daily processing and OpenSearch export attempts.
 - **Log Config**: Manage collection-specific settings, log paths, and notification emails.
 
+Internally, log file statuses are stored as short codes such as `QUE`, `PAR`, and `PRO`, with labels displayed in the admin.
+
 ### Useful Commands
 
 - `make django_shell`: Access the Django interactive shell.
+- `make django_bash`: Open a bash shell in the Django container.
+- `make logs`: Follow Docker Compose logs.
+- `make ps`: Show running services.
+- `docker compose -f local.yml run --rm django pytest path/to/test_file.py`: Run a single test file or path.
 - `docker logs -f scielo_usage_local_celeryworker`: Monitor real-time task execution.
 
 ## Dependencies

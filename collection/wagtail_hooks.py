@@ -1,6 +1,10 @@
 from django.utils.translation import gettext as _
-from wagtail.snippets.views.snippets import SnippetViewSet
+from wagtail.snippets.models import register_snippet
+from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
+from config.menu import get_menu_order
+from document.wagtail_hooks import DocumentSnippetViewSet
+from source.wagtail_hooks import SourceSnippetViewSet
 from .models import Collection
 
 
@@ -52,3 +56,18 @@ class CollectionSnippetViewSet(SnippetViewSet):
         "updated_by",
     )
     export_filename = "collections"
+
+
+class MetadataSnippetViewSetGroup(SnippetViewSetGroup):
+    menu_name = "metadata"
+    menu_label = _("Metadata")
+    menu_icon = "folder-open-inverse"
+    menu_order = get_menu_order("metadata")
+    items = (
+        CollectionSnippetViewSet,
+        SourceSnippetViewSet,
+        DocumentSnippetViewSet,
+    )
+
+
+register_snippet(MetadataSnippetViewSetGroup)

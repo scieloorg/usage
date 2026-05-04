@@ -1,4 +1,4 @@
-exclude: "^docs/|/migrations/"
+exclude: "^docs/|/migrations/|.*/migrations/.*"
 default_stages: [commit]
 
 repos:
@@ -10,7 +10,7 @@ repos:
       - id: check-yaml
 
   - repo: https://github.com/psf/black
-    rev: 23.1.0
+    rev: 23.12.0
     hooks:
       - id: black
 
@@ -20,11 +20,11 @@ repos:
       - id: isort
 
   - repo: https://github.com/PyCQA/flake8
-    rev: 6.0.0
+    rev: 6.1.0
     hooks:
       - id: flake8
         args: ["--config=setup.cfg"]
-        additional_dependencies: [flake8-isort]
+        additional_dependencies: [flake8-isort==6.1.1]
 
 # sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
 ci:

@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   django: &django
     build:
@@ -11,12 +9,10 @@ services:
       - redis
       - postgres
       - mailhog
-      - solr
       - pgbouncer
     links:
       - pgbouncer
-      - solr
-      volumes:
+    volumes:
       - .:/app:z
       - ../scms_data/scielo_usage/data/logs:/data/logs
       - ../scms_data/scielo_usage/data/supplies:/data/supplies
