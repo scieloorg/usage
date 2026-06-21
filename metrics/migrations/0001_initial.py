@@ -28,11 +28,15 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "created",
-                    models.DateTimeField(auto_now_add=True, verbose_name="Creation date"),
+                    models.DateTimeField(
+                        auto_now_add=True, verbose_name="Creation date"
+                    ),
                 ),
                 (
                     "updated",
-                    models.DateTimeField(auto_now=True, verbose_name="Last update date"),
+                    models.DateTimeField(
+                        auto_now=True, verbose_name="Last update date"
+                    ),
                 ),
                 (
                     "access_date",
@@ -85,7 +89,9 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "error_message",
-                    models.TextField(blank=True, default="", verbose_name="Error Message"),
+                    models.TextField(
+                        blank=True, default="", verbose_name="Error Message"
+                    ),
                 ),
                 (
                     "export_started_at",
@@ -97,7 +103,9 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "exported_at",
-                    models.DateTimeField(blank=True, null=True, verbose_name="Exported At"),
+                    models.DateTimeField(
+                        blank=True, null=True, verbose_name="Exported At"
+                    ),
                 ),
                 (
                     "collection",

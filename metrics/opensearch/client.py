@@ -3,12 +3,9 @@ import logging
 from django.conf import settings
 from opensearchpy import NotFoundError, OpenSearch, helpers
 
+from metrics.opensearch.mappings import get_index_mappings
 from metrics.opensearch.names import generate_month_index_name, generate_year_index_name
-
-from .mappings import get_index_mappings
-from .scripts import (
-    IDEMPOTENT_JOB_INCREMENT_SCRIPT,
-    METRIC_FIELDS,
+from metrics.opensearch.painless import (
     build_idempotent_job_increment_action,
     merge_metric_document,
 )
@@ -18,7 +15,13 @@ class OpenSearchUsageClient:
     def __init__(self, url=None, basic_auth=None, api_key=None, verify_certs=None):
         self.client = self.get_opensearch_client(url, basic_auth, api_key, verify_certs)
 
-    def get_opensearch_client(self, url=None, basic_auth=None, api_key=None, verify_certs=None):
+    def get_opensearch_client(
+        self,
+        url=None,
+        basic_auth=None,
+        api_key=None,
+        verify_certs=None,
+    ):
         url = url or getattr(settings, "OPENSEARCH_URL", None)
         basic_auth = basic_auth or getattr(settings, "OPENSEARCH_BASIC_AUTH", None)
         api_key = api_key or getattr(settings, "OPENSEARCH_API_KEY", None)
@@ -26,7 +29,11 @@ class OpenSearchUsageClient:
             verify_certs = getattr(settings, "OPENSEARCH_VERIFY_CERTS", False)
 
         if basic_auth:
-            return OpenSearch(url, http_auth=tuple(basic_auth), verify_certs=verify_certs)
+            return OpenSearch(
+                url,
+                http_auth=tuple(basic_auth),
+                verify_certs=verify_certs,
+            )
         if api_key:
             return OpenSearch(url, api_key=api_key, verify_certs=verify_certs)
         return OpenSearch(url, verify_certs=verify_certs)
@@ -56,22 +63,31 @@ class OpenSearchUsageClient:
             return
 
         if not self.client.indices.exists(index=index_name):
-            self.create_index(index_name=index_name, mappings=mappings, ping_client=False)
+            self.create_index(
+                index_name=index_name,
+                mappings=mappings,
+                ping_client=False,
+            )
 
     def ensure_usage_indexes(self, collection, access_date, index_prefix=None):
-        index_prefix = index_prefix or getattr(settings, "OPENSEARCH_INDEX_NAME", "usage")
+        index_prefix = index_prefix or getattr(
+            settings,
+            "OPENSEARCH_INDEX_NAME",
+            "usage",
+        )
         year_index = generate_year_index_name(index_prefix, collection, access_date)
         month_index = generate_month_index_name(index_prefix, collection, access_date)
 
-        self.create_index_if_not_exists(year_index, get_index_mappings(collection, "year"))
-        self.create_index_if_not_exists(month_index, get_index_mappings(collection, "month"))
+        self.create_index_if_not_exists(
+            year_index,
+            get_index_mappings(collection, "year"),
+        )
+        self.create_index_if_not_exists(
+            month_index,
+            get_index_mappings(collection, "month"),
+        )
 
         return {"year": year_index, "month": month_index}
-
-    def delete_index(self, index_name, ping_client=False):
-        if ping_client and not self.ping():
-            return
-        self.client.indices.delete(index=index_name)
 
     def index_documents(self, index_name, documents, ping_client=False):
         if ping_client and not self.ping():
@@ -207,12 +223,19 @@ class OpenSearchUsageClient:
         if not documents:
             return
 
-        existing_documents = self.fetch_documents_by_ids(index_name=index_name, doc_ids=list(documents.keys()))
+        existing_documents = self.fetch_documents_by_ids(
+            index_name=index_name,
+            doc_ids=list(documents.keys()),
+        )
         upserts = {}
         deletes = []
 
         for doc_id, document in documents.items():
-            merged = merge_metric_document(existing_documents.get(doc_id), document, operation=operation)
+            merged = merge_metric_document(
+                existing_documents.get(doc_id),
+                document,
+                operation=operation,
+            )
             if merged is None:
                 if doc_id in existing_documents:
                     deletes.append(doc_id)

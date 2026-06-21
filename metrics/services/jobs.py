@@ -6,7 +6,6 @@ from django.utils import timezone
 
 from log_manager import choices
 from log_manager.models import LogFile
-
 from metrics.models import DailyMetricJob
 
 
@@ -74,7 +73,9 @@ def acquire_daily_metric_job(job_id):
             DailyMetricJob.STATUS_EXPORTING,
             DailyMetricJob.STATUS_EXPORTED,
         }:
-            logging.info("Daily metric job %s is already in final/active state.", job_id)
+            logging.info(
+                "Daily metric job %s is already in final/active state.", job_id
+            )
             return None
 
         job.status = DailyMetricJob.STATUS_EXPORTING
@@ -106,7 +107,7 @@ def mark_daily_metric_job_failed(job, error_message):
     )
 
 
-def mark_daily_metric_job_exported(job, user=None):
+def mark_daily_metric_job_exported(job):
     DailyMetricJob.objects.filter(pk=job.pk).update(
         status=DailyMetricJob.STATUS_EXPORTED,
         error_message="",
@@ -120,7 +121,12 @@ def mark_daily_metric_job_exported(job, user=None):
     )
 
 
-def release_stale_daily_metric_jobs(collections=None, from_date=None, until_date=None, stale_after_minutes=60):
+def release_stale_daily_metric_jobs(
+    collections=None,
+    from_date=None,
+    until_date=None,
+    stale_after_minutes=60,
+):
     cutoff = timezone.now() - timedelta(minutes=stale_after_minutes)
     queryset = DailyMetricJob.objects.filter(
         status=DailyMetricJob.STATUS_EXPORTING,
@@ -140,9 +146,7 @@ def release_stale_daily_metric_jobs(collections=None, from_date=None, until_date
         updated=timezone.now(),
     )
     stale_hashes = {
-        log_hash
-        for job in stale_jobs
-        for log_hash in (job.input_log_hashes or [])
+        log_hash for job in stale_jobs for log_hash in (job.input_log_hashes or [])
     }
     if stale_hashes:
         LogFile.objects.filter(hash__in=stale_hashes).update(

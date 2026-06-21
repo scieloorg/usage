@@ -1,6 +1,6 @@
-TEXT_KEYWORD_MAPPING = {
+DISPLAY_TEXT_MAPPING = {
     "type": "text",
-    "fields": {"keyword": {"type": "keyword", "ignore_above": 512}},
+    "index": False,
 }
 
 IDENTIFIERS_MAPPING = {"type": "object", "dynamic": True}
@@ -9,7 +9,7 @@ DOCUMENT_MAPPINGS = {
     "properties": {
         "id": {"type": "keyword"},
         "type": {"type": "keyword"},
-        "title": TEXT_KEYWORD_MAPPING,
+        "title": DISPLAY_TEXT_MAPPING,
         "parent_id": {"type": "keyword"},
         "publication_year": {"type": "integer"},
         "identifiers": IDENTIFIERS_MAPPING,
@@ -20,10 +20,10 @@ SOURCE_MAPPINGS = {
     "properties": {
         "id": {"type": "keyword"},
         "type": {"type": "keyword"},
-        "title": TEXT_KEYWORD_MAPPING,
+        "title": DISPLAY_TEXT_MAPPING,
         "scielo_issn": {"type": "keyword"},
         "acronym": {"type": "keyword"},
-        "publisher_name": {"type": "keyword"},
+        "publisher_name": DISPLAY_TEXT_MAPPING,
         "access_type": {"type": "keyword"},
         "city": {"type": "keyword"},
         "country": {"type": "keyword"},
@@ -87,14 +87,6 @@ YEAR_INDEX_MAPPINGS = _build_index_mappings("year")
 MONTH_INDEX_MAPPINGS = _build_index_mappings("month")
 BOOKS_YEAR_INDEX_MAPPINGS = _build_index_mappings("year")
 BOOKS_MONTH_INDEX_MAPPINGS = _build_index_mappings("month")
-
-
-METRIC_FIELDS = (
-    "total_requests",
-    "total_investigations",
-    "unique_requests",
-    "unique_investigations",
-)
 
 
 def get_index_mappings(collection, granularity):

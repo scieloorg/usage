@@ -319,6 +319,20 @@ CELERY_BROKER_URL = env("CELERY_BROKER_URL")
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 # http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-accept_content
 CELERY_ACCEPT_CONTENT = ["json"]
+# Import nested task packages that are not exposed through package __init__.py files.
+CELERY_IMPORTS = (
+    "document.tasks.articlemeta",
+    "document.tasks.dataverse",
+    "document.tasks.opac",
+    "document.tasks.pipeline",
+    "document.tasks.preprints",
+    "document.tasks.scielo_books",
+    "metrics.tasks.cleanup",
+    "metrics.tasks.daily_metric_exports",
+    "metrics.tasks.index",
+    "metrics.tasks.log_parsing",
+    "metrics.tasks.resume",
+)
 # http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-task_serializer
 CELERY_TASK_SERIALIZER = "json"
 # http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-result_serializer
