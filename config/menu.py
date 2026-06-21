@@ -7,8 +7,9 @@ WAGTAIL_MENU_APPS_ORDER = {
     "tasks": 600,
 }
 
+
 def get_menu_order(app_name):
     try:
         return WAGTAIL_MENU_APPS_ORDER[app_name]
-    except:
+    except KeyError:
         return 950

@@ -1,15 +1,6 @@
 import logging
 
-from django.conf import settings
-
-from log_manager.models import LogFile
 from resources.models import MMDB, RobotUserAgent
-
-from metrics import opensearch
-
-
-def extract_celery_queue_name(collection_acronym):
-    return f"parse_{settings.COLLECTION_ACRON3_SIZE_MAP.get(collection_acronym, 'small')}"
 
 
 def fetch_required_resources(robot_source=None):
@@ -28,27 +19,3 @@ def fetch_required_resources(robot_source=None):
         return None, None
 
     return robots_list, mmdb
-
-
-def build_search_client():
-    return opensearch.OpenSearchUsageClient(
-        settings.OPENSEARCH_URL,
-        settings.OPENSEARCH_BASIC_AUTH,
-        settings.OPENSEARCH_API_KEY,
-        settings.OPENSEARCH_VERIFY_CERTS,
-    )
-
-
-def get_log_files_for_collection_date(collection, access_date, status_filters=None):
-    queryset = (
-        LogFile.objects.filter(
-            collection=collection,
-            date=access_date,
-        )
-        .select_related("collection")
-        .order_by("path", "hash")
-    )
-    if status_filters:
-        queryset = queryset.filter(status__in=status_filters)
-
-    return list(queryset)

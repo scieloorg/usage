@@ -3,14 +3,13 @@ import logging
 from django.db import DataError
 from django.utils.translation import gettext as _
 
+from config import celery_app
 from core.collectors import preprints as preprints_collector
 from core.utils import date_utils
 from core.utils.request_utils import _get_user
-from document.services import preprints as preprint_service
+from document.services import preprint as preprint_service
 
-from config import celery_app
-
-from .common import _get_collection
+from document.tasks.common import _get_collection
 
 
 def load_preprints_from_preprints_api(
@@ -54,15 +53,20 @@ def load_preprints_from_preprints_api(
             logging.error(
                 "Error saving Preprint Document. Collection: %s, PID: %s. Error: %s",
                 collection_obj,
-                payload.get('pid_generic'),
-                exc
+                payload.get("pid_generic"),
+                exc,
             )
             continue
 
     return True
 
 
-@celery_app.task(bind=True, name=_("[Metadata] Sync Documents (Preprints)"), timelimit=-1, queue="load")
+@celery_app.task(
+    bind=True,
+    name=_("[Metadata] Sync Documents (Preprints)"),
+    timelimit=-1,
+    queue="load",
+)
 def task_load_preprints_into_documents(
     self,
     from_date=None,

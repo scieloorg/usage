@@ -31,6 +31,7 @@ class AbstractLogReport(models.Model):
         if not self.total_files:
             return 0
         return round(self.validated_files / self.total_files * 100, 1)
+
     pct_validated.fget.short_description = _("% Valid Files")
 
     @property
@@ -38,6 +39,7 @@ class AbstractLogReport(models.Model):
         if not self.lines_parsed:
             return 0
         return round(self.valid_lines / self.lines_parsed * 100, 1)
+
     pct_valid_lines.fget.short_description = _("% Valid Lines")
 
     @property
@@ -46,6 +48,7 @@ class AbstractLogReport(models.Model):
         if not total:
             return 0
         return round(self.ip_remote_count / total * 100, 1)
+
     pct_remote_ip.fget.short_description = _("% Remote IP")
 
     def __str__(self):

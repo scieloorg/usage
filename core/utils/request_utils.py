@@ -1,15 +1,13 @@
 import logging
 
 import requests
+from django.contrib.auth import get_user_model
 from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
-from urllib3.util import Retry
-from django.contrib.auth import get_user_model
-
 
 logger = logging.getLogger(__name__)
 User = get_user_model()

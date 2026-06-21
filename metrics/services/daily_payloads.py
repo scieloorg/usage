@@ -28,20 +28,13 @@ def resolve_storage_path(storage_path):
     return get_daily_payload_root() / storage_path
 
 
-def serialize_payload(payload):
-    return json.dumps(
-        payload,
-        ensure_ascii=True,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-
-
 def write_payload(storage_path, payload):
     resolved_path = resolve_storage_path(storage_path)
     resolved_path.parent.mkdir(parents=True, exist_ok=True)
 
-    payload_json = serialize_payload(payload)
+    payload_json = json.dumps(
+        payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+    )
     payload_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
 
     tmp_path = resolved_path.with_suffix(f"{resolved_path.suffix}.tmp")
@@ -56,18 +49,16 @@ def read_payload(storage_path):
     return json.loads(resolved_path.read_text(encoding="utf-8"))
 
 
-def delete_payload(storage_path):
-    resolved_path = resolve_storage_path(storage_path)
-    if resolved_path.exists():
-        resolved_path.unlink()
-
-
 def cleanup_exported_payloads(collections=None, older_than_days=7):
     root = get_daily_payload_root()
     if not root.exists():
         return 0
 
-    cutoff = timezone.now() - timedelta(days=older_than_days) if older_than_days and older_than_days > 0 else None
+    cutoff = (
+        timezone.now() - timedelta(days=older_than_days)
+        if older_than_days and older_than_days > 0
+        else None
+    )
 
     storage_path_to_job = {}
     db_queryset = DailyMetricJob.objects.exclude(storage_path="")
@@ -78,11 +69,13 @@ def cleanup_exported_payloads(collections=None, older_than_days=7):
 
     json_files = root.rglob("*.json")
     if collections:
-        json_files = [p for p in json_files if p.relative_to(root).parts[0] in collections]
+        json_files = [
+            p for p in json_files if p.relative_to(root).parts[0] in collections
+        ]
 
     deleted_count = 0
     for file_path in json_files:
-        if cutoff and _file_is_recent(file_path, cutoff):
+        if cutoff and file_path.stat().st_mtime >= cutoff.timestamp():
             continue
 
         storage_path = file_path.relative_to(root).as_posix()
@@ -111,10 +104,6 @@ def cleanup_exported_payloads(collections=None, older_than_days=7):
         older_than_days,
     )
     return deleted_count
-
-
-def _file_is_recent(file_path, cutoff):
-    return file_path.stat().st_mtime >= cutoff.timestamp()
 
 
 def _cleanup_empty_dirs(root):

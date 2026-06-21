@@ -10,7 +10,7 @@ import requests
 from django.conf import settings
 
 
-def fetch_data(url, data_type='json', max_retries=5, sleep_time=30):
+def fetch_data(url, data_type="json", max_retries=5, sleep_time=30):
     """
     Retrieves data from the given URL.
 
@@ -43,18 +43,14 @@ def fetch_data(url, data_type='json', max_retries=5, sleep_time=30):
             response.raise_for_status()
         except requests.exceptions.HTTPError:
             logging.warning(
-                'Failed to retrieve data from %s. Waiting %d seconds before retry %d of %d' % (
-                    url, 
-                    sleep_time, 
-                    t, 
-                    max_retries
-                )
+                "Failed to retrieve data from %s. Waiting %d seconds before retry %d of %d"
+                % (url, sleep_time, t, max_retries)
             )
             sleep(sleep_time)
         else:
-            if data_type == 'json':
+            if data_type == "json":
                 return response.json()
-            elif data_type == 'content':
+            elif data_type == "content":
                 return response.content
             else:
                 raise ValueError("Invalid data_type. Expected 'json' or 'content'.")
@@ -76,7 +72,7 @@ def clean_robots_list(robots):
     """
     cleaned_robots = []
     for r in robots:
-        if r.get('pattern') and r.get('last_changed'):
+        if r.get("pattern") and r.get("last_changed"):
             cleaned_robots.append(r)
     return cleaned_robots
 
@@ -86,7 +82,7 @@ def decompress_gzip(data):
         with gzip.GzipFile(fileobj=io.BytesIO(data)) as f:
             return f.read()
     except Exception as e:
-        raise Exception(f'Error decompressing data: {e}')
+        raise Exception(f"Error decompressing data: {e}")
 
 
 def validate_geoip_data(data):
@@ -96,7 +92,7 @@ def validate_geoip_data(data):
             temp_file.flush()
             reader = geoip2.database.Reader(temp_file.name)
     except Exception as e:
-        raise Exception(f'Error validating GeoIP data: {e}')
+        raise Exception(f"Error validating GeoIP data: {e}")
     else:
         reader.close()
         return True

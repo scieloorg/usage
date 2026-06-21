@@ -46,7 +46,7 @@ def standardize_doi(text):
     ]
     for prefix in doi_prefixes:
         if text.lower().startswith(prefix):
-            text = text[len(prefix):]
+            text = text[len(prefix) :]
             break
 
     if text.lower().startswith("10."):
@@ -75,3 +75,25 @@ def language_iso(code):
     if langcodes.tag_is_valid(code):
         return langcodes.standardize_tag(code)
     return ""
+
+
+def standardize_or_default(func, value, default=""):
+    try:
+        return func(value)
+    except Exception:
+        return default
+
+
+def standardize_pid_generic_values(values):
+    if not isinstance(values, (list, tuple, set)):
+        return []
+
+    items = []
+
+    for value in values:
+        item = standardize_or_default(standardize_pid_generic, value)
+
+        if item and item not in items:
+            items.append(item)
+
+    return items

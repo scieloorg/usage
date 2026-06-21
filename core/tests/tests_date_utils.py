@@ -10,27 +10,20 @@ from core.utils.date_utils import (
 
 
 class DateUtilsTests(TestCase):
-
     def test_get_date_range_with_valid_dates(self):
         from_date = "2023-01-01"
         until_date = "2023-01-31"
         result = get_date_range_str(from_date_str=from_date, until_date_str=until_date)
 
-        expected = (
-           '2023-01-01',
-           '2023-01-31'
-        )
+        expected = ("2023-01-01", "2023-01-31")
         self.assertEqual(result, expected)
 
     def test_get_date_range_with_invalid_from_date(self):
         from_date = "invalid-date"
         until_date = "2023-01-10"
         result = get_date_range_str(from_date_str=from_date, until_date_str=until_date)
-        
-        expected = (
-            '2023-01-03',
-            '2023-01-10'
-        )
+
+        expected = ("2023-01-03", "2023-01-10")
         self.assertEqual(result, expected)
 
     def test_get_date_range_with_invalid_until_date(self):
@@ -38,10 +31,7 @@ class DateUtilsTests(TestCase):
         until_date = "invalid-date"
         result = get_date_range_str(from_date_str=from_date, until_date_str=until_date)
 
-        expected = (
-            '2024-05-20',
-            '2024-05-27'
-        )
+        expected = ("2024-05-20", "2024-05-27")
         self.assertEqual(result, expected)
 
     def test_get_date_range_with_days_to_go_back(self):
@@ -51,7 +41,7 @@ class DateUtilsTests(TestCase):
 
         expected = (
             (today - timedelta(days=days_to_go_back)).strftime("%Y-%m-%d"),
-            today.strftime("%Y-%m-%d")
+            today.strftime("%Y-%m-%d"),
         )
         self.assertEqual(result, expected)
 
@@ -59,7 +49,7 @@ class DateUtilsTests(TestCase):
         result = get_date_range_str()
         expected = (
             (datetime.now().date() - timedelta(days=7)).strftime("%Y-%m-%d"),
-            datetime.now().date().strftime("%Y-%m-%d")
+            datetime.now().date().strftime("%Y-%m-%d"),
         )
         self.assertEqual(result, expected)
 
@@ -67,8 +57,8 @@ class DateUtilsTests(TestCase):
         from_date = "2025-02-01"
         result = get_date_range_str(from_date_str=from_date)
         expected = (
-            '2025-02-01',
-            '2025-02-08',
+            "2025-02-01",
+            "2025-02-08",
         )
         self.assertEqual(result, expected)
 
@@ -76,15 +66,15 @@ class DateUtilsTests(TestCase):
         until_date = "2025-02-08"
         result = get_date_range_str(until_date_str=until_date)
         expected = (
-            '2025-02-01',
-            '2025-02-08',
+            "2025-02-01",
+            "2025-02-08",
         )
         self.assertEqual(result, expected)
 
     def test_extract_minute_second_key(self):
         dt = datetime(2023, 3, 15, 14, 30, 45)
         key = extract_minute_second_key(dt)
-        self.assertEqual(key, '30:45')
+        self.assertEqual(key, "30:45")
 
     def test_extract_minute_second_key_returns_none_for_invalid_datetime(self):
         self.assertIsNone(extract_minute_second_key(None))

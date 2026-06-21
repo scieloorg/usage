@@ -3,15 +3,14 @@ import logging
 from django.db import DataError
 from django.utils.translation import gettext as _
 
+from config import celery_app
 from core.collectors import articlemeta as articlemeta_collector
 from core.utils import date_utils
 from core.utils.request_utils import _get_user
-from document.services import articles as article_service
-from source.services import journals as journal_service
+from document.services import article as article_service
+from source.models import Source
 
-from config import celery_app
-
-from .common import _get_collection
+from document.tasks.common import _get_collection
 
 
 def load_documents_from_article_meta(
@@ -60,7 +59,7 @@ def load_documents_from_article_meta(
                 )
                 continue
 
-            source = journal_service.find_journal_source_by_issns(
+            source = Source.find_journal_by_issns(
                 collection_obj,
                 payload.get("code_title"),
             )
@@ -86,8 +85,8 @@ def load_documents_from_article_meta(
                     "Collection: %s, Source: %s, PIDv2: %s. Error: %s",
                     collection_obj,
                     source.source_id,
-                    payload.get('code'),
-                    exc
+                    payload.get("code"),
+                    exc,
                 )
                 continue
 
@@ -96,7 +95,12 @@ def load_documents_from_article_meta(
     return True
 
 
-@celery_app.task(bind=True, name=_("[Metadata] Sync Documents (Article Meta)"), timelimit=-1, queue="load")
+@celery_app.task(
+    bind=True,
+    name=_("[Metadata] Sync Documents (Article Meta)"),
+    timelimit=-1,
+    queue="load",
+)
 def task_load_documents_from_article_meta(
     self,
     from_date=None,

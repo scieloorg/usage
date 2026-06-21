@@ -5,7 +5,8 @@ from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 from config.menu import get_menu_order
 from document.wagtail_hooks import DocumentSnippetViewSet
 from source.wagtail_hooks import SourceSnippetViewSet
-from .models import Collection
+
+from collection.models import Collection
 
 
 class CollectionSnippetViewSet(SnippetViewSet):

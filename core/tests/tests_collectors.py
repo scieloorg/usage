@@ -28,14 +28,20 @@ class SciELOBooksCollectorTests(unittest.TestCase):
 
     @patch("core.collectors.scielo_books.fetch_document")
     @patch("core.collectors.scielo_books.fetch_changes_page")
-    def test_iter_change_documents_uses_docs_from_changes_payload(self, mock_fetch_changes_page, mock_fetch_document):
+    def test_iter_change_documents_uses_docs_from_changes_payload(
+        self, mock_fetch_changes_page, mock_fetch_document
+    ):
         mock_fetch_changes_page.side_effect = [
             {
                 "results": [
                     {
                         "seq": 10,
                         "id": "book1",
-                        "doc": {"_id": "book1", "TYPE": "Monograph", "title": "Book One"},
+                        "doc": {
+                            "_id": "book1",
+                            "TYPE": "Monograph",
+                            "title": "Book One",
+                        },
                     }
                 ],
                 "last_seq": 10,
@@ -43,7 +49,11 @@ class SciELOBooksCollectorTests(unittest.TestCase):
             {"results": [], "last_seq": 10},
         ]
 
-        results = list(scielo_books.iter_change_documents(base_url="https://books.example", db_name="scielobooks_1a"))
+        results = list(
+            scielo_books.iter_change_documents(
+                base_url="https://books.example", db_name="scielobooks_1a"
+            )
+        )
 
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["payload"]["id"], "book1")

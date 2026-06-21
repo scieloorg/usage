@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 
-from document.tasks import task_load_documents_from_article_meta
-from document.tasks import task_load_documents_from_opac
+from document.tasks.articlemeta import task_load_documents_from_article_meta
+from document.tasks.opac import task_load_documents_from_opac
 
 
 class Command(BaseCommand):

@@ -1,5 +1,4 @@
 import logging
-
 from datetime import datetime, timedelta
 
 
@@ -32,12 +31,17 @@ def get_date_obj(date_str: str, format: str = "%Y-%m-%d") -> datetime.date:
         return None
 
 
-def get_date_range_str(from_date_str: str = None, until_date_str: str = None, days_to_go_back: int = None) -> tuple[str, str]:
+def get_date_range_str(
+    from_date_str: str = None,
+    until_date_str: str = None,
+    days_to_go_back: int = None,
+) -> tuple[str, str]:
     """
     Get the date range to be used in the queries.
 
     If both from_date_str and until_date_str are provided, they will be used.
-    If only one is provided, it will be used as the start or end date, and the other will be calculated based on a 7-day range.
+    If only one is provided, it will be used as the start or end date,
+    and the other will be calculated based on a 7-day range.
     If neither is provided, the function will default to the last 7 days from today.
     If days_to_go_back is provided, it will override the from_date_str and until_date_str.
 
@@ -52,7 +56,9 @@ def get_date_range_str(from_date_str: str = None, until_date_str: str = None, da
     today = datetime.now().date()
 
     if days_to_go_back:
-        return get_date_str(today - timedelta(days=days_to_go_back)), get_date_str(today)
+        return get_date_str(today - timedelta(days=days_to_go_back)), get_date_str(
+            today
+        )
 
     from_date_obj = get_date_obj(from_date_str)
     until_date_obj = get_date_obj(until_date_str)
@@ -65,7 +71,7 @@ def get_date_range_str(from_date_str: str = None, until_date_str: str = None, da
 
     if until_date_obj:
         return get_date_str(until_date_obj - timedelta(days=7)), until_date_str
-    
+
     return get_date_str(today - timedelta(days=7)), get_date_str(today)
 
 
@@ -73,12 +79,12 @@ def get_date_obj_from_timestamp(timestamp):
     return datetime.fromtimestamp(timestamp).date()
 
 
-def get_date_objs_from_date_range(from_date, until_date, format='%Y-%m-%d'):
+def get_date_objs_from_date_range(from_date, until_date, format="%Y-%m-%d"):
     visible_dates = []
 
     if not isinstance(from_date, datetime):
         from_date = datetime.strptime(from_date, format).date()
-        
+
     if not isinstance(until_date, datetime):
         until_date = datetime.strptime(until_date, format).date()
 
@@ -131,7 +137,9 @@ def _coerce_datetime(dt):
         try:
             return datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
         except ValueError:
-            logging.error("Invalid datetime string format. Expected '%Y-%m-%d %H:%M:%S'.")
+            logging.error(
+                "Invalid datetime string format. Expected '%Y-%m-%d %H:%M:%S'."
+            )
             return None
 
     logging.error("Invalid datetime value: %r.", dt)

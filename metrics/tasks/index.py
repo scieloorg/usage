@@ -4,14 +4,13 @@ from django.utils.translation import gettext as _
 
 from config import celery_app
 from core.utils.request_utils import _get_user
-
-from metrics.services.resources import build_search_client
+from metrics.opensearch.client import OpenSearchUsageClient
 
 
 @celery_app.task(bind=True, name=_("[Metrics] Create Index"), timelimit=-1)
 def task_create_index(self, index_name, mappings=None, user_id=None, username=None):
     _get_user(self.request, username=username, user_id=user_id)
-    search_client = build_search_client()
+    search_client = OpenSearchUsageClient()
 
     try:
         if search_client.client.indices.exists(index=index_name):
@@ -24,26 +23,10 @@ def task_create_index(self, index_name, mappings=None, user_id=None, username=No
         logging.error("Failed to create index %s: %s", index_name, exc)
 
 
-@celery_app.task(bind=True, name=_("[Metrics] Delete Index"), timelimit=-1)
-def task_delete_index(self, index_name, user_id=None, username=None):
-    _get_user(self.request, username=username, user_id=user_id)
-    search_client = build_search_client()
-
-    try:
-        if not search_client.client.indices.exists(index=index_name):
-            logging.info("Index %s does not exist.", index_name)
-            return
-
-        search_client.delete_index(index_name=index_name)
-        logging.info("Index %s deleted successfully.", index_name)
-    except Exception as exc:
-        logging.error("Failed to delete index %s: %s", index_name, exc)
-
-
 @celery_app.task(bind=True, name=_("[Metrics] Delete Documents by Key"), timelimit=-1)
 def task_delete_documents_by_key(self, index_name, data, user_id=None, username=None):
     _get_user(self.request, username=username, user_id=user_id)
-    search_client = build_search_client()
+    search_client = OpenSearchUsageClient()
 
     try:
         search_client.delete_documents_by_key(index_name=index_name, data=data)

@@ -177,3 +177,6 @@ temp/
 .envs/.local/.django
 start-dev.sh
 opencode.json
+
+*.log
+!metrics/tests/fixtures/*.log

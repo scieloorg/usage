@@ -3,6 +3,7 @@ from wagtail.snippets.views.snippets import SnippetViewSet
 
 from metrics.models import DailyMetricJob
 
+
 class DailyMetricJobSnippetViewSet(SnippetViewSet):
     model = DailyMetricJob
     menu_label = _("Daily Metric Jobs")

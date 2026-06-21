@@ -3,14 +3,13 @@ import logging
 from django.db import DataError
 from django.utils.translation import gettext as _
 
+from config import celery_app
 from core.collectors import dataverse as dataverse_collector
 from core.utils import date_utils
 from core.utils.request_utils import _get_user
-from document.services import datasets as dataset_service
+from document.services import dataset as dataset_service
 
-from config import celery_app
-
-from .common import _get_collection
+from document.tasks.common import _get_collection
 
 
 def load_dataset_metadata_from_dataverse(
@@ -52,15 +51,20 @@ def load_dataset_metadata_from_dataverse(
             logging.error(
                 "Error saving Dataset Document. Collection: %s, PID: %s. Error: %s",
                 collection_obj,
-                payload.get('dataset_doi'),
-                exc
+                payload.get("dataset_doi"),
+                exc,
             )
             continue
 
     return True
 
 
-@celery_app.task(bind=True, name=_("[Metadata] Sync Documents (Dataverse)"), timelimit=-1, queue="load")
+@celery_app.task(
+    bind=True,
+    name=_("[Metadata] Sync Documents (Dataverse)"),
+    timelimit=-1,
+    queue="load",
+)
 def task_load_dataset_metadata_into_documents(
     self,
     from_date=None,

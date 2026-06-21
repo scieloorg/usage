@@ -100,8 +100,13 @@ class DailyMetricJob(CommonControlField):
         verbose_name_plural = _("Daily Metric Jobs")
         unique_together = (("collection", "access_date"),)
         indexes = [
-            models.Index(fields=["collection", "access_date"], name="metrics_daily_coll_date_idx"),
-            models.Index(fields=["status", "export_started_at"], name="metrics_daily_status_exp_idx"),
+            models.Index(
+                fields=["collection", "access_date"], name="metrics_daily_coll_date_idx"
+            ),
+            models.Index(
+                fields=["status", "export_started_at"],
+                name="metrics_daily_status_exp_idx",
+            ),
         ]
 
     def __str__(self):

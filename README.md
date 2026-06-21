@@ -1,162 +1,196 @@
-# SciELO Usage Metrics Pipeline
+# SciELO Usage
 
-A modernized platform for processing and indexing SciELO usage logs into OpenSearch, adhering to COUNTER R5.1 standards.
+[![CI](https://github.com/scieloorg/usage/actions/workflows/ci.yml/badge.svg)](https://github.com/scieloorg/usage/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![Django](https://img.shields.io/badge/django-5.2-green)
+![Wagtail](https://img.shields.io/badge/wagtail-7.3-teal)
 
-## Quick Start (Dev Installation)
+Application for processing SciELO access logs, extracting COUNTER R5.1 metrics, and exporting monthly/yearly usage documents to OpenSearch.
 
-To build and run the application locally:
+## Quick Start
 
-1. `make build compose=local.yml`
-2. `make django_migrate`
-3. `make django_createsuperuser`
-4. `make up`
-
-The application will be accessible at [http://localhost:8009/admin](http://localhost:8009/admin).
-
----
-
-## Key Commands
-
-All commands run inside Docker via the `local.yml` compose file unless noted.
+Local development runs with Docker Compose using `local.yml`.
 
 ```bash
-make build                           # build images
-make up                              # start all services (django, postgres, redis, celery worker+beat, mailhog)
-make django_shell                    # Django shell via docker compose
-make django_test                     # run full test suite (pytest)
-make django_fast                     # tests with --failfast
-make django_migrate                  # apply migrations
-make django_makemigrations           # generate new migrations
-make django_createsuperuser          # create Wagtail admin user
-make logs                            # follow all service logs
-make ps                              # list compose services
-make django_bash                     # open a bash shell in the django container
-make django_compilemessages          # compile translation files
+make build
+make django_migrate
+make django_createsuperuser
+make up
 ```
 
-**Run a single test file/path:**
+Admin: http://localhost:8009/admin
+
+Main local services:
+
+| Service | Port |
+|---|---:|
+| Django/Wagtail | 8009 |
+| PostgreSQL | 5439 |
+| Redis | 6399 |
+| Mailhog | 8029 |
+
+## Full Pipeline Setup
+
+After the app is running, open a Django shell:
+
 ```bash
-docker compose -f local.yml run --rm django pytest path/to/test_file.py
+make django_shell
 ```
 
-## Architecture & Data Pipeline
+Seed the base data and resources:
 
-### Apps
+```python
+from collection.tasks import task_load_collections
+from log_manager_config.tasks import task_load_log_manager_collection_settings
+from resources.tasks import task_load_geoip, task_load_robots
 
-| App | Purpose |
-|---|---|
-| `log_manager` | Log file discovery, validation, and status tracking |
-| `log_manager_config` | Collection-specific configuration (paths, emails, expected logs/day) |
-| `metrics` | Daily metric jobs, OpenSearch export, COUNTER R5.1 aggregation |
-| `document` | Unified metadata model for articles, books, chapters, datasets, and preprints |
-| `source` | Journal, book, preprint server, and data repository metadata |
-| `reports` | Weekly, monthly, and yearly log processing reports |
-| `resources` | Robot user-agent patterns and GeoIP MMDB management |
-| `tracker` | Discarded line tracking and error logging |
-| `core` | Wagtail pages, users, shared utilities, and external API collectors |
-| `collection` | SciELO collection management |
+log_config = [
+    {
+        "acronym": "scl",
+        "directory_name": "SciELO Brasil",
+        "path": "/app/logs/scielo.br",
+        "quantity": 1,
+        "e-mail": "tecnologia@scielo.org",
+        "translator_class": "opac",
+    }
+]
 
-### Core Collectors (`core/collectors/`)
+task_load_collections.delay()
+task_load_log_manager_collection_settings.delay(data=log_config)
+task_load_robots.delay()
+task_load_geoip.delay()
+```
 
-| Collector | Source |
-|---|---|
-| `articlemeta.py` | ArticleMeta REST/Thrift API |
-| `opac.py` | SciELO OPAC endpoint |
-| `preprints.py` | SciELO Preprints OAI-PMH |
-| `dataverse.py` | SciELO Data (Dataverse) |
-| `scielo_books.py` | SciELO Books CouchDB changes feed |
+Load sources and documents before processing logs. For a first run, restrict document synchronization to a smaller date range:
 
-### Log Ingestion Pipeline
+```python
+from document.tasks import (
+    task_load_dataset_metadata_into_documents,
+    task_load_documents_from_article_meta,
+    task_load_documents_from_opac,
+    task_load_preprints_into_documents,
+    task_sync_documents_from_scielo_books,
+)
+from source.tasks import (
+    task_load_sources_from_article_meta,
+    task_load_sources_from_scielo_books,
+)
 
-The ingestion is fully automated via the **`[Log Pipeline] Daily Routine (Auto)`** task. It follows a strictly ordered sequence using Celery Chords:
+task_load_sources_from_article_meta.delay(collections=["scl"])
+task_load_sources_from_scielo_books.delay(limit=1000)
 
-- **Search**: Scans configured directories for new `.log` or `.gz` files.
-- **Validate**: Performs statistical sampling to ensure log integrity and detect the usage date.
-- **Parse**: Extracts metrics using `scielo_usage_counter`, performs URL translation, and aggregates data.
-- **Export**: Pushes results to OpenSearch using idempotent upsert scripts.
+date_range = {"from_date": "2025-01-01", "until_date": "2025-12-31"}
+task_load_documents_from_article_meta.delay(**date_range)
+task_load_documents_from_opac.delay(collection="scl", **date_range)
+task_load_preprints_into_documents.delay(**date_range)
+task_load_dataset_metadata_into_documents.delay(**date_range)
+task_sync_documents_from_scielo_books.delay()
+```
 
-### Metadata Synchronization
+Before starting the log pipeline, confirm in the admin that each collection has an active Log Manager configuration pointing to a readable log directory mounted in the container.
 
-Metadata is kept in sync with SciELO sources (ArticleMeta, OPAC, Books, etc.) via the **`[Metadata] Daily Sync Routine (Auto)`** task, which runs parallel workers to ensure documents and sources are always up to date.
+For the example above, place a log file under the configured directory:
 
-## Supported Log Formats
+```bash
+mkdir -p <mounted-logs-dir>/scielo.br
+cp metrics/tests/fixtures/usage.log <mounted-logs-dir>/scielo.br/usage-2021-05-21.log
+```
 
-| Format | Description |
-|---|---|
-| NCSA Extended | Standard Apache combined log format with optional domain prefix and IP list fields. |
-| BunnyCDN | Pipe-delimited format with Unix timestamps (7 or 10 digits), country codes, and request IDs. |
+Run the full Search -> Validate -> Parse -> Export chain for a date range:
 
-## Environment Variables
+```python
+from log_manager.tasks import task_search_log_files
 
-Runtime configuration is loaded from `.envs/.local/` or `.envs/.production/` through the Compose files.
+task_search_log_files.delay(
+    collections=["scl"],
+    from_date="2021-05-21",
+    until_date="2021-05-21",
+    trigger_validation=True,
+)
+```
 
-### Core Services
+Monitor execution with:
 
-| Variable | Default | Description |
+```bash
+make logs
+```
+
+## Commands
+
+```bash
+make help                    # list available targets
+make app_version             # show VERSION
+make build                   # build local images
+make build_no_cache          # build local images without cache
+make up                      # start local services
+make logs                    # follow service logs
+make stop                    # stop local services
+make restart                 # restart local services
+make ps                      # list running services
+make django_bash             # open bash in the django container
+make django_shell            # open Django shell
+make django_createsuperuser  # create an admin user
+make django_migrate          # apply migrations
+make django_makemigrations   # create migrations
+make django_makemessages     # update translation messages
+make django_compilemessages  # compile translation messages
+make wagtail_update_translation_field
+make wagtail_sync
+make test                    # run pytest
+make django_test             # run pytest
+make django_fast             # run pytest --failfast
+make lint                    # run flake8
+make format_check            # run black/isort checks
+make precommit               # run pre-commit hooks
+```
+
+Use `compose=production.yml` or another Compose file when needed:
+
+```bash
+make ps compose=production.yml
+```
+
+Run one test path:
+
+```bash
+docker compose -f local.yml run --rm django pytest metrics/tests/test_opensearch.py
+```
+
+## Pipeline
+
+The log pipeline is coordinated by Celery tasks:
+
+1. Search configured directories for new `.log` and `.gz` files.
+2. Validate log samples and detect usage date.
+3. Parse requests with `scielo_usage_counter`.
+4. Aggregate COUNTER R5.1 metrics.
+5. Export idempotent monthly/yearly documents to OpenSearch.
+
+Metadata synchronization keeps sources and documents updated from ArticleMeta, OPAC, SciELO Books, SciELO Preprints, and SciELO Data.
+
+## Periodic Tasks
+
+Configure the default schedule manually in Wagtail/Admin through `django-celery-beat`
+`PeriodicTask` records. Exact cron times may vary by installation, but the default
+operational setup should include:
+
+| Task | Suggested schedule | Notes |
 |---|---|---|
-| `OPENSEARCH_URL` | `http://localhost:9200/` | OpenSearch cluster URL |
-| `OPENSEARCH_INDEX_NAME` | `usage` | OpenSearch index prefix |
-| `OPENSEARCH_BASIC_AUTH` | `admin:admin` | OpenSearch basic auth credentials |
-| `OPENSEARCH_VERIFY_CERTS` | `False` | Verify SSL certificates for OpenSearch connections |
-| `COUNTER_ROBOTS_URL` | `https://raw.githubusercontent.com/atmire/COUNTER-Robots/master/COUNTER_Robots_list.json` | COUNTER robot user-agent list URL used by the resources loader |
-| `MMDB_URL_TEMPLATE` | `https://download.db-ip.com/free/dbip-country-lite-{year}-{month:02d}.mmdb.gz` | DB-IP GeoIP MMDB gzip URL template; `{year}` and `{month}` are filled from the current and previous month |
-| `USE_LOCAL_SCIELO_LIBS` | `0` | Mount local `scielo_log_validator` and `scielo_usage_counter` repos for development |
-| `DJANGO_SETTINGS_MODULE` | `config.settings.local` | Django settings module |
-| `REDIS_URL` | — | Redis connection URL for Celery |
+| `[Metadata] Daily Sync Routine (Auto)` | Daily, early morning | Refreshes sources and documents before log processing. Use the `load` queue. |
+| `[Log Pipeline] Daily Routine (Auto)` | Daily, after metadata sync | Runs Search -> Validate -> Parse -> Export for new logs. Use the `load` queue. |
+| `[Metrics] Resume Log Exports` | Every 15-30 minutes | Retries errored or stale daily metric export jobs. |
+| `[Metrics] Resume Stale Parsing Logs` | Every 30-60 minutes | Marks stale `PAR` logs for retry. |
+| `[Metrics] Cleanup Daily Payloads` | Daily or weekly | Removes old exported daily payload files. |
+| `[Reports] Populate All Reports` | Daily, after log processing | Refreshes weekly, monthly, and yearly log report tables. |
 
-### Collector Endpoints
+Optional operational tasks:
 
-| Variable | Default | Description |
+| Task | Suggested schedule | Notes |
 |---|---|---|
-| `ARTICLEMETA_COLLECT_URL` | `http://articlemeta.scielo.org/api/v1/article/counter_dict` | ArticleMeta counter metadata endpoint |
-| `ARTICLEMETA_MAX_RETRIES` | `5` | ArticleMeta retry attempts |
-| `ARTICLEMETA_SLEEP_TIME` | `30` | Delay between ArticleMeta retries, in seconds |
-| `OPAC_ENDPOINT` | `https://www.scielo.br/api/v1/counter_dict` | OPAC counter metadata endpoint |
-| `OPAC_MAX_RETRIES` | `5` | OPAC retry attempts |
-| `OPAC_SLEEP_TIME` | `30` | Delay between OPAC retries, in seconds |
-| `OAI_PMH_PREPRINT_ENDPOINT` | `https://preprints.scielo.org/index.php/scielo/oai` | SciELO Preprints OAI-PMH endpoint |
-| `OAI_METADATA_PREFIX` | `oai_dc` | OAI-PMH metadata prefix |
-| `OAI_PMH_MAX_RETRIES` | `5` | OAI-PMH retry attempts |
-| `DATAVERSE_ENDPOINT` | `https://data.scielo.org/api` | SciELO Data Dataverse API endpoint |
-| `DATAVERSE_ROOT_COLLECTION` | `scielodata` | Dataverse root collection alias |
-| `DATAVERSE_SLEEP_TIME` | `30` | Dataverse request timeout/retry delay, in seconds |
-| `SCIELO_BOOKS_BASE_URL` | `http://localhost:5984` | SciELO Books CouchDB base URL |
-| `SCIELO_BOOKS_DB_NAME` | `scielobooks_1a` | SciELO Books CouchDB database name |
-| `SCIELO_BOOKS_TIMEOUT` | `60` | SciELO Books request timeout, in seconds |
-| `SCIELO_BOOKS_LIMIT` | `1000` | SciELO Books changes-feed page size |
+| `[Reports] Generate Log Report Summary (Manual)` | Manual or scheduled as needed | Sends summary emails using configured collection contacts. |
+| `[Resources] Load Robots Data` | Weekly | Refreshes robots list used during parsing. |
+| `[Resources] Load Geolocation Data` | Monthly | Refreshes GeoIP data used during parsing. |
 
-## OpenSearch Storage Strategy
+## Version
 
-The OpenSearch export keeps monthly usage documents with nested daily metrics, while index names depend on collection size:
-
-- **Large and xlarge collections**: annual indices, such as `usage_monthly_scl_2024` and `usage_yearly_scl_2024`.
-- **Small collections**: stable collection indices, such as `usage_monthly_books` and `usage_yearly_books`.
-- **One Document per Month**: Each document/PID has one monthly document per metric scope.
-- **Daily Nested Metrics**: Daily granularity is preserved inside each monthly document using a `daily_metrics` object.
-- **Atomic Upserts**: Data is merged using OpenSearch **Painless Scripts**, allowing multiple logs for the same day/month to be processed without data duplication or loss.
-
-## Management & Monitoring
-
-All pipelines can be monitored through the **Wagtail Admin**:
-
-- **Log Manager**: Monitor the status of individual log files (`QUEUED`, `PARSING`, `PROCESSED`).
-- **Daily Metric Jobs**: Track the history of daily processing and OpenSearch export attempts.
-- **Log Config**: Manage collection-specific settings, log paths, and notification emails.
-
-Internally, log file statuses are stored as short codes such as `QUE`, `PAR`, and `PRO`, with labels displayed in the admin.
-
-### Useful Commands
-
-- `make django_shell`: Access the Django interactive shell.
-- `make django_bash`: Open a bash shell in the Django container.
-- `make logs`: Follow Docker Compose logs.
-- `make ps`: Show running services.
-- `docker compose -f local.yml run --rm django pytest path/to/test_file.py`: Run a single test file or path.
-- `docker logs -f scielo_usage_local_celeryworker`: Monitor real-time task execution.
-
-## Dependencies
-
-- [scielo_log_validator](https://github.com/scieloorg/scielo_log_validator) — log file validation
-- [scielo_usage_counter](https://github.com/scieloorg/scielo_usage_counter) — COUNTER R5.1 metrics extraction
-- [device_detector](https://github.com/thinkwelltwd/device_detector) — client name/version detection
-- [opensearch-py](https://github.com/opensearch-project/opensearch-py) — OpenSearch client
+Project release version is stored in `VERSION`.

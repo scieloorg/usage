@@ -3,15 +3,14 @@ import logging
 from django.db import DataError
 from django.utils.translation import gettext as _
 
+from config import celery_app
 from core.collectors import opac as opac_collector
 from core.utils import date_utils
 from core.utils.request_utils import _get_user
-from document.services import articles as article_service
-from source.services import journals as journal_service
+from document.services import article as article_service
+from source.models import Source
 
-from config import celery_app
-
-from .common import _get_collection
+from document.tasks.common import _get_collection
 
 
 def load_documents_from_opac(
@@ -45,7 +44,7 @@ def load_documents_from_opac(
         documents = response.get("documents") or {}
 
         for payload in documents.values():
-            source = journal_service.find_journal_source_by_acronym(
+            source = Source.find_journal_by_acronym(
                 collection_obj,
                 payload.get("journal_acronym"),
             )
@@ -71,8 +70,8 @@ def load_documents_from_opac(
                     "Collection: %s, Source: %s, PIDv2: %s. Error: %s",
                     collection_obj,
                     source.source_id,
-                    payload.get('pid_v2'),
-                    exc
+                    payload.get("pid_v2"),
+                    exc,
                 )
                 continue
 
@@ -83,7 +82,9 @@ def load_documents_from_opac(
     return True
 
 
-@celery_app.task(bind=True, name=_("[Metadata] Sync Documents (OPAC)"), timelimit=-1, queue="load")
+@celery_app.task(
+    bind=True, name=_("[Metadata] Sync Documents (OPAC)"), timelimit=-1, queue="load"
+)
 def task_load_documents_from_opac(
     self,
     collection="scl",

@@ -3,15 +3,15 @@ from django.utils.translation import gettext_lazy as _
 
 from log_manager.models import LogFile
 from tracker import choices
-from .exceptions import LogFileDiscardedLineCreateError
+from tracker.exceptions import LogFileDiscardedLineCreateError
 
 
 class LogFileDiscardedLine(models.Model):
     created = models.DateTimeField(verbose_name=_("Creation date"), auto_now_add=True)
     log_file = models.ForeignKey(
-        LogFile, 
-        on_delete=models.CASCADE, 
-        null=False, 
+        LogFile,
+        on_delete=models.CASCADE,
+        null=False,
         blank=False,
         db_index=True,
     )
@@ -31,10 +31,7 @@ class LogFileDiscardedLine(models.Model):
         null=True,
         blank=True,
     )
-    handled = models.BooleanField(
-        _("Handled"),
-        default=False
-    )
+    handled = models.BooleanField(_("Handled"), default=False)
 
     @classmethod
     def create(cls, log_file, error_type, data, message, save=False):
@@ -54,6 +51,3 @@ class LogFileDiscardedLine(models.Model):
 
     def __str__(self):
         return f"{self.data} - {self.message}"
-
-
-

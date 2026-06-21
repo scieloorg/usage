@@ -2,10 +2,9 @@ import logging
 
 from django.conf import settings
 
-from metrics import opensearch
+from metrics.opensearch.mappings import get_index_mappings
 from metrics.opensearch.names import generate_month_index_name, generate_year_index_name
-
-from . import daily_payloads
+from metrics.services import daily_payloads
 
 
 def load_daily_metric_payload(job):
@@ -71,14 +70,14 @@ def _sync_documents_group(
                 collection=collection,
                 date=f"{access.get('month')}-01",
             )
-            mappings = opensearch.get_index_mappings(collection, "month")
+            mappings = get_index_mappings(collection, "month")
         else:
             index_name = generate_year_index_name(
                 index_prefix=index_prefix,
                 collection=collection,
                 date=f"{access.get('year')}-01-01",
             )
-            mappings = opensearch.get_index_mappings(collection, "year")
+            mappings = get_index_mappings(collection, "year")
 
         grouped_documents.setdefault(
             index_name, {"mappings": mappings, "documents": {}}
