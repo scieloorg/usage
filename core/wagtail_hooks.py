@@ -4,7 +4,6 @@ from django.templatetags.static import static
 from django.utils.html import format_html
 from wagtail import hooks
 
-
 HIDDEN_MAIN_MENU_ITEMS = {
     "documents",
     "explorer",

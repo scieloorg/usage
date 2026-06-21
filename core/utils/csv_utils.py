@@ -13,14 +13,16 @@ def get_load_data_function(file_path):
     Returns:
     function: The corresponding function to load data from the file.
     """
-    if file_path.lower().endswith('.csv'):
+    if file_path.lower().endswith(".csv"):
         return load_csv
-    
-    if file_path.lower().endswith('.tar.gz') or ('.tar' in file_path.lower() and file_path.lower().endswith('.gz')):
+
+    if file_path.lower().endswith(".tar.gz") or (
+        ".tar" in file_path.lower() and file_path.lower().endswith(".gz")
+    ):
         return load_tar_gz
 
 
-def load_csv(file_obj, delimiter='\t', is_stream=False):
+def load_csv(file_obj, delimiter="\t", is_stream=False):
     """
     Loads and processes a CSV file, yielding each row as a dictionary.
 
@@ -33,16 +35,16 @@ def load_csv(file_obj, delimiter='\t', is_stream=False):
     dict: Each row of the CSV file as a dictionary.
     """
     if is_stream:
-        file_obj = io.StringIO(file_obj.decode('utf-8'))
+        file_obj = io.StringIO(file_obj.decode("utf-8"))
 
     with file_obj if is_stream else open(file_obj) as fin:
         first_line = fin.readline().strip()
         if not first_line:
             return
-        
+
         header = first_line.split(delimiter)
         reader = csv.DictReader(
-            fin, 
+            fin,
             fieldnames=header,
             delimiter=delimiter,
         )
@@ -50,7 +52,7 @@ def load_csv(file_obj, delimiter='\t', is_stream=False):
             yield row
 
 
-def load_tar_gz(file_path, delimiter='\t'):
+def load_tar_gz(file_path, delimiter="\t"):
     """
     Loads and processes CSV files from within a tar.gz archive, yielding each row as a dictionary.
 
@@ -61,12 +63,8 @@ def load_tar_gz(file_path, delimiter='\t'):
     Yields:
     dict: Each row of each CSV file within the tar.gz archive as a dictionary.
     """
-    with tarfile.open(file_path, 'r:gz') as tar:
+    with tarfile.open(file_path, "r:gz") as tar:
         for member in tar.getmembers():
-            if member.isfile() and member.name.lower().endswith('.csv'):
+            if member.isfile() and member.name.lower().endswith(".csv"):
                 file_content = tar.extractfile(member).read()
-                yield from load_csv(
-                    file_content, 
-                    delimiter=delimiter, 
-                    is_stream=True
-                )
+                yield from load_csv(file_content, delimiter=delimiter, is_stream=True)

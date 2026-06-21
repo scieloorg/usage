@@ -13,6 +13,7 @@ from wagtailcaptcha.models import WagtailCaptchaEmailForm
 class HomePage(Page):
     pass
 
+
 class FormField(AbstractFormField):
     page = ParentalKey("FormPage", on_delete=models.CASCADE, related_name="form_fields")
 
@@ -45,7 +46,10 @@ class FormPage(WagtailCaptchaEmailForm):
                     return JsonResponse(
                         {
                             "alert": "error",
-                            "message": "Erro ao tentar enviar a <strong>formulário!</strong> Verifique os campos obrigatórios. Errors: %s"
+                            "message": (
+                                "Erro ao tentar enviar a <strong>formulário!</strong> "
+                                "Verifique os campos obrigatórios. Errors: %s"
+                            )
                             % form.errors,
                         }
                     )

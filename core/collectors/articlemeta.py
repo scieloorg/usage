@@ -1,9 +1,9 @@
 import logging
+from time import sleep
 
 import requests
-from django.conf import settings
 from articlemeta.client import RestfulClient, ThriftClient
-from time import sleep
+from django.conf import settings
 
 
 def fetch_article_counter_dict(

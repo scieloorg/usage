@@ -1,8 +1,8 @@
 import os
 
 from django.contrib.auth import get_user_model
-from django.db import models, IntegrityError
-from django.db.models import Case, When, Value, IntegerField
+from django.db import IntegrityError, models
+from django.db.models import Case, IntegerField, Value, When
 from django.utils.translation import gettext as _
 from wagtail.admin.panels import FieldPanel
 from wagtail.fields import RichTextField
@@ -225,17 +225,20 @@ class LanguageFallbackManager(models.Manager):
         mission = self.filter(language=language)
         if mission:
             return mission
-        
-        language_order = ['pt', 'es', 'en']
+
+        language_order = ["pt", "es", "en"]
         langs = self.all().values_list("language", flat=True)
         languages = Language.objects.filter(id__in=langs)
-        
-        # Define a ordem baseado na lista language_order
-        order = [When(code2=lang, then=Value(i)) for i, lang in enumerate(language_order)]
-        ordered_languages = languages.annotate(
-            language_order=Case(*order, default=Value(len(language_order)), output_field=IntegerField())
-        ).order_by('language_order')
 
+        # Define a ordem baseado na lista language_order
+        order = [
+            When(code2=lang, then=Value(i)) for i, lang in enumerate(language_order)
+        ]
+        ordered_languages = languages.annotate(
+            language_order=Case(
+                *order, default=Value(len(language_order)), output_field=IntegerField()
+            )
+        ).order_by("language_order")
 
         for lang in ordered_languages:
             mission = self.filter(language=lang)
@@ -258,7 +261,7 @@ class RichTextWithLanguage(models.Model):
         AutocompletePanel("language"),
         FieldPanel("rich_text"),
     ]
-    
+
     objects = LanguageFallbackManager()
 
     class Meta:
@@ -298,7 +301,7 @@ class License(CommonControlField):
     ]
 
     class Meta:
-        unique_together = [("license_type", )]
+        unique_together = [("license_type",)]
         verbose_name = _("License")
         verbose_name_plural = _("Licenses")
         indexes = [
@@ -327,9 +330,7 @@ class License(CommonControlField):
     ):
         if not license_type:
             raise ValueError("License.get requires license_type parameters")
-        filters = dict(
-            license_type__iexact=license_type
-        )
+        filters = dict(license_type__iexact=license_type)
         try:
             return cls.objects.get(**filters)
         except cls.MultipleObjectsReturned:
@@ -369,7 +370,8 @@ class LicenseStatement(CommonControlField):
         Language, on_delete=models.SET_NULL, null=True, blank=True
     )
     license = models.ForeignKey(
-        License, on_delete=models.SET_NULL, null=True, blank=True)
+        License, on_delete=models.SET_NULL, null=True, blank=True
+    )
 
     panels = [
         FieldPanel("url"),
@@ -407,7 +409,8 @@ class LicenseStatement(CommonControlField):
             raise ValueError("LicenseStatement.get requires url or license_p")
         try:
             return cls.objects.get(
-                url__iexact=url, license_p__iexact=license_p, language=language)
+                url__iexact=url, license_p__iexact=license_p, language=language
+            )
         except cls.MultipleObjectsReturned:
             return cls.objects.filter(
                 url__iexact=url, license_p__iexact=license_p, language=language
@@ -448,9 +451,7 @@ class LicenseStatement(CommonControlField):
     ):
         try:
             data = dict(
-                url=url,
-                license_p=license_p,
-                language=language and language.code2
+                url=url, license_p=license_p, language=language and language.code2
             )
             try:
                 obj = cls.get(url, license_p, language)
@@ -465,7 +466,9 @@ class LicenseStatement(CommonControlField):
             except cls.DoesNotExist:
                 return cls.create(user, url, license_p, language, license)
         except Exception as e:
-            raise ValueError(f"Unable to create or update LicenseStatement for {data}: {type(e)} {e}")
+            raise ValueError(
+                f"Unable to create or update LicenseStatement for {data}: {type(e)} {e}"
+            )
 
     @staticmethod
     def parse_url(url):
@@ -514,7 +517,7 @@ class FileWithLang(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         verbose_name=_("File"),
-        help_text='',
+        help_text="",
         related_name="+",
     )
 

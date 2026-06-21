@@ -1,8 +1,8 @@
 import logging
+from time import sleep
 
 import requests
 from django.conf import settings
-from time import sleep
 
 
 def fetch_counter_dict(from_date, until_date, page=1):

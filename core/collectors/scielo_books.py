@@ -1,10 +1,8 @@
 import logging
+from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
-from urllib.parse import urlencode
-
-
 
 
 def build_url(base_url, params=None):
@@ -33,7 +31,9 @@ def fetch_document(doc_id, base_url=None, db_name=None, headers=None):
         raise ValueError("SCIELO_BOOKS_BASE_URL is not configured")
 
     url = f"{resolved_base_url}/{db_name}/{doc_id}"
-    response = requests.get(url, headers=headers, timeout=settings.SCIELO_BOOKS_TIMEOUT, verify=False)
+    response = requests.get(
+        url, headers=headers, timeout=settings.SCIELO_BOOKS_TIMEOUT, verify=False
+    )
     response.raise_for_status()
     payload = response.json()
     return sanitize_raw_data(payload), url
@@ -62,7 +62,9 @@ def fetch_changes_page(
         params["include_docs"] = "true"
 
     url = build_url(f"{resolved_base_url}/{db_name}/_changes", params)
-    response = requests.get(url, headers=headers, timeout=settings.SCIELO_BOOKS_TIMEOUT, verify=False)
+    response = requests.get(
+        url, headers=headers, timeout=settings.SCIELO_BOOKS_TIMEOUT, verify=False
+    )
     response.raise_for_status()
     payload = response.json()
     return payload if isinstance(payload, dict) else {}
