@@ -1,11 +1,9 @@
-default: build
+default: help
 
 COMPOSE_FILE_DEV = local.yml
 
 compose = ${COMPOSE_FILE_DEV}
 
-export SCIELO_USAGE_BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-export SCIELO_USAGE_VCS_REF=$(strip $(shell git rev-parse --short HEAD))
 export SCIELO_USAGE_WEBAPP_VERSION=$(strip $(shell cat VERSION))
 
 help: ## Show this help
@@ -18,22 +16,11 @@ help: ## Show this help
 	@egrep '^(.+)\:\ .*##\ (.+)' ${MAKEFILE_LIST} | sed 's/:.*##/#/' | column -t -c 1 -s "#"
 	@echo ''
 	@echo 'Example:'
-	@echo "\t Type 'make' (default target=build) is the same of type 'make build compose=local.yml'"
 	@echo "\t Type 'make build' is the same of type 'make build compose=local.yml'"
 	@echo "\t Type 'make up' is the same of type 'make up compose=local.yml'"
 
 app_version: ## Show version of webapp
 	@echo "Version: " $(SCIELO_USAGE_WEBAPP_VERSION)
-
-latest_commit:  ## Show last commit ref
-	@echo "Latest commit: " $(SCIELO_USAGE_VCS_REF)
-
-build_date: ## Show build date
-	@echo "Build date: " $(SCIELO_USAGE_BUILD_DATE)
-
-############################################
-## atalhos docker compose desenvolvimento ##
-############################################
 
 build:  ## Build app using $(compose)
 	@docker compose -f $(compose) build
@@ -50,41 +37,26 @@ logs: ## See all app logs using $(compose)
 stop:  ## Stop all app using $(compose)
 	@docker compose -f $(compose) stop
 
-restart:
+restart: ## Restart app using $(compose)
 	@docker compose -f $(compose) restart
-	
+
 ps:  ## See all containers using $(compose)
 	@docker compose -f $(compose) ps
 
-rm:  ## Remove all containers using $(compose)
-	@docker compose -f $(compose) rm -f
+django_bash: ## Open a bash terminal from django container using $(compose)
+	@docker compose -f $(compose) run --rm django bash
 
 django_shell:  ## Open python terminal from django $(compose)
 	@docker compose -f $(compose) run --rm django python manage.py shell
 
-wagtail_sync: ## Wagtail sync Page fields (repeat every time you add a new language and to update the wagtailcore_page translations) $(compose)
-	@docker compose -f $(compose) run --rm django python manage.py sync_page_translation_fields
-
-wagtail_update_translation_field: ## Wagtail update translation fields, user this command first $(compose)
-	@docker compose -f $(compose) run --rm django python manage.py update_translation_fields
-
 django_createsuperuser: ## Create a super user from django $(compose)
 	@docker compose -f $(compose) run --rm django python manage.py createsuperuser
 
-django_bash: ## Open a bash terminar from django container using $(compose)
-	@docker compose -f $(compose) run --rm django bash
-
-django_test: ## Run tests from django container using $(compose)
-	@docker compose -f $(compose) run --rm django pytest
-
-django_fast: ## Run tests fast from django container using $(compose)
-	@docker compose -f $(compose) run --rm django pytest --failfast
+django_migrate: ## Run migrate from django container using $(compose)
+	@docker compose -f $(compose) run --rm django python manage.py migrate
 
 django_makemigrations: ## Run makemigrations from django container using $(compose)
 	@docker compose -f $(compose) run --rm django python manage.py makemigrations
-
-django_migrate: ## Run migrate from django container using $(compose)
-	@docker compose -f $(compose) run --rm django python manage.py migrate
 
 django_makemessages: ## Run ./manage.py makemessages $(compose)
 	@docker compose -f $(compose) run --rm django python manage.py makemessages --all
@@ -92,38 +64,27 @@ django_makemessages: ## Run ./manage.py makemessages $(compose)
 django_compilemessages: ## Run ./manage.py compilemessages $(compose)
 	@docker compose -f $(compose) run --rm django python manage.py compilemessages
 
-django_dump_auth: ## Run manage.py dumpdata auth --indent=2 $(compose)
-	@docker compose -f $(compose) run --rm django python manage.py dumpdata auth --indent=2  --output=fixtures/auth.json
+wagtail_update_translation_field: ## Wagtail update translation fields, use this command first $(compose)
+	@docker compose -f $(compose) run --rm django python manage.py update_translation_fields
 
-django_load_auth: ## Run manage.py dumpdata auth --indent=2 $(compose)
-	@docker compose -f $(compose) run --rm django python manage.py loaddata --database=default fixtures/auth.json
+wagtail_sync: ## Wagtail sync Page fields (repeat every time you add a new language and to update the wagtailcore_page translations) $(compose)
+	@docker compose -f $(compose) run --rm django python manage.py sync_page_translation_fields
 
-dump_data: ## Dump database into .sql $(compose)
-	@docker compose -f $(compose) exec -T postgres sh -c 'pg_dumpall -c -U "$$POSTGRES_USER"' > dump_`date +%d-%m-%Y"_"%H_%M_%S`.sql
+test: ## Alias for django_test using $(compose)
+	@docker compose -f $(compose) run --rm django pytest
 
-restore_data: ## Restore database into from latest.sql file $(compose)
-	@docker compose -f $(compose) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER"' < backup/latest.sql
+django_test: ## Run tests from django container using $(compose)
+	@docker compose -f $(compose) run --rm django pytest
 
-############################################
-## Atalhos Úteis                          ##
-############################################
+django_fast: ## Run tests fast from django container using $(compose)
+	@docker compose -f $(compose) run --rm django pytest --failfast
 
-clean_container:  ## Remove all containers
-	@docker compose -f $(compose) rm -sf
+lint: ## Run flake8 using $(compose)
+	@docker compose -f $(compose) run --rm django flake8
 
-clean_dangling_images:  ## Remove all dangling images
-	@docker rmi -f $$(docker images --filter 'dangling=true' -q --no-trunc)
+format_check: ## Run black and isort checks using $(compose)
+	@docker compose -f $(compose) run --rm django black --check .
+	@docker compose -f $(compose) run --rm django isort --check-only .
 
-clean_dangling_volumes:  ## Remove all dangling volumes
-	@docker volume rm $$(docker volume ls -f dangling=true -q)
-
-clean_project_images:  ## Remove all images with "scielo_usage" on name
-	@docker rmi -f $$(docker images --filter=reference='*scielo_usage*' -q)
-
-volume_down:  ## Remove all volume
-	@docker compose -f $(compose) down -v
-
-clean_migrations: ## Remove generated migration bytecode only
-	@echo "Cleaning migration bytecode..."
-	@find . -path "*/migrations/*.pyc" -delete
-	@echo "Migration bytecode cleaned successfully."
+precommit: ## Run pre-commit hooks using $(compose)
+	@docker compose -f $(compose) run --rm django pre-commit run --all-files
