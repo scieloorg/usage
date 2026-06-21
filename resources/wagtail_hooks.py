@@ -1,10 +1,10 @@
 from django.utils.translation import gettext_lazy as _
-from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 from wagtail.snippets.models import register_snippet
+from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
 from config.menu import get_menu_order
 
-from .models import (RobotUserAgent, MMDB)
+from resources.models import MMDB, RobotUserAgent
 
 
 class RobotUserAgentSnippetViewSet(SnippetViewSet):
@@ -52,11 +52,14 @@ class MMDBSnippetViewSet(SnippetViewSet):
 
 
 class ResourcesSnippetViewSetGroup(SnippetViewSetGroup):
-    menu_name = 'resources'
+    menu_name = "resources"
     menu_label = _("Resources")
     menu_icon = "folder-open-inverse"
     menu_order = get_menu_order("resources")
-    items = (RobotUserAgentSnippetViewSet, MMDBSnippetViewSet,)
+    items = (
+        RobotUserAgentSnippetViewSet,
+        MMDBSnippetViewSet,
+    )
 
 
 register_snippet(ResourcesSnippetViewSetGroup)

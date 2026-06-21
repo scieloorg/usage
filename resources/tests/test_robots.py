@@ -29,7 +29,9 @@ class RobotUserAgentModelTests(TestCase):
             is_active=False,
         )
 
-        self.assertListEqual(list(models.RobotUserAgent.get_all_patterns()), [active.pattern])
+        self.assertListEqual(
+            list(models.RobotUserAgent.get_all_patterns()), [active.pattern]
+        )
 
     def test_get_patterns_can_filter_by_source(self):
         counter_only = models.RobotUserAgent.objects.create(
@@ -66,8 +68,7 @@ class RobotUserAgentModelTests(TestCase):
 
 
 class LoadRobotsTaskTests(TestCase):
-
-    @patch("resources.tasks.utils.fetch_data")
+    @patch("resources.services.utils.fetch_data")
     @override_settings(COUNTER_ROBOTS_URL="https://settings.example.org/robots.json")
     def test_task_load_robots_uses_settings_url_when_not_provided(
         self,
@@ -91,7 +92,7 @@ class LoadRobotsTaskTests(TestCase):
             "https://settings.example.org/robots.json",
         )
 
-    @patch("resources.tasks.utils.fetch_data")
+    @patch("resources.services.utils.fetch_data")
     def test_task_load_robots_marks_counter_source_and_deactivates_stale_counter_entries(
         self,
         mock_fetch_data,
@@ -124,7 +125,9 @@ class LoadRobotsTaskTests(TestCase):
         self.assertTrue(counter_bot.source_counter)
         self.assertFalse(counter_bot.source_scielo)
         self.assertTrue(counter_bot.is_active)
-        self.assertEqual(counter_bot.source_url, "https://counter.example.org/robots.json")
+        self.assertEqual(
+            counter_bot.source_url, "https://counter.example.org/robots.json"
+        )
 
         shared_bot.refresh_from_db()
         self.assertTrue(shared_bot.source_counter)
