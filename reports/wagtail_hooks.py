@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
-from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
-from wagtail.snippets.models import register_snippet
 from wagtail.permission_policies.base import BasePermissionPolicy
+from wagtail.snippets.models import register_snippet
+from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
-from reports.models import WeeklyLogReport, MonthlyLogReport, YearlyLogReport
+from reports.models import MonthlyLogReport, WeeklyLogReport, YearlyLogReport
 
 
 class ReadOnlyPermissionPolicy(BasePermissionPolicy):
