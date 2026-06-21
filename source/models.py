@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from collection.models import Collection
@@ -143,6 +144,46 @@ class Source(CommonControlField):
 
     def __str__(self):
         return f"{self.collection.acron3} - {self.source_type} - {self.source_id}"
+
+    @classmethod
+    def delete_book_source_by_id(cls, collection, book_id):
+        return cls.objects.filter(
+            collection=collection,
+            source_type=cls.SOURCE_TYPE_BOOK,
+            source_id=str(book_id),
+        ).delete()
+
+    @classmethod
+    def find_journal_by_issns(cls, collection, issns):
+        for issn in filter(None, issns or []):
+            source = (
+                cls.objects.filter(
+                    collection=collection,
+                    source_type=cls.SOURCE_TYPE_JOURNAL,
+                )
+                .filter(
+                    Q(scielo_issn=issn)
+                    | Q(source_id=issn)
+                    | Q(identifiers__electronic_issn=issn)
+                    | Q(identifiers__print_issn=issn)
+                    | Q(identifiers__scielo_issn=issn)
+                )
+                .first()
+            )
+            if source:
+                return source
+        return None
+
+    @classmethod
+    def find_journal_by_acronym(cls, collection, acronym):
+        if not acronym:
+            return None
+
+        return cls.objects.filter(
+            collection=collection,
+            source_type=cls.SOURCE_TYPE_JOURNAL,
+            acronym=acronym,
+        ).first()
 
     @staticmethod
     def _extract_issns(identifiers):

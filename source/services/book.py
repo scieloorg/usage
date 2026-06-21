@@ -1,12 +1,5 @@
-from collection.models import Collection
+from core.utils.metadata import as_list, compact_dict, normalize_year
 from source.models import Source
-
-
-BOOKS_COLLECTION_ACRONYM = "books"
-
-
-def get_books_collection(acronym=BOOKS_COLLECTION_ACRONYM):
-    return Collection.objects.get(acron3=acronym)
 
 
 def upsert_monograph_source(
@@ -34,12 +27,12 @@ def upsert_monograph_source(
         source.acronym = ""
         source.title = payload.get("title") or str(payload.get("id"))
         source.identifiers = _build_source_identifiers(payload)
-        source.publisher_name = _as_list(payload.get("publisher"))
+        source.publisher_name = as_list(payload.get("publisher"))
         source.subject_areas = []
         source.wos_subject_areas = []
         source.default_lang = payload.get("language") or None
         source.publication_date = payload.get("publication_date") or None
-        source.publication_year = _normalize_year(payload.get("year"))
+        source.publication_year = normalize_year(payload.get("year"))
         source.access_type = _normalize_access_type(payload.get("is_comercial"))
         source.extra_data = _build_source_extra_data(
             payload,
@@ -54,14 +47,6 @@ def upsert_monograph_source(
     return source
 
 
-def delete_book_source(collection, book_id):
-    return Source.objects.filter(
-        collection=collection,
-        source_type=Source.SOURCE_TYPE_BOOK,
-        source_id=str(book_id),
-    ).delete()
-
-
 def _build_source_identifiers(payload):
     identifiers = {
         "book_id": str(payload.get("id")) if payload.get("id") is not None else None,
@@ -69,7 +54,7 @@ def _build_source_identifiers(payload):
         "eisbn": payload.get("eisbn"),
         "doi": payload.get("doi_number"),
     }
-    return _compact_dict(identifiers)
+    return compact_dict(identifiers)
 
 
 def _build_source_extra_data(payload, source_url=None, last_seq=None):
@@ -96,23 +81,7 @@ def _build_source_extra_data(payload, source_url=None, last_seq=None):
         "primary_descriptor": payload.get("primary_descriptor"),
         "translated_primary_descriptors": payload.get("translated_primary_descriptors"),
     }
-    return _compact_dict(extra_data)
-
-
-def _as_list(value):
-    if not value:
-        return []
-
-    if isinstance(value, list):
-        return value
-
-    return [value]
-
-
-def _normalize_year(value):
-    if value in (None, ""):
-        return None
-    return str(value)[:4]
+    return compact_dict(extra_data)
 
 
 def _normalize_access_type(value):
@@ -126,12 +95,6 @@ def _normalize_access_type(value):
         if normalized in {"false", "0", "no", "n", "nao", "não"}:
             return Source.ACCESS_TYPE_OPEN_ACCESS
 
-    return Source.ACCESS_TYPE_COMMERCIAL if bool(value) else Source.ACCESS_TYPE_OPEN_ACCESS
-
-
-def _compact_dict(data):
-    return {
-        key: value
-        for key, value in data.items()
-        if value not in (None, "", [], {}, ())
-    }
+    return (
+        Source.ACCESS_TYPE_COMMERCIAL if bool(value) else Source.ACCESS_TYPE_OPEN_ACCESS
+    )

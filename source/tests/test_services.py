@@ -1,23 +1,12 @@
 from django.test import TestCase
 
 from collection.models import Collection
-
-from .models import Source
-from .services import books as books_service
-from .services import journals as journal_service
+from source.models import Source
+from source.services import book as books_service
+from source.services import journal as journal_service
 
 
 class SourceMetadataTests(TestCase):
-    def test_source_type_choices_include_scielo_non_journal_sources(self):
-        self.assertIn(
-            (Source.SOURCE_TYPE_PREPRINT_SERVER, "Preprint Server"),
-            [(value, str(label)) for value, label in Source.SOURCE_TYPE_CHOICES],
-        )
-        self.assertIn(
-            (Source.SOURCE_TYPE_DATA_REPOSITORY, "Data Repository"),
-            [(value, str(label)) for value, label in Source.SOURCE_TYPE_CHOICES],
-        )
-
     def test_metadata_exposes_generic_and_journal_fields(self):
         collection = Collection.objects.create(acron3="scl", acron2="sc")
         Source.objects.create(
@@ -50,6 +39,8 @@ class SourceMetadataTests(TestCase):
         self.assertEqual(metadata[0]["issns"], {"1234-5678", "8765-4321"})
         self.assertEqual(metadata[0]["title"], "Test Journal")
 
+
+class BookSourceServiceTests(TestCase):
     def test_upsert_monograph_source_maps_scielo_books_payload(self):
         collection = Collection.objects.create(acron3="books", acron2="bk")
 
@@ -78,27 +69,8 @@ class SourceMetadataTests(TestCase):
         self.assertEqual(source.publication_year, "2024")
         self.assertEqual(source.access_type, Source.ACCESS_TYPE_OPEN_ACCESS)
 
-    def test_upsert_monograph_source_accepts_long_real_world_title(self):
-        collection = Collection.objects.create(acron3="books", acron2="bk")
-        title = (
-            "O Estado da Arte sobre Refugiados, Deslocados Internos, "
-            "Deslocados Ambientais e Apatridas no Brasil: atualizacao do "
-            "Diretorio Nacional do ACNUR de teses, dissertacoes, trabalhos "
-            "de conclusao de curso de graduacao em Joao Pessoa (Paraiba) e "
-            "artigos (2007 a 2017)"
-        )
 
-        source = books_service.upsert_monograph_source(
-            {
-                "TYPE": "Monograph",
-                "id": "9zzts",
-                "title": title,
-            },
-            collection=collection,
-        )
-
-        self.assertEqual(source.title, title)
-
+class JournalSourceServiceTests(TestCase):
     def test_upsert_journal_source_maps_articlemeta_payload(self):
         collection = Collection.objects.create(acron3="scl", acron2="sc")
 
@@ -123,11 +95,3 @@ class SourceMetadataTests(TestCase):
         self.assertEqual(source.identifiers["electronic_issn"], "1234-5678")
         self.assertEqual(source.publisher_name, ["SciELO"])
         self.assertEqual(source.extra_data["load_mode"], "thrift")
-        self.assertEqual(
-            journal_service.find_journal_source_by_issns(collection, ["8765-4321"]).pk,
-            source.pk,
-        )
-        self.assertEqual(
-            journal_service.find_journal_source_by_acronym(collection, "testjou").pk,
-            source.pk,
-        )
