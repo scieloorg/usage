@@ -3,6 +3,7 @@ from wagtail.snippets.views.snippets import SnippetViewSet
 
 from log_manager_config.models import LogManagerCollectionConfig
 
+
 class LogManagerCollectionConfigSnippetViewSet(SnippetViewSet):
     model = LogManagerCollectionConfig
     menu_label = _("Log Manager Configurations")
@@ -16,9 +17,5 @@ class LogManagerCollectionConfigSnippetViewSet(SnippetViewSet):
         "expected_logs_per_day",
         "updated",
     )
-    list_filter = (
-        "collection",
-    )
-    search_fields = (
-        "collection__acron3",
-    )
+    list_filter = ("collection",)
+    search_fields = ("collection__acron3",)
