@@ -1,16 +1,16 @@
 from django.utils.translation import gettext as _
-from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 from wagtail.snippets.models import register_snippet
+from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
 from config.menu import get_menu_order
 
-from .models import LogFileDiscardedLine
+from tracker.models import LogFileDiscardedLine
 
 
 class LogFileDiscardedLineSnippetViewSet(SnippetViewSet):
     model = LogFileDiscardedLine
     menu_label = _("Discarded Lines")
-    icon = 'warning'
+    icon = "warning"
     menu_order = get_menu_order("tracker")
     add_to_admin_menu = False
 
@@ -20,12 +20,7 @@ class LogFileDiscardedLineSnippetViewSet(SnippetViewSet):
         "message",
         "handled",
     )
-    list_filter = (
-        "log_file__collection",
-        "log_file", 
-        "handled",
-        "error_type"
-    )
+    list_filter = ("log_file__collection", "log_file", "handled", "error_type")
     search_fields = (
         "data",
         "message",
@@ -39,17 +34,13 @@ class LogFileDiscardedLineSnippetViewSet(SnippetViewSet):
     )
 
 
-
-
 class TrackerSnippetViewSetGroup(SnippetViewSetGroup):
-    menu_name = 'tracker'
+    menu_name = "tracker"
     menu_label = _("Tracker")
     icon = "folder-open-inverse"
     menu_order = get_menu_order("tracker")
-    
-    items = (
-        LogFileDiscardedLineSnippetViewSet,
-    )
+
+    items = (LogFileDiscardedLineSnippetViewSet,)
 
 
 register_snippet(TrackerSnippetViewSetGroup)
