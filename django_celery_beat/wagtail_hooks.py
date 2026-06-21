@@ -7,12 +7,9 @@ from django.urls import include, path
 from django.utils.translation import gettext_lazy as _
 from kombu.utils.json import loads
 from wagtail import hooks
-from wagtail_modeladmin.options import (
-    ModelAdmin,
-    ModelAdminGroup,
-    modeladmin_register,
-)
+from wagtail_modeladmin.options import ModelAdmin, ModelAdminGroup, modeladmin_register
 
+from config.menu import get_menu_order
 from django_celery_beat.models import (
     ClockedSchedule,
     CrontabSchedule,
@@ -22,8 +19,6 @@ from django_celery_beat.models import (
     SolarSchedule,
 )
 from django_celery_beat.utils import is_database_scheduler
-
-from config.menu import get_menu_order
 
 from .button_helper import PeriodicTaskHelper
 

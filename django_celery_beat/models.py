@@ -73,14 +73,15 @@ def crontab_schedule_celery_timezone():
     except AttributeError:
         return "UTC"
 
-    # evita `AttributeError: type object 'TimeZoneField' has no attribute 'default_choices'`
-    return "UTC"
-    return (
-        CELERY_TIMEZONE
-        if CELERY_TIMEZONE
-        in [choice[0].zone for choice in timezone_field.TimeZoneField.default_choices]
-        else "UTC"
-    )
+    if not CELERY_TIMEZONE:
+        return "UTC"
+
+    try:
+        timezone = timezone_field.TimeZoneField().to_python(CELERY_TIMEZONE)
+    except ValidationError:
+        return "UTC"
+
+    return str(timezone)
 
 
 class SolarSchedule(models.Model):
