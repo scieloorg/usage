@@ -11,7 +11,7 @@ from core.forms import CoreAdminModelForm
 from core.models import CommonControlField, Language, TextWithLang
 from core.utils.request_utils import fetch_data
 
-from . import choices
+from collection import choices
 
 
 class CollectionName(TextWithLang):
@@ -97,7 +97,7 @@ class Collection(CommonControlField, ClusterableModel):
     ]
 
     class Meta:
-        ordering = ['main_name']
+        ordering = ["main_name"]
         verbose_name = _("Collection")
         verbose_name_plural = _("Collections")
         indexes = [
@@ -237,7 +237,7 @@ class Collection(CommonControlField, ClusterableModel):
     @classmethod
     def acron2_list(self):
         return [col.acron2 for col in Collection.objects.iterator()]
-    
+
     @classmethod
     def acron3_list(self):
         return [col.acron3 for col in Collection.objects.iterator()]
