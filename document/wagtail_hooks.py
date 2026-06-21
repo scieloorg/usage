@@ -1,7 +1,7 @@
 from django.utils.translation import gettext_lazy as _
 from wagtail.snippets.views.snippets import SnippetViewSet
 
-from .models import Document
+from document.models import Document
 
 
 class DocumentSnippetViewSet(SnippetViewSet):

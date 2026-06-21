@@ -1,6 +1,6 @@
 from document.models import Document
 
-from .common import build_document_id, compact_dict, get_existing_document, normalize_langs, normalize_year
+from core.utils.metadata import compact_dict, normalize_langs, normalize_year
 
 
 def upsert_article_document_from_articlemeta(
@@ -11,11 +11,13 @@ def upsert_article_document_from_articlemeta(
     force_update=True,
 ):
     pid_v2 = payload.get("code")
-    document_id = build_document_id(pid_v2, payload.get("pid_v3"), payload.get("pid_generic"))
+    document_id = _first_identifier(
+        pid_v2, payload.get("pid_v3"), payload.get("pid_generic")
+    )
     if not document_id:
         return None
 
-    document = get_existing_document(
+    document = Document.find_by_identifiers(
         collection,
         Document.DOCUMENT_TYPE_ARTICLE,
         document_id,
@@ -47,8 +49,12 @@ def upsert_article_document_from_articlemeta(
         document.default_lang = payload.get("default_language") or document.default_lang
         document.text_langs = normalize_langs(payload.get("text_langs"))
         document.default_media_format = document.default_media_format
-        document.processing_date = payload.get("processing_date") or document.processing_date
-        document.publication_date = payload.get("publication_date") or document.publication_date
+        document.processing_date = (
+            payload.get("processing_date") or document.processing_date
+        )
+        document.publication_date = (
+            payload.get("publication_date") or document.publication_date
+        )
         document.publication_year = normalize_year(
             payload.get("publication_year"),
             fallback_date=document.publication_date,
@@ -79,11 +85,15 @@ def upsert_article_document_from_opac(
 ):
     pid_v2 = payload.get("pid_v2")
     pid_v3 = payload.get("pid_v3")
-    document_id = build_document_id(pid_v2, pid_v3, payload.get("pid_generic"))
+    document_id = _first_identifier(
+        pid_v2,
+        pid_v3,
+        payload.get("pid_generic"),
+    )
     if not document_id:
         return None
 
-    document = get_existing_document(
+    document = Document.find_by_identifiers(
         collection,
         Document.DOCUMENT_TYPE_ARTICLE,
         document_id,
@@ -115,10 +125,14 @@ def upsert_article_document_from_opac(
         )
         document.files = document.files or {}
         document.default_lang = payload.get("default_language") or document.default_lang
-        document.text_langs = normalize_langs(payload.get("text_langs")) or document.text_langs or []
+        document.text_langs = (
+            normalize_langs(payload.get("text_langs")) or document.text_langs or []
+        )
         document.default_media_format = document.default_media_format
         document.processing_date = document.processing_date
-        document.publication_date = payload.get("publication_date") or document.publication_date
+        document.publication_date = (
+            payload.get("publication_date") or document.publication_date
+        )
         document.publication_year = normalize_year(
             payload.get("publication_year"),
             fallback_date=document.publication_date,
@@ -164,3 +178,10 @@ def _merge_dicts(current, new_values):
     merged = dict(current or {})
     merged.update(new_values or {})
     return merged
+
+
+def _first_identifier(*values):
+    for value in values:
+        if value not in (None, ""):
+            return str(value)
+    return None

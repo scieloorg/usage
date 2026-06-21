@@ -1,16 +1,6 @@
 from document.models import Document
 
-
-def build_book_pid_generic(book_id):
-    if book_id in (None, ""):
-        return None
-    return f"book:{book_id}"
-
-
-def build_chapter_pid_generic(book_id, chapter_id):
-    if book_id in (None, "") or chapter_id in (None, ""):
-        return None
-    return f"book:{book_id}/chapter:{chapter_id}"
+from core.utils.metadata import compact_dict, normalize_langs, normalize_year
 
 
 def enrich_part_payload(payload, monograph_payload):
@@ -43,7 +33,7 @@ def upsert_monograph_document(
         return None
 
     book_id = str(payload.get("id"))
-    pid_generic = build_book_pid_generic(book_id)
+    pid_generic = Document.build_book_pid_generic(book_id)
     document, created = Document.objects.get_or_create(
         collection=collection,
         document_type=Document.DOCUMENT_TYPE_BOOK,
@@ -64,11 +54,11 @@ def upsert_monograph_document(
         document.identifiers = _build_monograph_identifiers(payload)
         document.files = {}
         document.default_lang = payload.get("language") or None
-        document.text_langs = _unique_list(payload.get("language"))
+        document.text_langs = normalize_langs(payload.get("language"))
         document.default_media_format = None
         document.processing_date = None
         document.publication_date = payload.get("publication_date") or None
-        document.publication_year = _normalize_year(payload.get("year"))
+        document.publication_year = normalize_year(payload.get("year"))
         document.extra_data = _build_monograph_extra_data(
             payload,
             source_url=source_url,
@@ -97,7 +87,7 @@ def upsert_part_document(
 
     book_id = payload.get("monograph")
     chapter_id = payload.get("id")
-    pid_generic = build_chapter_pid_generic(book_id, chapter_id)
+    pid_generic = Document.build_chapter_pid_generic(book_id, chapter_id)
     document, created = Document.objects.get_or_create(
         collection=collection,
         document_type=Document.DOCUMENT_TYPE_CHAPTER,
@@ -118,17 +108,15 @@ def upsert_part_document(
         document.identifiers = _build_part_identifiers(payload)
         document.files = {}
         document.default_lang = (
-            payload.get("text_language")
-            or payload.get("monograph_language")
-            or None
+            payload.get("text_language") or payload.get("monograph_language") or None
         )
-        document.text_langs = _unique_list(
+        document.text_langs = normalize_langs(
             payload.get("text_language") or payload.get("monograph_language")
         )
         document.default_media_format = None
         document.processing_date = None
         document.publication_date = payload.get("monograph_publication_date") or None
-        document.publication_year = _normalize_year(payload.get("monograph_year"))
+        document.publication_year = normalize_year(payload.get("monograph_year"))
         document.extra_data = _build_part_extra_data(
             payload,
             source_url=source_url,
@@ -142,37 +130,6 @@ def upsert_part_document(
     return document
 
 
-def delete_book_document(collection, book_id):
-    return Document.objects.filter(
-        collection=collection,
-        document_type=Document.DOCUMENT_TYPE_BOOK,
-        document_id=build_book_pid_generic(book_id),
-    ).delete()
-
-
-def delete_document_by_raw_id(collection, raw_id):
-    return Document.objects.filter(
-        collection=collection,
-        extra_data__raw_id=str(raw_id),
-    ).delete()
-
-
-def has_monograph_document_for_raw_id(collection, raw_id):
-    return Document.objects.filter(
-        collection=collection,
-        document_type=Document.DOCUMENT_TYPE_BOOK,
-        extra_data__raw_id=str(raw_id),
-    ).exists()
-
-
-def get_monograph_document(collection, book_id):
-    return Document.objects.filter(
-        collection=collection,
-        document_type=Document.DOCUMENT_TYPE_BOOK,
-        document_id=build_book_pid_generic(book_id),
-    ).first()
-
-
 def _build_monograph_identifiers(payload):
     identifiers = {
         "book_id": str(payload.get("id")) if payload.get("id") is not None else None,
@@ -180,19 +137,21 @@ def _build_monograph_identifiers(payload):
         "eisbn": payload.get("eisbn"),
         "doi": payload.get("doi_number"),
     }
-    return _compact_dict(identifiers)
+    return compact_dict(identifiers)
 
 
 def _build_part_identifiers(payload):
     identifiers = {
-        "book_id": str(payload.get("monograph")) if payload.get("monograph") is not None else None,
+        "book_id": str(payload.get("monograph"))
+        if payload.get("monograph") is not None
+        else None,
         "chapter_id": str(payload.get("id")) if payload.get("id") is not None else None,
         "isbn": payload.get("monograph_isbn"),
         "eisbn": payload.get("monograph_eisbn"),
         "doi": payload.get("doi_number"),
         "book_doi": payload.get("monograph_doi_number"),
     }
-    return _compact_dict(identifiers)
+    return compact_dict(identifiers)
 
 
 def _build_monograph_extra_data(payload, source_url=None, last_seq=None):
@@ -211,7 +170,7 @@ def _build_monograph_extra_data(payload, source_url=None, last_seq=None):
         "translated_synopses": payload.get("translated_synopses"),
         "synopsis": payload.get("synopsis"),
     }
-    return _compact_dict(extra_data)
+    return compact_dict(extra_data)
 
 
 def _build_part_extra_data(payload, source_url=None, last_seq=None):
@@ -225,7 +184,9 @@ def _build_part_extra_data(payload, source_url=None, last_seq=None):
         "pages": payload.get("pages"),
         "creators": payload.get("creators"),
         "translated_titles": payload.get("translated_titles"),
-        "monograph_id": str(payload.get("monograph")) if payload.get("monograph") is not None else None,
+        "monograph_id": str(payload.get("monograph"))
+        if payload.get("monograph") is not None
+        else None,
         "monograph_title": payload.get("monograph_title"),
         "monograph_language": payload.get("monograph_language"),
         "monograph_publication_date": payload.get("monograph_publication_date"),
@@ -233,24 +194,4 @@ def _build_part_extra_data(payload, source_url=None, last_seq=None):
         "monograph_publisher": payload.get("monograph_publisher"),
         "monograph_creators": payload.get("monograph_creators"),
     }
-    return _compact_dict(extra_data)
-
-
-def _unique_list(value):
-    if not value:
-        return []
-    return [value]
-
-
-def _normalize_year(value):
-    if value in (None, ""):
-        return None
-    return str(value)[:4]
-
-
-def _compact_dict(data):
-    return {
-        key: value
-        for key, value in data.items()
-        if value not in (None, "", [], {}, ())
-    }
+    return compact_dict(extra_data)

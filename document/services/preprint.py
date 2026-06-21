@@ -1,6 +1,6 @@
 from document.models import Document
 
-from .common import compact_dict, normalize_langs, normalize_year
+from core.utils.metadata import compact_dict, normalize_langs, normalize_year
 
 
 def upsert_preprint_document(
@@ -40,7 +40,9 @@ def upsert_preprint_document(
         document.text_langs = normalize_langs(payload.get("text_langs"))
         document.default_media_format = document.default_media_format
         document.processing_date = document.processing_date
-        document.publication_date = payload.get("publication_date") or document.publication_date
+        document.publication_date = (
+            payload.get("publication_date") or document.publication_date
+        )
         document.publication_year = normalize_year(
             payload.get("publication_year"),
             fallback_date=document.publication_date,

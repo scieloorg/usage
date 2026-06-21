@@ -175,6 +175,52 @@ class Document(CommonControlField):
         return f"{self.collection.acron3} - {self.document_type} - {self.document_id}"
 
     @classmethod
+    def build_book_pid_generic(cls, book_id):
+        if book_id in (None, ""):
+            return None
+        return f"book:{book_id}"
+
+    @classmethod
+    def build_chapter_pid_generic(cls, book_id, chapter_id):
+        if book_id in (None, "") or chapter_id in (None, ""):
+            return None
+        return f"book:{book_id}/chapter:{chapter_id}"
+
+    @classmethod
+    def find_by_identifiers(cls, collection, document_type, *identifiers):
+        identifiers = [str(value) for value in identifiers if value not in (None, "")]
+        if not identifiers:
+            return None
+
+        queryset = cls.objects.filter(
+            collection=collection,
+            document_type=document_type,
+        )
+
+        for field_name in ("document_id", "pid_v2", "pid_v3", "pid_generic"):
+            for identifier in identifiers:
+                document = queryset.filter(**{field_name: identifier}).first()
+                if document:
+                    return document
+
+        return None
+
+    @classmethod
+    def book_exists_for_raw_id(cls, collection, raw_id):
+        return cls.objects.filter(
+            collection=collection,
+            document_type=cls.DOCUMENT_TYPE_BOOK,
+            extra_data__raw_id=str(raw_id),
+        ).exists()
+
+    @classmethod
+    def delete_documents_by_raw_id(cls, collection, raw_id):
+        return cls.objects.filter(
+            collection=collection,
+            extra_data__raw_id=str(raw_id),
+        ).delete()
+
+    @classmethod
     def metadata(cls, collection=None):
         queryset = cls.objects.select_related("collection", "source").only(
             "collection__acron3",
@@ -215,7 +261,9 @@ class Document(CommonControlField):
                 "files": document.files or {},
                 "identifiers": document.identifiers or {},
                 "parent_document_id": (
-                    document.parent_document.document_id if document.parent_document else None
+                    document.parent_document.document_id
+                    if document.parent_document
+                    else None
                 ),
                 "pid_generic": document.pid_generic,
                 "pid_v2": document.pid_v2,
@@ -223,7 +271,8 @@ class Document(CommonControlField):
                 "processing_date": document.processing_date,
                 "publication_date": document.publication_date,
                 "publication_year": document.publication_year,
-                "scielo_issn": document.scielo_issn or (source.scielo_issn if source else None),
+                "scielo_issn": document.scielo_issn
+                or (source.scielo_issn if source else None),
                 "source_id": source.source_id if source else None,
                 "source_type": source.source_type if source else None,
                 "text_langs": document.text_langs or [],

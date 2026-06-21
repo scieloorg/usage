@@ -1,6 +1,6 @@
 from document.models import Document
 
-from .common import compact_dict, normalize_year
+from core.utils.metadata import compact_dict, normalize_year
 
 
 def upsert_dataset_document(
@@ -51,7 +51,9 @@ def upsert_dataset_document(
         document.text_langs = document.text_langs or []
         document.default_media_format = document.default_media_format
         document.processing_date = document.processing_date
-        document.publication_date = payload.get("dataset_published") or document.publication_date
+        document.publication_date = (
+            payload.get("dataset_published") or document.publication_date
+        )
         document.publication_year = normalize_year(
             None,
             fallback_date=document.publication_date,

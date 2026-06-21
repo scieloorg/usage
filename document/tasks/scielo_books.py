@@ -3,14 +3,16 @@ import logging
 from django.conf import settings
 from django.utils.translation import gettext as _
 
+from collection.models import Collection
+from config import celery_app
 from core.collectors import scielo_books as scielo_books_collector
 from core.utils.request_utils import _get_user
-from document.services import books as document_books_service
-from source.services import books as source_books_service
+from document.models import Document
+from document.services import book as document_books_service
+from source.models import Source
+from source.services import book as source_books_service
 
-from config import celery_app
-
-from .common import get_latest_scielo_books_last_seq
+from document.tasks.common import get_latest_scielo_books_last_seq
 
 
 def load_documents_from_scielo_books(
@@ -25,7 +27,7 @@ def load_documents_from_scielo_books(
 ):
     db_name = db_name or settings.SCIELO_BOOKS_DB_NAME
     limit = limit or settings.SCIELO_BOOKS_LIMIT
-    collection_obj = source_books_service.get_books_collection(collection)
+    collection_obj = Collection.objects.get(acron3=collection)
     monograph_cache = {}
 
     logging.info(
@@ -47,13 +49,13 @@ def load_documents_from_scielo_books(
         raw_id = change.get("id")
 
         if item["deleted"]:
-            delete_source = document_books_service.has_monograph_document_for_raw_id(
+            delete_source = Document.book_exists_for_raw_id(
                 collection_obj,
                 raw_id,
             )
-            document_books_service.delete_document_by_raw_id(collection_obj, raw_id)
+            Document.delete_documents_by_raw_id(collection_obj, raw_id)
             if delete_source:
-                source_books_service.delete_book_source(collection_obj, raw_id)
+                Source.delete_book_source_by_id(collection_obj, raw_id)
             continue
 
         payload = item["payload"] or {}
@@ -164,7 +166,9 @@ def sync_documents_from_scielo_books(
     )
 
 
-@celery_app.task(bind=True, name=_("[Metadata] Sync Documents (SciELO Books - Manual)"), queue="load")
+@celery_app.task(
+    bind=True, name=_("[Metadata] Sync Documents (SciELO Books - Manual)"), queue="load"
+)
 def task_load_documents_from_scielo_books(
     self,
     collection="books",
@@ -192,7 +196,11 @@ def task_load_documents_from_scielo_books(
     )
 
 
-@celery_app.task(bind=True, name=_("[Metadata] Sync Documents (SciELO Books - Incremental)"), queue="load")
+@celery_app.task(
+    bind=True,
+    name=_("[Metadata] Sync Documents (SciELO Books - Incremental)"),
+    queue="load",
+)
 def task_sync_documents_from_scielo_books(
     self,
     collection="books",
@@ -218,7 +226,9 @@ def task_sync_documents_from_scielo_books(
     )
 
 
-def _get_monograph_payload(payload, monograph_cache, base_url=None, db_name=None, headers=None):
+def _get_monograph_payload(
+    payload, monograph_cache, base_url=None, db_name=None, headers=None
+):
     monograph_id = payload.get("monograph")
     if not monograph_id:
         return None
