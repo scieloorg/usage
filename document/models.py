@@ -222,7 +222,11 @@ class Document(CommonControlField):
 
     @classmethod
     def metadata(cls, collection=None):
-        queryset = cls.objects.select_related("collection", "source").only(
+        queryset = cls.objects.select_related(
+            "collection",
+            "source",
+            "parent_document",
+        ).only(
             "collection__acron3",
             "default_lang",
             "default_media_format",

@@ -105,9 +105,72 @@ class DocumentMetadataTests(TestCase):
 
         metadata = list(Document.metadata(collection=collection))
 
-        self.assertEqual(len(metadata), 1)
-        self.assertEqual(metadata[0]["document_type"], Document.DOCUMENT_TYPE_ARTICLE)
-        self.assertEqual(metadata[0]["document_id"], "S123456782024000100001")
-        self.assertEqual(metadata[0]["source_type"], Source.SOURCE_TYPE_JOURNAL)
-        self.assertEqual(metadata[0]["source_id"], "1234-5678")
-        self.assertEqual(metadata[0]["scielo_issn"], "1234-5678")
+        self.assertEqual(
+            metadata,
+            [
+                {
+                    "collection": "scl",
+                    "default_lang": "en",
+                    "default_media_format": None,
+                    "document_id": "S123456782024000100001",
+                    "document_type": Document.DOCUMENT_TYPE_ARTICLE,
+                    "extra_data": {},
+                    "files": {"pt": {"path": "/pdf/test.pdf"}},
+                    "identifiers": {"doi": "10.1590/example"},
+                    "parent_document_id": None,
+                    "pid_generic": None,
+                    "pid_v2": "S123456782024000100001",
+                    "pid_v3": "abc123",
+                    "processing_date": None,
+                    "publication_date": "2024-01-15",
+                    "publication_year": "2024",
+                    "scielo_issn": "1234-5678",
+                    "source_id": "1234-5678",
+                    "source_type": Source.SOURCE_TYPE_JOURNAL,
+                    "text_langs": ["en", "pt"],
+                    "title": "Test Article",
+                }
+            ],
+        )
+
+    def test_metadata_loads_parent_documents_in_the_initial_query(self):
+        collection = Collection.objects.create(acron3="books", acron2="bk")
+        source = Source.objects.create(
+            collection=collection,
+            source_type=Source.SOURCE_TYPE_BOOK,
+            source_id="book-1",
+            title="Test Book",
+        )
+        book = Document.objects.create(
+            collection=collection,
+            source=source,
+            document_type=Document.DOCUMENT_TYPE_BOOK,
+            document_id="book:book-1",
+        )
+        Document.objects.create(
+            collection=collection,
+            source=source,
+            parent_document=book,
+            document_type=Document.DOCUMENT_TYPE_CHAPTER,
+            document_id="book:book-1/chapter:1",
+        )
+        Document.objects.create(
+            collection=collection,
+            document_type=Document.DOCUMENT_TYPE_OTHER,
+            document_id="document-without-source",
+        )
+
+        with self.assertNumQueries(1):
+            metadata = list(Document.metadata(collection=collection))
+
+        metadata_by_id = {item["document_id"]: item for item in metadata}
+        self.assertIsNone(metadata_by_id["book:book-1"]["parent_document_id"])
+        self.assertEqual(
+            metadata_by_id["book:book-1/chapter:1"]["parent_document_id"],
+            "book:book-1",
+        )
+        self.assertIsNone(
+            metadata_by_id["document-without-source"]["parent_document_id"]
+        )
+        self.assertIsNone(metadata_by_id["document-without-source"]["source_id"])
+        self.assertIsNone(metadata_by_id["document-without-source"]["source_type"])
