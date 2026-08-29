@@ -488,3 +488,7 @@ SCIELO_BOOKS_LIMIT = env.int("SCIELO_BOOKS_LIMIT", default=1000)
 # Collection size categories
 # ------------------------------------------------------------------------------
 SUPPORTED_LOGFILE_EXTENSIONS = env.list("SUPPORTED_LOGFILE_EXTENSIONS", default=[".log", ".gz", ".zip"])
+PARSING_METADATA_CACHE_COLLECTIONS = env.list(
+    "PARSING_METADATA_CACHE_COLLECTIONS",
+    default=list(COLLECTION_ACRON3_SIZE_MAP),
+)
