@@ -5,6 +5,8 @@ from django.utils.translation import gettext_lazy as _
 from collection.models import Collection
 from core.models import CommonControlField
 
+METADATA_ITERATOR_CHUNK_SIZE = 2000
+
 
 class Source(CommonControlField):
     SOURCE_TYPE_JOURNAL = "journal"
@@ -198,9 +200,12 @@ class Source(CommonControlField):
 
     @classmethod
     def metadata(cls, collection=None):
-        queryset = cls.objects.select_related("collection").only(
+        queryset = cls.objects.all()
+        if collection:
+            queryset = queryset.filter(collection=collection)
+
+        queryset = queryset.values(
             "acronym",
-            "collection__acron3",
             "default_lang",
             "extra_data",
             "identifiers",
@@ -214,30 +219,28 @@ class Source(CommonControlField):
             "subject_areas",
             "title",
             "wos_subject_areas",
+            collection_acron3=models.F("collection__acron3"),
         )
 
-        if collection:
-            queryset = queryset.filter(collection=collection)
-
-        for source in queryset.iterator():
-            identifiers = source.identifiers or {}
+        for source in queryset.iterator(chunk_size=METADATA_ITERATOR_CHUNK_SIZE):
+            identifiers = source["identifiers"] or {}
             yield {
-                "acronym": source.acronym,
-                "collection": source.collection.acron3,
-                "default_lang": source.default_lang,
-                "extra_data": source.extra_data or {},
+                "acronym": source["acronym"],
+                "collection": source["collection_acron3"],
+                "default_lang": source["default_lang"],
+                "extra_data": source["extra_data"] or {},
                 "identifiers": identifiers,
                 "issns": cls._extract_issns(identifiers),
-                "publication_date": source.publication_date,
-                "publication_year": source.publication_year,
-                "access_type": source.access_type,
-                "publisher_name": source.publisher_name or [],
-                "scielo_issn": source.scielo_issn,
-                "source_id": source.source_id,
-                "source_type": source.source_type,
-                "subject_areas": source.subject_areas or [],
-                "title": source.title,
-                "wos_subject_areas": source.wos_subject_areas or [],
+                "publication_date": source["publication_date"],
+                "publication_year": source["publication_year"],
+                "access_type": source["access_type"],
+                "publisher_name": source["publisher_name"] or [],
+                "scielo_issn": source["scielo_issn"],
+                "source_id": source["source_id"],
+                "source_type": source["source_type"],
+                "subject_areas": source["subject_areas"] or [],
+                "title": source["title"],
+                "wos_subject_areas": source["wos_subject_areas"] or [],
             }
 
     class Meta:
