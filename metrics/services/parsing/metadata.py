@@ -11,6 +11,7 @@ from scielo_usage_counter.translator.preprints import URLTranslatorPreprintsSite
 
 from document.models import Document
 from log_manager_config.models import CollectionLogDirectory
+from metrics.services.parsing import metadata_cache
 from source.models import Source
 
 TRANSLATOR_CLASSES = {
@@ -30,18 +31,30 @@ def build_url_translation_manager(log_file):
             f"No URL translator class found for collection {log_file.collection}."
         )
 
-    started = monotonic()
-    manager = url_translator.URLTranslationManager(
-        documents_metadata=Document.metadata(collection=log_file.collection),
-        sources_metadata=Source.metadata(collection=log_file.collection),
-        translator=translator_class,
-    )
+    if metadata_cache.is_enabled(log_file.collection):
+        return metadata_cache.get_url_translation_manager(
+            log_file.collection,
+            translator_class,
+            _build_manager,
+        )
+
+    manager, elapsed = _build_manager(log_file.collection, translator_class)
     logging.info(
-        "Prepared parsing metadata for %s in %.3f seconds.",
+        "Prepared parsing metadata for %s without cache in %.3f seconds.",
         log_file.collection.acron3,
-        monotonic() - started,
+        elapsed,
     )
     return manager
+
+
+def _build_manager(collection, translator_class):
+    started = monotonic()
+    manager = url_translator.URLTranslationManager(
+        documents_metadata=Document.metadata(collection=collection),
+        sources_metadata=Source.metadata(collection=collection),
+        translator=translator_class,
+    )
+    return manager, monotonic() - started
 
 
 def _get_log_file_translator_class(log_file):
