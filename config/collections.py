@@ -19,6 +19,7 @@ COLLECTION_ACRON3_SIZE_MAP = {
     "preprints": "small",
     "pry": "small",
     "rve": "small",
+    "rvt": "small",
     "spa": "small",
     "sss": "small",
     "sza": "small",
