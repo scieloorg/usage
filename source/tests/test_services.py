@@ -30,14 +30,36 @@ class SourceMetadataTests(TestCase):
             extra_data={"country": "BR"},
         )
 
-        metadata = list(Source.metadata(collection=collection))
+        with self.assertNumQueries(1):
+            metadata = list(Source.metadata(collection=collection))
 
-        self.assertEqual(len(metadata), 1)
-        self.assertEqual(metadata[0]["source_type"], Source.SOURCE_TYPE_JOURNAL)
-        self.assertEqual(metadata[0]["source_id"], "1234-5678")
-        self.assertEqual(metadata[0]["scielo_issn"], "1234-5678")
-        self.assertEqual(metadata[0]["issns"], {"1234-5678", "8765-4321"})
-        self.assertEqual(metadata[0]["title"], "Test Journal")
+        self.assertEqual(
+            metadata,
+            [
+                {
+                    "access_type": None,
+                    "acronym": "testjou",
+                    "collection": "scl",
+                    "default_lang": "en",
+                    "extra_data": {"country": "BR"},
+                    "identifiers": {
+                        "electronic_issn": "1234-5678",
+                        "print_issn": "8765-4321",
+                        "doi": "10.1590/example",
+                    },
+                    "issns": {"1234-5678", "8765-4321"},
+                    "publication_date": "2024-01-15",
+                    "publication_year": "2024",
+                    "publisher_name": ["SciELO"],
+                    "scielo_issn": "1234-5678",
+                    "source_id": "1234-5678",
+                    "source_type": Source.SOURCE_TYPE_JOURNAL,
+                    "subject_areas": ["Health Sciences"],
+                    "title": "Test Journal",
+                    "wos_subject_areas": ["Medicine"],
+                }
+            ],
+        )
 
 
 class BookSourceServiceTests(TestCase):

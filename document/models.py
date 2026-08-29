@@ -5,6 +5,8 @@ from collection.models import Collection
 from core.models import CommonControlField
 from source.models import Source
 
+METADATA_ITERATOR_CHUNK_SIZE = 2000
+
 
 class Document(CommonControlField):
     DOCUMENT_TYPE_ARTICLE = "article"
@@ -222,12 +224,11 @@ class Document(CommonControlField):
 
     @classmethod
     def metadata(cls, collection=None):
-        queryset = cls.objects.select_related(
-            "collection",
-            "source",
-            "parent_document",
-        ).only(
-            "collection__acron3",
+        queryset = cls.objects.all()
+        if collection:
+            queryset = queryset.filter(collection=collection)
+
+        queryset = queryset.values(
             "default_lang",
             "default_media_format",
             "document_id",
@@ -235,7 +236,6 @@ class Document(CommonControlField):
             "extra_data",
             "files",
             "identifiers",
-            "parent_document__document_id",
             "pid_generic",
             "pid_v2",
             "pid_v3",
@@ -243,44 +243,38 @@ class Document(CommonControlField):
             "publication_date",
             "publication_year",
             "scielo_issn",
-            "source__scielo_issn",
-            "source__source_id",
-            "source__source_type",
             "text_langs",
             "title",
+            collection_acron3=models.F("collection__acron3"),
+            parent_document_identifier=models.F("parent_document__document_id"),
+            source_identifier=models.F("source__source_id"),
+            source_scielo_issn=models.F("source__scielo_issn"),
+            source_type_value=models.F("source__source_type"),
         )
 
-        if collection:
-            queryset = queryset.filter(collection=collection)
-
-        for document in queryset.iterator():
-            source = document.source
+        for document in queryset.iterator(chunk_size=METADATA_ITERATOR_CHUNK_SIZE):
             yield {
-                "collection": document.collection.acron3,
-                "default_lang": document.default_lang,
-                "default_media_format": document.default_media_format,
-                "document_id": document.document_id,
-                "document_type": document.document_type,
-                "extra_data": document.extra_data or {},
-                "files": document.files or {},
-                "identifiers": document.identifiers or {},
-                "parent_document_id": (
-                    document.parent_document.document_id
-                    if document.parent_document
-                    else None
-                ),
-                "pid_generic": document.pid_generic,
-                "pid_v2": document.pid_v2,
-                "pid_v3": document.pid_v3,
-                "processing_date": document.processing_date,
-                "publication_date": document.publication_date,
-                "publication_year": document.publication_year,
-                "scielo_issn": document.scielo_issn
-                or (source.scielo_issn if source else None),
-                "source_id": source.source_id if source else None,
-                "source_type": source.source_type if source else None,
-                "text_langs": document.text_langs or [],
-                "title": document.title,
+                "collection": document["collection_acron3"],
+                "default_lang": document["default_lang"],
+                "default_media_format": document["default_media_format"],
+                "document_id": document["document_id"],
+                "document_type": document["document_type"],
+                "extra_data": document["extra_data"] or {},
+                "files": document["files"] or {},
+                "identifiers": document["identifiers"] or {},
+                "parent_document_id": document["parent_document_identifier"],
+                "pid_generic": document["pid_generic"],
+                "pid_v2": document["pid_v2"],
+                "pid_v3": document["pid_v3"],
+                "processing_date": document["processing_date"],
+                "publication_date": document["publication_date"],
+                "publication_year": document["publication_year"],
+                "scielo_issn": document["scielo_issn"]
+                or document["source_scielo_issn"],
+                "source_id": document["source_identifier"],
+                "source_type": document["source_type_value"],
+                "text_langs": document["text_langs"] or [],
+                "title": document["title"],
             }
 
     class Meta:
