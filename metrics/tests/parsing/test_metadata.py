@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from collection.models import Collection
 from log_manager_config.models import CollectionLogDirectory, LogManagerCollectionConfig
@@ -57,6 +57,7 @@ class ParsingMetadataTests(TestCase):
             translator_class="books",
         )
 
+    @override_settings(PARSING_METADATA_CACHE_COLLECTIONS=[])
     @patch("metrics.services.parsing.metadata.url_translator.URLTranslationManager")
     @patch("metrics.services.parsing.metadata.Source.metadata")
     @patch("metrics.services.parsing.metadata.Document.metadata")
