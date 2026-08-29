@@ -1,39 +1,35 @@
+from types import SimpleNamespace
+from unittest.mock import patch
+
 from django.test import TestCase
 
-from metrics.services.parsing.environment import _get_translator_class
+from metrics.services.parsing.environment import setup_parsing_environment
 
 
-class TranslatorClassTests(TestCase):
-    def test_books_maps_to_books_translator(self):
-        cls = _get_translator_class("books")
-        self.assertEqual(cls.__name__, "URLTranslatorBooksSite")
+class ParsingEnvironmentTests(TestCase):
+    @patch("metrics.services.parsing.environment.build_url_translation_manager")
+    @patch("metrics.services.parsing.environment.log_handler.LogParser")
+    def test_setup_builds_parser_and_delegates_metadata_preparation(
+        self,
+        log_parser_class,
+        build_url_translation_manager,
+    ):
+        log_file = SimpleNamespace(path="/app/logs/books/2026-08-01.log.gz")
+        mmdb = SimpleNamespace(data=b"mmdb")
+        log_parser = log_parser_class.return_value
+        translation_manager = build_url_translation_manager.return_value
 
-    def test_classic_maps_to_classic_translator(self):
-        cls = _get_translator_class("classic")
-        self.assertEqual(cls.__name__, "URLTranslatorClassicSite")
+        result = setup_parsing_environment(
+            log_file=log_file,
+            robots_list=["robot"],
+            mmdb=mmdb,
+        )
 
-    def test_opac_maps_to_opac_translator(self):
-        cls = _get_translator_class("opac")
-        self.assertEqual(cls.__name__, "URLTranslatorOPACSite")
-
-    def test_opac_alpha_maps_to_opac_alpha_translator(self):
-        cls = _get_translator_class("opac_alpha")
-        self.assertEqual(cls.__name__, "URLTranslatorOPACAlphaSite")
-
-    def test_preprints_maps_to_preprints_translator(self):
-        cls = _get_translator_class("preprints")
-        self.assertEqual(cls.__name__, "URLTranslatorPreprintsSite")
-
-    def test_dataverse_maps_to_dataverse_translator(self):
-        cls = _get_translator_class("dataverse")
-        self.assertEqual(cls.__name__, "URLTranslatorDataverseSite")
-
-    def test_unknown_name_returns_none(self):
-        self.assertIsNone(_get_translator_class("unknown"))
-
-    def test_none_returns_none(self):
-        self.assertIsNone(_get_translator_class(None))
-
-    def test_case_insensitive(self):
-        cls = _get_translator_class("Books")
-        self.assertEqual(cls.__name__, "URLTranslatorBooksSite")
+        log_parser_class.assert_called_once_with(
+            mmdb_data=b"mmdb",
+            robots_list=["robot"],
+            output_mode="dict",
+        )
+        self.assertEqual(log_parser.logfile, log_file.path)
+        build_url_translation_manager.assert_called_once_with(log_file)
+        self.assertEqual(result, (log_parser, translation_manager))
