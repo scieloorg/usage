@@ -39,11 +39,6 @@ def accumulate(results, counter_access, line):
     if item_access_id not in results:
         results[item_access_id] = raw_record["data"]
 
-    _increment_timestamp_count(
-        results[item_access_id]["click_timestamps"],
-        second_of_hour,
-    )
-
     access_url_key = access_url or "|".join(
         [
             str(counter_access.get("pid_generic") or ""),
@@ -99,9 +94,7 @@ def _build_record(
             "document": _document_metadata(counter_access),
             "title_pid_generic": counter_access.get("title_pid_generic") or pid_generic,
             "user_session_id": user_session_id,
-            "click_timestamps": {second_of_hour: 0},
             "click_timestamps_by_url": {},
-            "access_url": counter_access.get("access_url"),
             "media_format": media_format,
             "content_language": content_language,
             "content_type": content_type,

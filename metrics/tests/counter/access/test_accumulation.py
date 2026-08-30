@@ -174,7 +174,11 @@ class TestAccumulation(unittest.TestCase):
         )
 
         raw = next(iter(results.values()))
-        self.assertEqual(raw["click_timestamps"], {65: 1})
+        self.assertNotIn("click_timestamps", raw)
+        self.assertEqual(
+            raw["click_timestamps_by_url"],
+            {"BOOK:Q7GTD|html|full_text": {65: 1}},
+        )
 
     def test_generates_session_id_from_client_ip_datetime(self):
         results = {}
