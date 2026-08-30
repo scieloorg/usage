@@ -32,16 +32,29 @@ def write_payload(storage_path, payload):
     resolved_path = resolve_storage_path(storage_path)
     resolved_path.parent.mkdir(parents=True, exist_ok=True)
 
-    payload_json = json.dumps(
-        payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+    encoder = json.JSONEncoder(
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
     )
-    payload_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
-
+    payload_hash = hashlib.sha256()
     tmp_path = resolved_path.with_suffix(f"{resolved_path.suffix}.tmp")
-    tmp_path.write_text(payload_json, encoding="utf-8")
-    tmp_path.replace(resolved_path)
 
-    return payload_hash
+    try:
+        with tmp_path.open("wb") as output:
+            for chunk in encoder.iterencode(payload):
+                encoded_chunk = chunk.encode("utf-8")
+                payload_hash.update(encoded_chunk)
+                output.write(encoded_chunk)
+        tmp_path.replace(resolved_path)
+    except Exception:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+    return payload_hash.hexdigest()
 
 
 def read_payload(storage_path):
