@@ -1,7 +1,7 @@
 import re
 from urllib.parse import unquote, urlparse
 
-from core.utils.date_utils import extract_minute_second_key, truncate_datetime_to_hour
+from core.utils.date_utils import coerce_datetime, truncate_datetime_to_hour
 
 
 def accumulate(results, counter_access, line):
@@ -12,13 +12,13 @@ def accumulate(results, counter_access, line):
 
     client_name = line.get("client_name")
     client_version = line.get("client_version")
-    local_datetime = line.get("local_datetime")
+    local_datetime = coerce_datetime(line.get("local_datetime"))
     ip_address = line.get("ip_address")
 
     access_datetime = truncate_datetime_to_hour(local_datetime)
-    ms_key = extract_minute_second_key(local_datetime)
-    if access_datetime is None or ms_key is None:
+    if access_datetime is None or local_datetime is None:
         raise ValueError("Invalid local_datetime in parsed log line.")
+    second_of_hour = local_datetime.minute * 60 + local_datetime.second
 
     user_session_id = _generate_user_session_id(
         client_name,
@@ -30,7 +30,7 @@ def accumulate(results, counter_access, line):
         counter_access=counter_access,
         line=line,
         access_datetime=access_datetime,
-        minute_second_key=ms_key,
+        second_of_hour=second_of_hour,
         user_session_id=user_session_id,
     )
     item_access_id = raw_record["id"]
@@ -38,7 +38,10 @@ def accumulate(results, counter_access, line):
     if item_access_id not in results:
         results[item_access_id] = raw_record["data"]
 
-    _increment_timestamp_count(results[item_access_id]["click_timestamps"], ms_key)
+    _increment_timestamp_count(
+        results[item_access_id]["click_timestamps"],
+        second_of_hour,
+    )
 
     access_url_key = access_url or "|".join(
         [
@@ -51,12 +54,10 @@ def accumulate(results, counter_access, line):
         "click_timestamps_by_url", {}
     )
     url_timestamps = timestamps_by_url.setdefault(access_url_key, {})
-    _increment_timestamp_count(url_timestamps, ms_key)
+    _increment_timestamp_count(url_timestamps, second_of_hour)
 
 
-def _build_record(
-    counter_access, line, access_datetime, minute_second_key, user_session_id
-):
+def _build_record(counter_access, line, access_datetime, second_of_hour, user_session_id):
     collection = counter_access.get("collection")
     source_key = _source_key(counter_access, collection)
     pid_v2 = counter_access.get("pid_v2")
@@ -91,7 +92,7 @@ def _build_record(
             "document": _document_metadata(counter_access),
             "title_pid_generic": counter_access.get("title_pid_generic") or pid_generic,
             "user_session_id": user_session_id,
-            "click_timestamps": {minute_second_key: 0},
+            "click_timestamps": {second_of_hour: 0},
             "click_timestamps_by_url": {},
             "access_url": counter_access.get("access_url"),
             "media_format": media_format,

@@ -161,8 +161,20 @@ class TestAccumulation(unittest.TestCase):
         raw = next(iter(results.values()))
         self.assertEqual(
             raw["click_timestamps_by_url"],
-            {"/id/c2248/03": {"00:05": 1, "00:20": 1}},
+            {"/id/c2248/03": {5: 1, 20: 1}},
         )
+
+    def test_parses_datetime_string_and_stores_integer_seconds(self):
+        results = {}
+
+        accumulation.accumulate(
+            results,
+            self._book_counter_access(),
+            self._line(local_datetime="2024-01-15 10:01:05"),
+        )
+
+        raw = next(iter(results.values()))
+        self.assertEqual(raw["click_timestamps"], {65: 1})
 
     def test_generates_session_id_from_client_ip_datetime(self):
         results = {}
