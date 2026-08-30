@@ -1,7 +1,7 @@
 import re
 from urllib.parse import unquote, urlparse
 
-from core.utils.date_utils import coerce_datetime, truncate_datetime_to_hour
+from core.utils.date_utils import coerce_datetime
 
 
 def accumulate(results, counter_access, line):
@@ -15,9 +15,10 @@ def accumulate(results, counter_access, line):
     local_datetime = coerce_datetime(line.get("local_datetime"))
     ip_address = line.get("ip_address")
 
-    access_datetime = truncate_datetime_to_hour(local_datetime)
-    if access_datetime is None or local_datetime is None:
+    if local_datetime is None:
         raise ValueError("Invalid local_datetime in parsed log line.")
+
+    access_datetime = local_datetime.replace(minute=0, second=0, microsecond=0)
     second_of_hour = local_datetime.minute * 60 + local_datetime.second
 
     user_session_id = _generate_user_session_id(
@@ -57,7 +58,13 @@ def accumulate(results, counter_access, line):
     _increment_timestamp_count(url_timestamps, second_of_hour)
 
 
-def _build_record(counter_access, line, access_datetime, second_of_hour, user_session_id):
+def _build_record(
+    counter_access,
+    line,
+    access_datetime,
+    second_of_hour,
+    user_session_id,
+):
     collection = counter_access.get("collection")
     source_key = _source_key(counter_access, collection)
     pid_v2 = counter_access.get("pid_v2")
