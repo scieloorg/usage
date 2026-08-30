@@ -4,6 +4,7 @@ from time import monotonic
 from django.conf import settings
 
 from log_manager.models import LogFile
+from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.counter.indexing import converter as index_docs
 from metrics.services import daily_payloads
 from metrics.services.parsing.environment import setup_parsing_environment
@@ -20,7 +21,7 @@ from tracker.models import LogFileDiscardedLine
 def build_daily_metric_job_payload(job, robots_list, mmdb, track_errors=False):
     input_log_hashes = sorted(job.input_log_hashes or [])
     log_files = _get_job_log_files(job, input_log_hashes)
-    results = {}
+    results = DailyAccessAccumulator()
     summary = _initial_summary(log_files, input_log_hashes)
 
     mark_logs_as_parsing(log_files)
