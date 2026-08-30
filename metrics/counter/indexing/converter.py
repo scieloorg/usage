@@ -18,27 +18,26 @@ def convert(data):
     if not isinstance(data, dict):
         return {"month": {}, "year": {}}
 
-    month_data = {}
-    month_unique_state = _initialize_unique_state()
-    year_data = {}
-    year_unique_state = _initialize_unique_state()
+    month_data = _convert_granularity(data, "month")
+    year_data = _convert_granularity(data, "year")
+
+    return {"month": month_data, "year": year_data}
+
+
+def _convert_granularity(data, granularity):
+    converted_data = {}
+    unique_state = _initialize_unique_state()
 
     for value in data.values():
         pipeline = _get_pipeline(value)
         pipeline.accumulate(
-            data=month_data,
-            unique_state=month_unique_state,
+            data=converted_data,
+            unique_state=unique_state,
             value=value,
-            granularity="month",
-        )
-        pipeline.accumulate(
-            data=year_data,
-            unique_state=year_unique_state,
-            value=value,
-            granularity="year",
+            granularity=granularity,
         )
 
-    return {"month": month_data, "year": year_data}
+    return converted_data
 
 
 def _get_pipeline(value):

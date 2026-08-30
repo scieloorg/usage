@@ -105,7 +105,7 @@ def truncate_datetime_to_hour(dt):
     Returns:
     datetime: The truncated datetime object.
     """
-    dt = _coerce_datetime(dt)
+    dt = coerce_datetime(dt)
     if dt is None:
         return None
 
@@ -122,14 +122,14 @@ def extract_minute_second_key(dt):
     Returns:
     str: A string in the format "MM:SS" representing the minute and second.
     """
-    dt = _coerce_datetime(dt)
+    dt = coerce_datetime(dt)
     if dt is None:
         return None
 
     return f"{dt.minute:02}:{dt.second:02}"
 
 
-def _coerce_datetime(dt):
+def coerce_datetime(dt):
     if isinstance(dt, datetime):
         return dt
 

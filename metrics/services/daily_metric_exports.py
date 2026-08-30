@@ -1,4 +1,5 @@
 import logging
+from time import monotonic
 
 from metrics.models import DailyMetricJob
 from metrics.opensearch.client import OpenSearchUsageClient
@@ -60,6 +61,7 @@ def _load_or_build_payload(job, track_errors, robots_source):
 
 
 def _export_payload(job, payload):
+    opensearch_started = monotonic()
     search_client = OpenSearchUsageClient()
     if not search_client.ping():
         raise RuntimeError("OpenSearch client is not available.")
@@ -68,4 +70,9 @@ def _export_payload(job, payload):
         search_client=search_client,
         job=job,
         payload=payload,
+    )
+    logging.info(
+        "Daily metric job %s OpenSearch export completed in %.3f seconds.",
+        job.pk,
+        monotonic() - opensearch_started,
     )

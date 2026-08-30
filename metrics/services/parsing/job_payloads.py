@@ -1,8 +1,10 @@
+import logging
 from time import monotonic
 
 from django.conf import settings
 
 from log_manager.models import LogFile
+from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.counter.indexing import converter as index_docs
 from metrics.services import daily_payloads
 from metrics.services.parsing.environment import setup_parsing_environment
@@ -19,12 +21,13 @@ from tracker.models import LogFileDiscardedLine
 def build_daily_metric_job_payload(job, robots_list, mmdb, track_errors=False):
     input_log_hashes = sorted(job.input_log_hashes or [])
     log_files = _get_job_log_files(job, input_log_hashes)
-    results = {}
+    results = DailyAccessAccumulator()
     summary = _initial_summary(log_files, input_log_hashes)
 
     mark_logs_as_parsing(log_files)
     clear_discarded_lines(log_files)
 
+    parsing_started = monotonic()
     for log_file in log_files:
         log_summary = _parse_log_file_into_results(
             log_file=log_file,
@@ -34,8 +37,19 @@ def build_daily_metric_job_payload(job, robots_list, mmdb, track_errors=False):
             track_errors=track_errors,
         )
         _merge_log_summary(summary, log_summary)
+    logging.info(
+        "Daily metric job %s parsing completed in %.3f seconds.",
+        job.pk,
+        monotonic() - parsing_started,
+    )
 
+    conversion_started = monotonic()
     documents = index_docs.convert(results)
+    logging.info(
+        "Daily metric job %s conversion completed in %.3f seconds.",
+        job.pk,
+        monotonic() - conversion_started,
+    )
     payload = _write_job_payload(job, documents, summary)
     return payload
 
@@ -125,6 +139,7 @@ def _merge_log_summary(summary, log_summary):
 
 
 def _write_job_payload(job, documents, summary):
+    serialization_started = monotonic()
     storage_path = daily_payloads.build_daily_storage_path(
         job.collection,
         job.access_date,
@@ -137,6 +152,11 @@ def _write_job_payload(job, documents, summary):
         "summary": summary,
     }
     payload_hash = daily_payloads.write_payload(storage_path, payload)
+    logging.info(
+        "Daily metric job %s serialization completed in %.3f seconds.",
+        job.pk,
+        monotonic() - serialization_started,
+    )
 
     job.input_log_hashes = summary["input_log_hashes"]
     job.storage_path = storage_path.as_posix()
