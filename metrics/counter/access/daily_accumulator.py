@@ -19,7 +19,8 @@ class DailyAccessAccumulator(dict):
             value.get("title_pid_generic"),
         )
         document = value.get("document")
-        if document and any(document_key):
+        document_identifiers = document_key[1:]
+        if document is not None and any(document_identifiers):
             value["document"] = self._documents.setdefault(document_key, document)
 
         user_session_id = value.get("user_session_id")

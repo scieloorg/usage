@@ -1,8 +1,8 @@
 from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 
 
-def _record(session_id):
-    return {
+def _record(session_id, **overrides):
+    record = {
         "collection": "scl",
         "source_key": "1234-5678",
         "document_type": "article",
@@ -14,6 +14,8 @@ def _record(session_id):
         "document": {"title": "Article"},
         "user_session_id": session_id,
     }
+    record.update(overrides)
+    return record
 
 
 def test_interns_repeated_metadata_and_sessions():
@@ -31,3 +33,36 @@ def test_interns_repeated_metadata_and_sessions():
         accumulator["first"]["user_session_id"]
         is accumulator["second"]["user_session_id"]
     )
+
+
+def test_interns_empty_document_metadata_for_the_same_document():
+    accumulator = DailyAccessAccumulator()
+
+    accumulator["first"] = _record("first", document={})
+    accumulator["second"] = _record("second", document={})
+
+    assert accumulator["first"]["document"] is accumulator["second"]["document"]
+
+
+def test_does_not_share_metadata_between_distinct_documents():
+    accumulator = DailyAccessAccumulator()
+
+    accumulator["first"] = _record("first", pid_v3="first", document={})
+    accumulator["second"] = _record("second", pid_v3="second", document={})
+
+    assert accumulator["first"]["document"] is not accumulator["second"]["document"]
+
+
+def test_does_not_share_documents_without_identifiers():
+    accumulator = DailyAccessAccumulator()
+    identifiers = {
+        "pid_v2": None,
+        "pid_v3": None,
+        "pid_generic": None,
+        "title_pid_generic": None,
+    }
+
+    accumulator["first"] = _record("first", document={}, **identifiers)
+    accumulator["second"] = _record("second", document={}, **identifiers)
+
+    assert accumulator["first"]["document"] is not accumulator["second"]["document"]
