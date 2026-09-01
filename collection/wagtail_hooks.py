@@ -37,6 +37,7 @@ class CollectionSnippetViewSet(SnippetViewSet):
         "acron2",
         "code",
         "domain",
+        "opac_url",
         "name__text",
         "main_name",
     )
@@ -45,6 +46,7 @@ class CollectionSnippetViewSet(SnippetViewSet):
         "acron2",
         "code",
         "domain",
+        "opac_url",
         "main_name",
         "status",
         "has_analytics",

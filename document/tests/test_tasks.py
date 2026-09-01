@@ -1,10 +1,12 @@
 from unittest.mock import patch
 
+import pytest
 from django.test import TestCase
 
 from collection.models import Collection
 from document.models import Document
 from document.tasks import common as document_tasks_common
+from document.tasks import opac as document_tasks_opac
 from document.tasks import scielo_books as document_tasks_scielo_books
 from source.models import Source
 
@@ -70,3 +72,71 @@ class DocumentBooksSyncTests(TestCase):
             base_url=None,
             user=None,
         )
+
+
+@pytest.mark.django_db
+class TestDocumentOPACSync:
+    def test_load_documents_from_dom_uses_collection_endpoint(self):
+        collection = Collection.objects.create(
+            acron3="dom",
+            acron2="do",
+            opac_url="https://scielo.do/api/v1/counter_dict",
+        )
+        source = Source.objects.create(
+            collection=collection,
+            source_type=Source.SOURCE_TYPE_JOURNAL,
+            source_id="rscd",
+            acronym="rscd",
+            title="Revista Dominicana",
+        )
+        payload = {
+            "journal_acronym": "rscd",
+            "pid_v2": "S2636-23092024062038290",
+            "pid_v3": "38WwNSBKBsYnMCjs7q9SNCK",
+        }
+        with patch(
+            "document.tasks.opac.opac_collector.fetch_counter_dict"
+        ) as mock_fetch_counter_dict, patch(
+            "document.tasks.opac.article_service.upsert_article_document_from_opac"
+        ) as mock_upsert:
+            mock_fetch_counter_dict.return_value = {
+                "collection": "",
+                "documents": {payload["pid_v3"]: payload},
+                "pages": 1,
+            }
+
+            result = document_tasks_opac.load_documents_from_opac(
+                collection="dom",
+                from_date="2026-08-01",
+                until_date="2026-08-07",
+            )
+
+        assert result is True
+        mock_fetch_counter_dict.assert_called_once_with(
+            "2026-08-01",
+            "2026-08-07",
+            page=1,
+            endpoint="https://scielo.do/api/v1/counter_dict",
+        )
+        mock_upsert.assert_called_once_with(
+            payload,
+            collection=collection,
+            source=source,
+            user=None,
+            force_update=True,
+        )
+
+    def test_load_documents_refuses_collection_without_endpoint(self):
+        Collection.objects.create(acron3="prt", acron2="pt")
+
+        with patch(
+            "document.tasks.opac.opac_collector.fetch_counter_dict"
+        ) as mock_fetch_counter_dict:
+            result = document_tasks_opac.load_documents_from_opac(
+                collection="prt",
+                from_date="2026-08-01",
+                until_date="2026-08-07",
+            )
+
+        assert result is False
+        mock_fetch_counter_dict.assert_not_called()

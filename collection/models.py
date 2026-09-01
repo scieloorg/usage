@@ -66,6 +66,7 @@ class Collection(CommonControlField, ClusterableModel):
     )
     code = models.CharField(_("Code"), max_length=10, null=True, blank=True)
     domain = models.URLField(_("Domain"), null=True, blank=True)
+    opac_url = models.URLField(_("OPAC URL"), max_length=500, null=True, blank=True)
     main_name = models.TextField(_("Main name"), null=True, blank=True)
     status = models.CharField(
         _("Status"), choices=choices.STATUS, max_length=20, null=True, blank=True
@@ -87,6 +88,7 @@ class Collection(CommonControlField, ClusterableModel):
         FieldPanel("acron2"),
         FieldPanel("code"),
         FieldPanel("domain"),
+        FieldPanel("opac_url"),
         InlinePanel("collection_name", label=_("Translated names")),
         FieldPanel("main_name"),
         FieldPanel("status"),
@@ -145,6 +147,7 @@ class Collection(CommonControlField, ClusterableModel):
             "collection__acron2": self.acron2,
             "collection__code": self.code,
             "collection__domain": self.domain,
+            "collection__opac_url": self.opac_url,
             "collection__main_name": self.main_name,
             "collection__status": self.status,
             "collection__has_analytics": self.has_analytics,
