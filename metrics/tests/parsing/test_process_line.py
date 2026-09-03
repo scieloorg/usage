@@ -7,6 +7,7 @@ from scielo_usage_counter.values import CONTENT_TYPE_FULL_TEXT, MEDIA_FORMAT_HTM
 from collection.models import Collection
 from log_manager import choices
 from log_manager.models import LogFile
+from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.services.parsing.lines import process_line
 
 
@@ -52,7 +53,7 @@ class ProcessLineTests(TestCase):
         return base
 
     def test_discards_invalid_local_datetime_without_raising(self):
-        results = {}
+        results = DailyAccessAccumulator()
         is_valid, error = process_line(
             results=results,
             line=self._line(),
@@ -61,10 +62,10 @@ class ProcessLineTests(TestCase):
         )
         self.assertFalse(is_valid)
         self.assertIsNone(error)
-        self.assertEqual(results, {})
+        self.assertEqual(len(results), 0)
 
     def test_url_translation_error_returns_false_none(self):
-        results = {}
+        results = DailyAccessAccumulator()
         is_valid, error = process_line(
             results=results,
             line=self._line(),
@@ -77,7 +78,7 @@ class ProcessLineTests(TestCase):
     def test_valid_line_accumulates_result(self):
         from datetime import datetime
 
-        results = {}
+        results = DailyAccessAccumulator()
         is_valid, error = process_line(
             results=results,
             line=self._line(local_datetime=datetime(2024, 1, 15, 10, 0, 5)),
@@ -89,7 +90,7 @@ class ProcessLineTests(TestCase):
         self.assertEqual(len(results), 1)
 
     def test_validation_failure_without_track_errors_returns_no_discarded_line(self):
-        results = {}
+        results = DailyAccessAccumulator()
         utm = self._fake_utm(
             translate_return={
                 "pid_generic": "",
@@ -108,7 +109,7 @@ class ProcessLineTests(TestCase):
         self.assertIsNone(error)
 
     def test_extraction_error_returns_false_none(self):
-        results = {}
+        results = DailyAccessAccumulator()
         utm = self._fake_utm(translate_return="not-a-dict")
         is_valid, error = process_line(
             results=results,
