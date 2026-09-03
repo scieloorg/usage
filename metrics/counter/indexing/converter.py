@@ -27,8 +27,9 @@ def convert(data):
 def _convert_granularity(data, granularity):
     converted_data = {}
     unique_state = _initialize_unique_state()
+    values = getattr(data, "iter_materialized_values", data.values)
 
-    for value in data.values():
+    for value in values():
         pipeline = _get_pipeline(value)
         pipeline.accumulate(
             data=converted_data,
