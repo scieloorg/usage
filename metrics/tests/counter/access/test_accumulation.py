@@ -227,3 +227,76 @@ class TestAccumulation(unittest.TestCase):
             accumulation.accumulate(compact, self._book_counter_access(), event)
 
         self.assertEqual(index_docs.convert(compact), index_docs.convert(regular))
+
+    def test_compact_accumulator_promotes_only_repeated_timestamps(self):
+        compact = DailyAccessAccumulator()
+        counter_access = self._book_counter_access()
+
+        accumulation.accumulate(
+            compact,
+            counter_access,
+            self._line(
+                local_datetime=datetime(2024, 1, 15, 10, 0, 5),
+                url="/id/q7gtd/full-text",
+            ),
+        )
+        record = next(iter(dict.values(compact)))
+        self.assertIsNone(record.multiple_timestamps)
+
+        accumulation.accumulate(
+            compact,
+            counter_access,
+            self._line(
+                local_datetime=datetime(2024, 1, 15, 10, 0, 20),
+                url="/id/q7gtd/full-text",
+            ),
+        )
+        self.assertIsNotNone(record.multiple_timestamps)
+        self.assertEqual(
+            next(compact.iter_materialized_values())["click_timestamps_by_url"],
+            {"/id/q7gtd/full-text": {5: 1, 20: 1}},
+        )
+
+    def test_compact_accumulator_reuses_missing_metadata_slots(self):
+        compact = DailyAccessAccumulator()
+        counter_access = self._book_counter_access(
+            source_type=None,
+            source_id=None,
+            scielo_issn=None,
+            pid_v2=None,
+            pid_v3=None,
+            pid_generic=None,
+            title_pid_generic=None,
+            document_title=None,
+            source_main_title=None,
+        )
+
+        accumulation.accumulate(compact, counter_access, self._line())
+        accumulation.accumulate(
+            compact,
+            counter_access,
+            self._line(ip_address="127.0.0.2"),
+        )
+
+        self.assertEqual(len(compact), 2)
+        self.assertEqual(compact._documents, [None, {}])
+        self.assertEqual(len(compact._sources), 2)
+        for record in compact.iter_materialized_values():
+            self.assertEqual(record["document"], {})
+            self.assertEqual(
+                record["source"],
+                {
+                    "source_type": None,
+                    "source_id": None,
+                    "scielo_issn": None,
+                    "main_title": None,
+                    "identifiers": None,
+                    "access_type": None,
+                    "city": None,
+                    "country": None,
+                    "subject_area_capes": [],
+                    "subject_area_wos": [],
+                    "acronym": None,
+                    "publisher_name": ["SciELO Books"],
+                },
+            )
