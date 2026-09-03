@@ -9,6 +9,8 @@ from scielo_usage_counter.values import (
 )
 
 from metrics.counter.access import accumulation
+from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
+from metrics.counter.indexing import converter as index_docs
 
 
 class TestAccumulation(unittest.TestCase):
@@ -197,3 +199,31 @@ class TestAccumulation(unittest.TestCase):
         )
         result = next(iter(results.values()))
         self.assertIn("2001:4860:7:1103::", result["user_session_id"])
+
+    def test_compact_accumulator_preserves_metrics(self):
+        regular = {}
+        compact = DailyAccessAccumulator()
+        events = [
+            self._line(
+                local_datetime=datetime(2024, 1, 15, 10, 0, 5),
+                url="/id/q7gtd/full-text",
+            ),
+            self._line(
+                local_datetime=datetime(2024, 1, 15, 10, 0, 20),
+                url="/id/q7gtd/full-text",
+            ),
+            self._line(
+                local_datetime=datetime(2024, 1, 15, 10, 1, 5),
+                url="/id/q7gtd/full-text",
+            ),
+            self._line(
+                local_datetime=datetime(2024, 1, 15, 10, 1, 10),
+                url="/id/q7gtd/pdf",
+            ),
+        ]
+
+        for event in events:
+            accumulation.accumulate(regular, self._book_counter_access(), event)
+            accumulation.accumulate(compact, self._book_counter_access(), event)
+
+        self.assertEqual(index_docs.convert(compact), index_docs.convert(regular))
