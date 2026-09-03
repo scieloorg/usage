@@ -71,6 +71,9 @@ git+https://github.com/scieloorg/scielo_scholarly_data@v0.1.4#egg=scielo_scholar
 # SciELO Usage COUNTER
 git+https://github.com/scieloorg/scielo_usage_counter@2.2.1#egg=scielo_usage_counter
 
+# Incremental JSON
+ijson==3.5.1
+
 # Device Detector
 device-detector==0.10  # https://github.com/thinkwelltwd/device_detector
 
