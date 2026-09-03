@@ -1,3 +1,5 @@
+import tempfile
+import weakref
 from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -8,13 +10,21 @@ from django.utils import timezone
 from collection.models import Collection
 from log_manager import choices
 from log_manager.models import LogFile
+from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.models import DailyMetricJob
 from metrics.services.jobs import (
     create_or_update_daily_metric_job,
     mark_daily_metric_job_exported,
     release_stale_daily_metric_jobs,
 )
-from metrics.services.parsing.job_payloads import build_daily_metric_job_payload
+from metrics.services.parsing.job_payloads import (
+    _write_job_payload,
+    build_daily_metric_job_payload,
+)
+
+
+class TrackableDict(dict):
+    pass
 
 
 class DailyMetricJobServiceTests(TestCase):
@@ -133,12 +143,8 @@ class DailyMetricJobServiceTests(TestCase):
         self.assertIsNotNone(job.exported_at)
 
     @patch(
-        "metrics.services.parsing.job_payloads.daily_payloads.write_payload",
-        return_value="payload-hash",
-    )
-    @patch(
-        "metrics.services.parsing.job_payloads.index_docs.convert",
-        return_value={"month": {}, "year": {}},
+        "metrics.services.parsing.job_payloads.index_docs.convert_granularity",
+        side_effect=({}, {}),
     )
     @patch(
         "metrics.services.parsing.job_payloads.process_line", return_value=(True, None)
@@ -149,7 +155,6 @@ class DailyMetricJobServiceTests(TestCase):
         mock_setup_parsing_environment,
         mock_process_line,
         mock_convert_documents,
-        mock_write_payload,
     ):
         selected = self._log_file("1" * 32)
         extra = self._log_file("2" * 32)
@@ -165,15 +170,18 @@ class DailyMetricJobServiceTests(TestCase):
         parser.parse.return_value = [{"url": "/selected"}]
         mock_setup_parsing_environment.return_value = (parser, Mock())
 
-        payload = build_daily_metric_job_payload(
-            job, robots_list=["robot"], mmdb=Mock(data={})
-        )
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                storage_path, payload_hash = build_daily_metric_job_payload(
+                    job, robots_list=["robot"], mmdb=Mock(data={})
+                )
 
         selected.refresh_from_db()
         extra.refresh_from_db()
         job.refresh_from_db()
 
-        self.assertEqual(payload["input_log_hashes"], [selected.hash])
+        self.assertEqual(storage_path, "books/2012/03/2012-03-10.json")
+        self.assertTrue(payload_hash)
         self.assertEqual(job.input_log_hashes, [selected.hash])
         self.assertEqual(selected.status, choices.LOG_FILE_STATUS_PARSING)
         self.assertEqual(extra.status, choices.LOG_FILE_STATUS_QUEUED)
@@ -208,3 +216,47 @@ class DailyMetricJobServiceTests(TestCase):
             build_daily_metric_job_payload(
                 job, robots_list=["robot"], mmdb=Mock(data={})
             )
+
+    @patch("metrics.services.parsing.job_payloads.index_docs.convert_granularity")
+    def test_payload_generation_releases_each_granularity_and_accumulator(
+        self,
+        mock_convert,
+    ):
+        job = DailyMetricJob.objects.create(
+            collection=self.collection,
+            access_date=date(2012, 3, 10),
+            status=DailyMetricJob.STATUS_EXPORTING,
+            input_log_hashes=["1" * 32],
+        )
+        accumulator = DailyAccessAccumulator()
+        accumulator.accumulate_access(
+            data={"collection": "books"},
+            session_key=("browser", "1", "127.0.0.1", 734572, 10),
+            url="/book",
+            second=5,
+        )
+        references = {}
+
+        def convert(values, granularity):
+            list(values)
+            documents = TrackableDict()
+            references[granularity] = weakref.ref(documents)
+            return documents
+
+        mock_convert.side_effect = convert
+        summary = {
+            "log_files": 1,
+            "input_log_hashes": ["1" * 32],
+            "lines_parsed": 1,
+            "valid_lines": 1,
+            "discarded_lines": 0,
+        }
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with self.settings(MEDIA_ROOT=media_root):
+                _write_job_payload(job, accumulator, summary)
+
+        self.assertIsNone(references["month"]())
+        self.assertIsNone(references["year"]())
+        self.assertEqual(len(accumulator), 0)
+        self.assertEqual(accumulator._documents, [])
