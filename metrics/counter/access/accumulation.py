@@ -21,24 +21,27 @@ def accumulate(results, counter_access, line):
     access_datetime = local_datetime.replace(minute=0, second=0, microsecond=0)
     second_of_hour = local_datetime.minute * 60 + local_datetime.second
 
-    user_session_id = _generate_user_session_id(
+    session_key = (
         client_name,
         client_version,
         ip_address,
-        access_datetime,
+        access_datetime.date().toordinal(),
+        access_datetime.hour,
     )
+    compact_accumulate = getattr(results, "accumulate_access", None)
+    user_session_id = None
+    if compact_accumulate is None:
+        user_session_id = _generate_user_session_id(
+            client_name, client_version, ip_address, access_datetime
+        )
     raw_record = _build_record(
         counter_access=counter_access,
         line=line,
         access_datetime=access_datetime,
         second_of_hour=second_of_hour,
         user_session_id=user_session_id,
+        include_id=compact_accumulate is None,
     )
-    item_access_id = raw_record["id"]
-
-    if item_access_id not in results:
-        results[item_access_id] = raw_record["data"]
-
     access_url_key = access_url or "|".join(
         [
             str(counter_access.get("pid_generic") or ""),
@@ -46,6 +49,20 @@ def accumulate(results, counter_access, line):
             str(counter_access.get("content_type") or ""),
         ]
     )
+
+    if compact_accumulate is not None:
+        compact_accumulate(
+            data=raw_record["data"],
+            session_key=session_key,
+            url=access_url_key,
+            second=second_of_hour,
+        )
+        return
+
+    item_access_id = raw_record["id"]
+    if item_access_id not in results:
+        results[item_access_id] = raw_record["data"]
+
     timestamps_by_url = results[item_access_id].setdefault(
         "click_timestamps_by_url", {}
     )
@@ -59,6 +76,7 @@ def _build_record(
     access_datetime,
     second_of_hour,
     user_session_id,
+    include_id=True,
 ):
     collection = counter_access.get("collection")
     source_key = _source_key(counter_access, collection)
@@ -71,19 +89,7 @@ def _build_record(
     access_country_code = line.get("country_code")
     access_date = access_datetime.strftime("%Y-%m-%d")
 
-    return {
-        "id": _generate_item_access_id(
-            user_session_id=user_session_id,
-            col_acron3=collection,
-            source_key=source_key,
-            pid_v2=pid_v2,
-            pid_v3=pid_v3,
-            pid_generic=pid_generic,
-            content_language=content_language,
-            access_country_code=access_country_code,
-            media_format=media_format,
-            content_type=content_type,
-        ),
+    record = {
         "data": {
             "collection": collection,
             "source_key": source_key,
@@ -108,6 +114,20 @@ def _build_record(
             "source": _source_metadata(counter_access),
         },
     }
+    if include_id:
+        record["id"] = _generate_item_access_id(
+            user_session_id=user_session_id,
+            col_acron3=collection,
+            source_key=source_key,
+            pid_v2=pid_v2,
+            pid_v3=pid_v3,
+            pid_generic=pid_generic,
+            content_language=content_language,
+            access_country_code=access_country_code,
+            media_format=media_format,
+            content_type=content_type,
+        )
+    return record
 
 
 def _increment_timestamp_count(timestamps, key):
