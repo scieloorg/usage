@@ -48,6 +48,7 @@ class OpenSearchUsageClientTests(TestCase):
         mock_opensearch.assert_called_once_with(
             "https://example.org:9200",
             verify_certs=False,
+            http_compress=True,
         )
 
     def test_get_index_mappings_returns_books_specific_mappings(self):
@@ -104,19 +105,27 @@ class OpenSearchUsageClientTests(TestCase):
         mock_get_client.return_value = Mock()
         client = OpenSearchUsageClient(url="https://example.org:9200")
 
-        client.increment_documents_for_daily_job(
+        mock_bulk.return_value = (1, 0)
+        documents = iter(
+            [
+                (
+                    "doc-1",
+                    {
+                        "collection": "books",
+                        "document": {"id": "BOOK:WD"},
+                        "access": {"month": "2025-06"},
+                        "total_requests": 3,
+                        "total_investigations": 4,
+                        "unique_requests": 2,
+                        "unique_investigations": 3,
+                    },
+                )
+            ]
+        )
+
+        succeeded = client.increment_document_items_for_daily_job(
             index_name="usage_monthly_books_202506",
-            documents={
-                "doc-1": {
-                    "collection": "books",
-                    "document": {"id": "BOOK:WD"},
-                    "access": {"month": "2025-06"},
-                    "total_requests": 3,
-                    "total_investigations": 4,
-                    "unique_requests": 2,
-                    "unique_investigations": 3,
-                }
-            },
+            document_items=documents,
             job_id="books|2025-06-03|abc123",
         )
 
@@ -128,3 +137,5 @@ class OpenSearchUsageClientTests(TestCase):
             action["script"]["params"]["job_id"], "books|2025-06-03|abc123"
         )
         self.assertEqual(action["upsert"], {"applied_jobs": []})
+        self.assertEqual(succeeded, 1)
+        self.assertEqual(mock_bulk.call_args.kwargs["chunk_size"], 500)
