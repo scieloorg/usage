@@ -2,12 +2,13 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
+from scielo_usage_counter import log_handler
 from scielo_usage_counter.translator.books import URLTranslatorBooksSite
 from scielo_usage_counter.url_translator import URLTranslationManager
 
 from metrics.counter.access import accumulation, extraction, validation
-from metrics.counter.indexing import converter as index_docs
-from scielo_usage_counter import log_handler
+from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
+from metrics.tests.helpers import convert_accumulator
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -85,7 +86,7 @@ class TestBooksLogToMetrics(unittest.TestCase):
         self.assertTrue(len(formats) > 0)
 
     def test_full_pipeline_with_synthetic_metadata(self):
-        results = {}
+        results = DailyAccessAccumulator()
         counter_access = extraction.extract(
             "books",
             {
@@ -117,7 +118,7 @@ class TestBooksLogToMetrics(unittest.TestCase):
             },
         )
 
-        metrics = index_docs.convert(results)
+        metrics = convert_accumulator(results)
         self.assertGreater(len(metrics["month"]), 0)
         self.assertGreater(len(metrics["year"]), 0)
 
@@ -136,7 +137,7 @@ class TestBooksLogToMetrics(unittest.TestCase):
         self.assertTrue(has_title)
 
     def test_all_metric_fields_present_in_converted_document(self):
-        results = {}
+        results = DailyAccessAccumulator()
         counter_access = extraction.extract(
             "books",
             {
@@ -166,7 +167,7 @@ class TestBooksLogToMetrics(unittest.TestCase):
             },
         )
 
-        metrics = index_docs.convert(results)
+        metrics = convert_accumulator(results)
         for doc in metrics["month"].values():
             self.assertIn("total_requests", doc)
             self.assertIn("total_investigations", doc)
