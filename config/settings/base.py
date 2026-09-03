@@ -467,7 +467,6 @@ DATAVERSE_ROOT_COLLECTION = env("DATAVERSE_ROOT_COLLECTION", default="scielodata
 DATAVERSE_SLEEP_TIME = env.int("DATAVERSE_SLEEP_TIME", default=30)
 
 # OPAC
-OPAC_ENDPOINT = env("OPAC_ENDPOINT", default="https://www.scielo.br/api/v1/counter_dict")
 OPAC_MAX_RETRIES = env.int("OPAC_MAX_RETRIES", default=5)
 OPAC_SLEEP_TIME = env.int("OPAC_SLEEP_TIME", default=30)
 

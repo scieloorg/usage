@@ -53,11 +53,13 @@ def parsing_collection(db, settings):
     return collection, source, document, log_file
 
 
-def test_all_planned_collections_are_enabled_by_default(settings):
-    planned_collections = {item["acronym"] for item in LOG_MANAGER_SEED_DATA}
+def test_all_known_collections_are_enabled_by_default(settings):
+    active_log_collections = {item["acronym"] for item in LOG_MANAGER_SEED_DATA}
 
-    assert set(COLLECTION_ACRON3_SIZE_MAP) == planned_collections
-    assert set(settings.PARSING_METADATA_CACHE_COLLECTIONS) == planned_collections
+    assert active_log_collections <= set(COLLECTION_ACRON3_SIZE_MAP)
+    assert set(settings.PARSING_METADATA_CACHE_COLLECTIONS) == set(
+        COLLECTION_ACRON3_SIZE_MAP
+    )
 
 
 @pytest.mark.django_db

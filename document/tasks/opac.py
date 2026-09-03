@@ -39,8 +39,29 @@ def load_documents_from_opac(
         logging.error("Collection not found: %s", collection)
         return False
 
+    if not collection_obj.opac_url:
+        logging.error(
+            "OPAC endpoint not configured for collection: %s",
+            collection_obj.acron3,
+        )
+        return False
+
     while True:
-        response = opac_collector.fetch_counter_dict(from_date, until_date, page=page)
+        response = opac_collector.fetch_counter_dict(
+            from_date,
+            until_date,
+            page=page,
+            endpoint=collection_obj.opac_url,
+        )
+        response_collection = response.get("collection")
+        if response_collection and response_collection != collection_obj.acron3:
+            logging.error(
+                "OPAC response collection %s differs from requested collection %s",
+                response_collection,
+                collection_obj.acron3,
+            )
+            return False
+
         documents = response.get("documents") or {}
 
         for payload in documents.values():

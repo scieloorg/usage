@@ -34,6 +34,11 @@ COLLECTION_SIZE_SAMPLE_MAP = {
     "xlarge": 0.1,
 }
 
+COLLECTION_OPAC_URL_MAP = {
+    "dom": "https://scielo.do/api/v1/counter_dict",
+    "scl": "https://www.scielo.br/api/v1/counter_dict",
+}
+
 
 def get_collection_size(collection_acronym):
     return COLLECTION_ACRON3_SIZE_MAP.get(collection_acronym, "small")
@@ -46,7 +51,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "arg",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.ar",
+        "path": "/app/logs/bkp-ratchet/scielo.ar",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -55,7 +60,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "bol",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.bo",
+        "path": "/app/logs/bkp-ratchet/scielo.bo",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -64,7 +69,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "chl",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.cl",
+        "path": "/app/logs/bkp-ratchet/scielo.cl",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -73,7 +78,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "col",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.co",
+        "path": "/app/logs/bkp-ratchet/scielo.co",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -82,7 +87,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "cri",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.cr",
+        "path": "/app/logs/bkp-ratchet/scielo.cr",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -91,34 +96,16 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "cub",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.cu",
+        "path": "/app/logs/bkp-ratchet/scielo.cu",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
     },
     {
-        "acronym": "data",
-        "directory_name": "Site clássico",
-        "path": "/app/logs/dataverse",
-        "quantity": 1,
-        "start_date": "2020-01-01",
-        "e-mail": "tecnologia@scielo.org",
-        "translator_class": "dataverse",
-    },
-    {
-        "acronym": "dom",
-        "directory_name": "Site novo",
-        "path": "/app/logs/scielo.dom",
-        "quantity": 1,
-        "start_date": "2026-01-01",
-        "e-mail": "tecnologia@scielo.org",
-        "translator_class": "opac",
-    },
-    {
         "acronym": "ecu",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.ec",
+        "path": "/app/logs/bkp-ratchet/scielo.ec",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -127,7 +114,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "esp",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.es",
+        "path": "/app/logs/bkp-ratchet/scielo.es",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -136,7 +123,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "mex",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.mx",
+        "path": "/app/logs/bkp-ratchet/scielo.mx",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -145,25 +132,16 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "per",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.pe",
+        "path": "/app/logs/bkp-ratchet/scielo.pe",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
     },
     {
-        "acronym": "preprints",
-        "directory_name": "Site clássico",
-        "path": "/app/logs/submission-node01",
-        "quantity": 1,
-        "start_date": "2020-01-01",
-        "e-mail": "tecnologia@scielo.org",
-        "translator_class": "preprints",
-    },
-    {
         "acronym": "prt",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.pt",
+        "path": "/app/logs/bkp-ratchet/scielo.pt",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -172,7 +150,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "pry",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.py",
+        "path": "/app/logs/bkp-ratchet/scielo.py",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -181,7 +159,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "psi",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.pepsic",
+        "path": "/app/logs/bkp-ratchet/scielo.pepsic",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -190,16 +168,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "rve",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.revenf",
-        "quantity": 1,
-        "start_date": "2020-01-01",
-        "e-mail": "tecnologia@scielo.org",
-        "translator_class": "classic",
-    },
-    {
-        "acronym": "rvt",
-        "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.revtur",
+        "path": "/app/logs/bkp-ratchet/scielo.revenf",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -207,35 +176,26 @@ LOG_MANAGER_SEED_DATA = [
     },
     {
         "acronym": "scl",
-        "directory_name": "Site novo",
-        "path": "/app/logs/scielo.br",
-        "quantity": 1,
+        "directory_name": "SciELO Brasil",
+        "path": "/app/logs/bkp-bunnynet/scielo-br",
+        "quantity": 2,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "opac",
     },
     {
-        "acronym": "spa",
-        "directory_name": "Site novo - versão prévia",
-        "path": "/app/logs/scielo.sp",
+        "acronym": "scl",
+        "directory_name": "SciELO Brasil 2",
+        "path": "/app/logs/bkp-bunnynet/scielo-br-2",
         "quantity": 2,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
-        "translator_class": "opac_alpha",
-    },
-    {
-        "acronym": "sss",
-        "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.ss",
-        "quantity": 1,
-        "start_date": "2020-01-01",
-        "e-mail": "tecnologia@scielo.org",
-        "translator_class": "classic",
+        "translator_class": "opac",
     },
     {
         "acronym": "sza",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.za",
+        "path": "/app/logs/bkp-ratchet/scielo.za",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -244,7 +204,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "ury",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.uy",
+        "path": "/app/logs/bkp-ratchet/scielo.uy",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -253,7 +213,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "ven",
         "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.ve",
+        "path": "/app/logs/bkp-ratchet/scielo.ve",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
@@ -261,9 +221,9 @@ LOG_MANAGER_SEED_DATA = [
     },
     {
         "acronym": "wid",
-        "directory_name": "Site clássico",
-        "path": "/app/logs/scielo.wi",
-        "quantity": 2,
+        "directory_name": "SciELO Caribbean",
+        "path": "/app/logs/bkp-bunnynet/caribbean",
+        "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
@@ -271,7 +231,7 @@ LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "books",
         "directory_name": "SciELO Books",
-        "path": "/app/logs/books",
+        "path": "/app/logs/bkp-bunnynet/books",
         "quantity": 1,
         "start_date": "2012-01-01",
         "e-mail": "tecnologia@scielo.org",

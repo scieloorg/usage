@@ -5,7 +5,7 @@ import requests
 from django.conf import settings
 
 
-def fetch_counter_dict(from_date, until_date, page=1):
+def fetch_counter_dict(from_date, until_date, page=1, *, endpoint):
     for attempt in range(1, settings.OPAC_MAX_RETRIES + 1):
         params = {
             "begin_date": from_date,
@@ -13,7 +13,7 @@ def fetch_counter_dict(from_date, until_date, page=1):
             "page": page,
         }
 
-        response = requests.get(url=settings.OPAC_ENDPOINT, params=params, verify=False)
+        response = requests.get(url=endpoint, params=params, verify=False)
 
         try:
             response.raise_for_status()
