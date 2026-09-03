@@ -117,11 +117,11 @@ class _CompactAccessRecord:
         return timestamps
 
 
-class DailyAccessAccumulator(dict):
+class DailyAccessAccumulator:
     """Store compact records and materialize them only for metric conversion."""
 
     def __init__(self):
-        super().__init__()
+        self._records = {}
         self._documents = [None, {}]
         self._document_ids = {}
         self._sources = [None]
@@ -130,28 +130,8 @@ class DailyAccessAccumulator(dict):
         self._strings = [None]
         self._string_ids = {}
 
-    def __setitem__(self, key, value):
-        if isinstance(value, _CompactAccessRecord):
-            super().__setitem__(key, value)
-            return
-
-        source_key = value.get("source_key")
-        source = value.get("source")
-        if source_key and source:
-            source_id = self._intern_source(source_key, source)
-            value["source"] = self._sources[source_id]
-
-        document_key = self._document_key(value)
-        document = value.get("document")
-        if document is not None and any(document_key[1:]):
-            document_id = self._intern_document(value)
-            value["document"] = self._documents[document_id]
-
-        user_session_id = value.get("user_session_id")
-        if user_session_id:
-            value["user_session_id"] = self._legacy_intern_session(user_session_id)
-
-        super().__setitem__(key, value)
+    def __len__(self):
+        return len(self._records)
 
     def accumulate_access(self, data, session_key, url, second):
         session = self._intern_session(session_key)
@@ -167,19 +147,35 @@ class DailyAccessAccumulator(dict):
             self._intern(data.get("media_format")),
             self._intern(data.get("content_type")),
         )
-        record = dict.get(self, key)
+        record = self._records.get(key)
         if record is None:
             record = _CompactAccessRecord(self, data, session, url, second)
-            dict.__setitem__(self, key, record)
+            self._records[key] = record
             return
         record.add_timestamp(self._intern(url), second)
 
-    def iter_materialized_values(self):
-        for value in dict.values(self):
-            if isinstance(value, _CompactAccessRecord):
+    def iter_materialized_values(self, consume=False):
+        if not consume:
+            for value in self._records.values():
                 yield value.as_dict(self)
-            else:
-                yield value
+            return
+
+        keys = tuple(self._records)
+        try:
+            for key in keys:
+                yield self._records.pop(key).as_dict(self)
+        finally:
+            self.clear()
+
+    def clear(self):
+        self._records.clear()
+        self._documents.clear()
+        self._document_ids.clear()
+        self._sources.clear()
+        self._source_ids.clear()
+        self._sessions.clear()
+        self._strings.clear()
+        self._string_ids.clear()
 
     def _intern(self, value):
         if value is None:
@@ -207,13 +203,6 @@ class DailyAccessAccumulator(dict):
             session_id = len(self._sessions) + 1
             self._sessions[compact_key] = session_id
         return session_id
-
-    def _legacy_intern_session(self, session):
-        interned = self._sessions.get(session)
-        if interned is None:
-            self._sessions[session] = session
-            return session
-        return interned
 
     def _intern_source(self, source_key, source):
         if source is None:
