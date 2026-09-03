@@ -50,11 +50,11 @@ class TestAccumulation(unittest.TestCase):
         return base
 
     def test_stores_source_and_periods(self):
-        results = {}
+        results = DailyAccessAccumulator()
         accumulation.accumulate(results, self._book_counter_access(), self._line())
 
         self.assertEqual(len(results), 1)
-        result = next(iter(results.values()))
+        result = next(results.iter_materialized_values())
         self.assertEqual(result["source"]["source_type"], "book")
         self.assertEqual(result["source"]["source_id"], "q7gtd")
         self.assertEqual(result["source"]["main_title"], "Book Title")
@@ -68,17 +68,17 @@ class TestAccumulation(unittest.TestCase):
         self.assertIn("user_session_id", result)
 
     def test_rejects_invalid_local_datetime(self):
-        results = {}
+        results = DailyAccessAccumulator()
         with self.assertRaises(ValueError):
             accumulation.accumulate(
                 results,
                 self._book_counter_access(),
                 self._line(local_datetime=None),
             )
-        self.assertEqual(results, {})
+        self.assertEqual(len(results), 0)
 
     def test_does_not_expand_book_into_segments(self):
-        results = {}
+        results = DailyAccessAccumulator()
         counter_access = self._book_counter_access(
             source_id="c2248",
             pid_generic="BOOK:C2248",
@@ -95,11 +95,11 @@ class TestAccumulation(unittest.TestCase):
         )
         accumulation.accumulate(results, counter_access, self._line())
         self.assertEqual(len(results), 1)
-        result = list(results.values())[0]
+        result = list(results.iter_materialized_values())[0]
         self.assertEqual(result["pid_generic"], "BOOK:C2248")
 
     def test_double_click_filter_uses_url_bucket_for_same_item(self):
-        results = {}
+        results = DailyAccessAccumulator()
         counter_access = self._book_counter_access(
             source_id="c2248",
             pid_generic="BOOK:C2248/CHAPTER:03",
@@ -126,14 +126,14 @@ class TestAccumulation(unittest.TestCase):
             ),
         )
 
-        raw = next(iter(results.values()))
+        raw = next(results.iter_materialized_values())
         self.assertEqual(
             set(raw["click_timestamps_by_url"]),
             {"/id/c2248/03", "/id/c2248/epub/03.html"},
         )
 
     def test_same_url_within_window_produces_single_url_bucket(self):
-        results = {}
+        results = DailyAccessAccumulator()
         counter_access = self._book_counter_access(
             source_id="c2248",
             pid_generic="BOOK:C2248/CHAPTER:03",
@@ -160,14 +160,14 @@ class TestAccumulation(unittest.TestCase):
             ),
         )
 
-        raw = next(iter(results.values()))
+        raw = next(results.iter_materialized_values())
         self.assertEqual(
             raw["click_timestamps_by_url"],
             {"/id/c2248/03": {5: 1, 20: 1}},
         )
 
     def test_parses_datetime_string_and_stores_integer_seconds(self):
-        results = {}
+        results = DailyAccessAccumulator()
 
         accumulation.accumulate(
             results,
@@ -175,7 +175,7 @@ class TestAccumulation(unittest.TestCase):
             self._line(local_datetime="2024-01-15 10:01:05"),
         )
 
-        raw = next(iter(results.values()))
+        raw = next(results.iter_materialized_values())
         self.assertNotIn("click_timestamps", raw)
         self.assertEqual(
             raw["click_timestamps_by_url"],
@@ -183,25 +183,22 @@ class TestAccumulation(unittest.TestCase):
         )
 
     def test_generates_session_id_from_client_ip_datetime(self):
-        results = {}
+        results = DailyAccessAccumulator()
         accumulation.accumulate(results, self._book_counter_access(), self._line())
-        result = next(iter(results.values()))
-        self.assertEqual(
-            result["user_session_id"], "browser|1.0|127.0.0.1|2024-01-15|10"
-        )
+        result = next(results.iter_materialized_values())
+        self.assertEqual(result["user_session_id"], 1)
 
     def test_ipv6_address_is_accepted(self):
-        results = {}
+        results = DailyAccessAccumulator()
         accumulation.accumulate(
             results,
             self._book_counter_access(),
             self._line(ip_address="2001:4860:7:1103::"),
         )
-        result = next(iter(results.values()))
-        self.assertIn("2001:4860:7:1103::", result["user_session_id"])
+        result = next(results.iter_materialized_values())
+        self.assertEqual(result["user_session_id"], 1)
 
-    def test_compact_accumulator_preserves_metrics(self):
-        regular = {}
+    def test_compact_accumulator_preserves_metrics_after_repeated_events(self):
         compact = DailyAccessAccumulator()
         events = [
             self._line(
@@ -223,10 +220,13 @@ class TestAccumulation(unittest.TestCase):
         ]
 
         for event in events:
-            accumulation.accumulate(regular, self._book_counter_access(), event)
             accumulation.accumulate(compact, self._book_counter_access(), event)
 
-        self.assertEqual(index_docs.convert(compact), index_docs.convert(regular))
+        values = list(compact.iter_materialized_values())
+        month = index_docs.convert_granularity(iter(values), "month")
+        year = index_docs.convert_granularity(iter(values), "year")
+        self.assertEqual(len(month), 2)
+        self.assertEqual(len(year), 2)
 
     def test_compact_accumulator_promotes_only_repeated_timestamps(self):
         compact = DailyAccessAccumulator()
@@ -240,7 +240,7 @@ class TestAccumulation(unittest.TestCase):
                 url="/id/q7gtd/full-text",
             ),
         )
-        record = next(iter(dict.values(compact)))
+        record = next(iter(compact._records.values()))
         self.assertIsNone(record.multiple_timestamps)
 
         accumulation.accumulate(

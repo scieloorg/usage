@@ -14,22 +14,11 @@ _PIPELINES = {
 _DEFAULT = DocumentPipeline()
 
 
-def convert(data):
-    if not isinstance(data, dict):
-        return {"month": {}, "year": {}}
-
-    month_data = _convert_granularity(data, "month")
-    year_data = _convert_granularity(data, "year")
-
-    return {"month": month_data, "year": year_data}
-
-
-def _convert_granularity(data, granularity):
+def convert_granularity(values, granularity):
     converted_data = {}
     unique_state = _initialize_unique_state()
-    values = getattr(data, "iter_materialized_values", data.values)
 
-    for value in values():
+    for value in values:
         pipeline = _get_pipeline(value)
         pipeline.accumulate(
             data=converted_data,

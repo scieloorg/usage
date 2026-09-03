@@ -10,6 +10,14 @@ from scielo_usage_counter.values import (
 from metrics.counter.indexing import converter as index_docs
 
 
+def _convert(data):
+    values = list(data.values())
+    return {
+        "month": index_docs.convert_granularity(iter(values), "month"),
+        "year": index_docs.convert_granularity(iter(values), "year"),
+    }
+
+
 class TestConverter(unittest.TestCase):
     def test_creates_month_and_year_views_for_book_chapter(self):
         data = {
@@ -47,7 +55,7 @@ class TestConverter(unittest.TestCase):
             }
         }
 
-        metrics_data = index_docs.convert(data)
+        metrics_data = _convert(data)
 
         self.assertEqual(set(metrics_data.keys()), {"month", "year"})
         self.assertEqual(len(metrics_data["month"]), 2)
@@ -156,7 +164,7 @@ class TestConverter(unittest.TestCase):
             },
         }
 
-        metrics_data = index_docs.convert(data)
+        metrics_data = _convert(data)
         preprint_doc = metrics_data["month"][
             "preprints|scielo-preprints|||10.1590/SCIELOPREPRINTS.1234|2024-01|Open|Regular|2024"
         ]
@@ -225,7 +233,7 @@ class TestConverter(unittest.TestCase):
             },
         }
 
-        metrics_data = index_docs.convert(data)
+        metrics_data = _convert(data)
         month_item = metrics_data["month"][
             "books|c2248|||BOOK:C2248/CHAPTER:03|2024-01|Open|Regular|2018"
         ]
@@ -270,7 +278,7 @@ class TestConverter(unittest.TestCase):
             },
         }
 
-        metrics_data = index_docs.convert(data)
+        metrics_data = _convert(data)
         self.assertEqual(
             set(metrics_data["month"].keys()),
             {"title|books|c2248|||BOOK:C2248|2024-01|Open|Regular|2018"},
@@ -310,7 +318,7 @@ class TestConverter(unittest.TestCase):
             },
         }
 
-        metrics_data = index_docs.convert(data)
+        metrics_data = _convert(data)
         month_item = metrics_data["month"][
             "books|c2248|||BOOK:C2248|2024-01|Open|Regular|2018"
         ]
@@ -371,7 +379,7 @@ class TestConverter(unittest.TestCase):
             },
         }
 
-        metrics_data = index_docs.convert(data)
+        metrics_data = _convert(data)
         self.assertEqual(len(metrics_data["month"]), 3)
         self.assertEqual(len(metrics_data["year"]), 3)
 
@@ -387,8 +395,9 @@ class TestConverter(unittest.TestCase):
         from datetime import datetime
 
         from metrics.counter.access import accumulation
+        from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 
-        results = {}
+        results = DailyAccessAccumulator()
         counter_access = {
             "collection": "books",
             "source_type": "book",
@@ -423,7 +432,11 @@ class TestConverter(unittest.TestCase):
             {**base_line, "local_datetime": datetime(2024, 1, 15, 10, 0, 20)},
         )
 
-        metrics_data = index_docs.convert(results)
+        values = list(results.iter_materialized_values())
+        metrics_data = {
+            "month": index_docs.convert_granularity(iter(values), "month"),
+            "year": index_docs.convert_granularity(iter(values), "year"),
+        }
         month_item = metrics_data["month"][
             "books|c2248|||BOOK:C2248/CHAPTER:03|2024-01|Open|Regular|2018"
         ]
@@ -457,7 +470,7 @@ class TestConverter(unittest.TestCase):
             }
         }
 
-        metrics_data = index_docs.convert(data)
+        metrics_data = _convert(data)
         month_doc = list(metrics_data["month"].values())[0]
 
         self.assertEqual(month_doc["counter"]["data_type"], "Article")
@@ -467,6 +480,5 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(month_doc["total_requests"], 1)
         self.assertEqual(month_doc["total_investigations"], 1)
 
-    def test_non_dict_input_returns_empty(self):
-        result = index_docs.convert(None)
-        self.assertEqual(result, {"month": {}, "year": {}})
+    def test_empty_iterable_returns_empty(self):
+        self.assertEqual(index_docs.convert_granularity(iter(()), "month"), {})

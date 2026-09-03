@@ -5,7 +5,8 @@ from scielo_usage_counter import log_handler
 from scielo_usage_counter.values import CONTENT_TYPE_FULL_TEXT, MEDIA_FORMAT_HTML
 
 from metrics.counter.access import accumulation, extraction
-from metrics.counter.indexing import converter as index_docs
+from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
+from metrics.tests.helpers import convert_accumulator
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -72,10 +73,10 @@ class TestBunnynetLogToMetrics(unittest.TestCase):
                 "media_language": "en",
             },
         )
-        results = {}
+        results = DailyAccessAccumulator()
 
         accumulation.accumulate(results, counter_access, line)
-        metrics = index_docs.convert(results)
+        metrics = convert_accumulator(results)
 
         self.assertEqual(line["country_code"], "US")
         self.assertEqual(line["local_datetime"], "2026-08-04 23:59:59")

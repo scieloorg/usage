@@ -28,19 +28,10 @@ def accumulate(results, counter_access, line):
         access_datetime.date().toordinal(),
         access_datetime.hour,
     )
-    compact_accumulate = getattr(results, "accumulate_access", None)
-    user_session_id = None
-    if compact_accumulate is None:
-        user_session_id = _generate_user_session_id(
-            client_name, client_version, ip_address, access_datetime
-        )
     raw_record = _build_record(
         counter_access=counter_access,
         line=line,
         access_datetime=access_datetime,
-        second_of_hour=second_of_hour,
-        user_session_id=user_session_id,
-        include_id=compact_accumulate is None,
     )
     access_url_key = access_url or "|".join(
         [
@@ -50,33 +41,18 @@ def accumulate(results, counter_access, line):
         ]
     )
 
-    if compact_accumulate is not None:
-        compact_accumulate(
-            data=raw_record["data"],
-            session_key=session_key,
-            url=access_url_key,
-            second=second_of_hour,
-        )
-        return
-
-    item_access_id = raw_record["id"]
-    if item_access_id not in results:
-        results[item_access_id] = raw_record["data"]
-
-    timestamps_by_url = results[item_access_id].setdefault(
-        "click_timestamps_by_url", {}
+    results.accumulate_access(
+        data=raw_record,
+        session_key=session_key,
+        url=access_url_key,
+        second=second_of_hour,
     )
-    url_timestamps = timestamps_by_url.setdefault(access_url_key, {})
-    _increment_timestamp_count(url_timestamps, second_of_hour)
 
 
 def _build_record(
     counter_access,
     line,
     access_datetime,
-    second_of_hour,
-    user_session_id,
-    include_id=True,
 ):
     collection = counter_access.get("collection")
     source_key = _source_key(counter_access, collection)
@@ -89,51 +65,27 @@ def _build_record(
     access_country_code = line.get("country_code")
     access_date = access_datetime.strftime("%Y-%m-%d")
 
-    record = {
-        "data": {
-            "collection": collection,
-            "source_key": source_key,
-            "document_type": counter_access.get("document_type"),
-            "pid_v2": pid_v2,
-            "pid_v3": pid_v3,
-            "pid_generic": pid_generic,
-            "document": _document_metadata(counter_access),
-            "title_pid_generic": counter_access.get("title_pid_generic") or pid_generic,
-            "user_session_id": user_session_id,
-            "click_timestamps_by_url": {},
-            "media_format": media_format,
-            "content_language": content_language,
-            "content_type": content_type,
-            "access_country_code": access_country_code,
-            "access_date": access_date,
-            "access_year": access_date[:4],
-            "access_month": access_date[:7].replace("-", ""),
-            "publication_year": counter_access.get("publication_year"),
-            "counter_access_type": counter_access.get("counter_access_type") or "Open",
-            "access_method": counter_access.get("access_method") or "Regular",
-            "source": _source_metadata(counter_access),
-        },
+    return {
+        "collection": collection,
+        "source_key": source_key,
+        "document_type": counter_access.get("document_type"),
+        "pid_v2": pid_v2,
+        "pid_v3": pid_v3,
+        "pid_generic": pid_generic,
+        "document": _document_metadata(counter_access),
+        "title_pid_generic": counter_access.get("title_pid_generic") or pid_generic,
+        "media_format": media_format,
+        "content_language": content_language,
+        "content_type": content_type,
+        "access_country_code": access_country_code,
+        "access_date": access_date,
+        "access_year": access_date[:4],
+        "access_month": access_date[:7].replace("-", ""),
+        "publication_year": counter_access.get("publication_year"),
+        "counter_access_type": counter_access.get("counter_access_type") or "Open",
+        "access_method": counter_access.get("access_method") or "Regular",
+        "source": _source_metadata(counter_access),
     }
-    if include_id:
-        record["id"] = _generate_item_access_id(
-            user_session_id=user_session_id,
-            col_acron3=collection,
-            source_key=source_key,
-            pid_v2=pid_v2,
-            pid_v3=pid_v3,
-            pid_generic=pid_generic,
-            content_language=content_language,
-            access_country_code=access_country_code,
-            media_format=media_format,
-            content_type=content_type,
-        )
-    return record
-
-
-def _increment_timestamp_count(timestamps, key):
-    if key not in timestamps:
-        timestamps[key] = 0
-    timestamps[key] += 1
 
 
 def _normalized_access_path(url):
@@ -148,23 +100,6 @@ def _normalized_access_path(url):
     path = re.sub(r"/+", "/", path)
     path = path.rstrip(".,;:")
     return path or None
-
-
-def _generate_user_session_id(
-    client_name, client_version, ip_address, datetime, sep="|"
-):
-    dt_year_month_day = datetime.strftime("%Y-%m-%d")
-    dt_hour = datetime.strftime("%H")
-
-    return sep.join(
-        [
-            str(client_name),
-            str(client_version),
-            str(ip_address),
-            str(dt_year_month_day),
-            str(dt_hour),
-        ]
-    )
 
 
 def _document_metadata(counter_access):
@@ -195,33 +130,4 @@ def _source_key(counter_access, fallback):
         or counter_access.get("scielo_issn")
         or counter_access.get("source_type")
         or fallback
-    )
-
-
-def _generate_item_access_id(
-    col_acron3,
-    source_key,
-    pid_v2,
-    pid_v3,
-    pid_generic,
-    user_session_id,
-    access_country_code,
-    content_language,
-    media_format,
-    content_type,
-    sep="|",
-):
-    return sep.join(
-        [
-            col_acron3,
-            str(source_key or ""),
-            pid_v2 or "",
-            pid_v3 or "",
-            pid_generic or "",
-            str(user_session_id or ""),
-            str(access_country_code or ""),
-            str(content_language or ""),
-            str(media_format or ""),
-            str(content_type or ""),
-        ]
     )

@@ -8,7 +8,8 @@ from scielo_usage_counter.values import (
 )
 
 from metrics.counter.access import accumulation, extraction
-from metrics.counter.indexing import converter as index_docs
+from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
+from metrics.tests.helpers import convert_accumulator
 
 
 class TestPreprintPipeline(unittest.TestCase):
@@ -30,7 +31,7 @@ class TestPreprintPipeline(unittest.TestCase):
 
     def test_full_pipeline_produces_preprint_article_version(self):
         counter_access = self._build_preprint_access()
-        results = {}
+        results = DailyAccessAccumulator()
         line = {
             "client_name": "browser",
             "client_version": "1.0",
@@ -39,7 +40,7 @@ class TestPreprintPipeline(unittest.TestCase):
             "local_datetime": datetime(2024, 6, 15, 14, 30, 10),
         }
         accumulation.accumulate(results, counter_access, line)
-        metrics = index_docs.convert(results)
+        metrics = convert_accumulator(results)
 
         month_docs = list(metrics["month"].values())
         self.assertEqual(len(month_docs), 1)
@@ -71,7 +72,7 @@ class TestDataversePipeline(unittest.TestCase):
 
     def test_full_pipeline_produces_dataset_metrics(self):
         counter_access = self._build_dataset_access()
-        results = {}
+        results = DailyAccessAccumulator()
         line = {
             "client_name": "browser",
             "client_version": "1.0",
@@ -80,7 +81,7 @@ class TestDataversePipeline(unittest.TestCase):
             "local_datetime": datetime(2024, 6, 15, 14, 30, 10),
         }
         accumulation.accumulate(results, counter_access, line)
-        metrics = index_docs.convert(results)
+        metrics = convert_accumulator(results)
 
         month_docs = list(metrics["month"].values())
         self.assertEqual(len(month_docs), 1)
@@ -109,7 +110,7 @@ class TestOPACPipeline(unittest.TestCase):
             },
         )
 
-        results = {}
+        results = DailyAccessAccumulator()
         line = {
             "client_name": "Chrome",
             "client_version": "120.0",
@@ -118,7 +119,7 @@ class TestOPACPipeline(unittest.TestCase):
             "local_datetime": datetime(2024, 3, 20, 8, 15, 42),
         }
         accumulation.accumulate(results, counter_access, line)
-        metrics = index_docs.convert(results)
+        metrics = convert_accumulator(results)
 
         doc = list(metrics["month"].values())[0]
         self.assertEqual(doc["counter"]["data_type"], "Article")

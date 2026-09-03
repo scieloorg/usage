@@ -1,12 +1,13 @@
 import unittest
 from pathlib import Path
 
+from scielo_usage_counter import log_handler
 from scielo_usage_counter.translator.classic import URLTranslatorClassicSite
 from scielo_usage_counter.url_translator import URLTranslationManager
 
 from metrics.counter.access import accumulation, extraction, validation
-from metrics.counter.indexing import converter as index_docs
-from scielo_usage_counter import log_handler
+from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
+from metrics.tests.helpers import convert_accumulator
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -35,7 +36,7 @@ class TestClassicLogToMetrics(unittest.TestCase):
 
     def _full_pipeline(self):
         lines, stats = self._parse_log()
-        results = {}
+        results = DailyAccessAccumulator()
         valid_count = 0
 
         for line in lines:
@@ -75,7 +76,7 @@ class TestClassicLogToMetrics(unittest.TestCase):
             self.skipTest("No valid lines in classic fixture for this translator")
             return
 
-        metrics = index_docs.convert(results)
+        metrics = convert_accumulator(results)
 
         for doc in metrics["month"].values():
             self.assertEqual(doc["counter"]["data_type"], "Article")
@@ -88,7 +89,7 @@ class TestClassicLogToMetrics(unittest.TestCase):
             self.skipTest("No valid lines")
             return
 
-        metrics = index_docs.convert(results)
+        metrics = convert_accumulator(results)
         for doc in metrics["month"].values():
             source_type = doc.get("source", {}).get("type")
             if source_type == "journal":
@@ -100,6 +101,6 @@ class TestClassicLogToMetrics(unittest.TestCase):
 
     def test_valid_lines_produce_session_ids(self):
         results, _, _, _ = self._full_pipeline()
-        for value in results.values():
+        for value in results.iter_materialized_values():
             self.assertIn("user_session_id", value)
             self.assertIsNotNone(value["user_session_id"])

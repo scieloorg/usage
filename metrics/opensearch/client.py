@@ -10,10 +10,13 @@ from metrics.opensearch.painless import (
     merge_metric_document,
 )
 
+_BULK_CHUNK_SIZE = 500
+
 
 class OpenSearchUsageClient:
     def __init__(self, url=None, basic_auth=None, api_key=None, verify_certs=None):
         self.client = self.get_opensearch_client(url, basic_auth, api_key, verify_certs)
+        logging.info("OpenSearch HTTP request compression is enabled.")
 
     def get_opensearch_client(
         self,
@@ -33,10 +36,20 @@ class OpenSearchUsageClient:
                 url,
                 http_auth=tuple(basic_auth),
                 verify_certs=verify_certs,
+                http_compress=True,
             )
         if api_key:
-            return OpenSearch(url, api_key=api_key, verify_certs=verify_certs)
-        return OpenSearch(url, verify_certs=verify_certs)
+            return OpenSearch(
+                url,
+                api_key=api_key,
+                verify_certs=verify_certs,
+                http_compress=True,
+            )
+        return OpenSearch(
+            url,
+            verify_certs=verify_certs,
+            http_compress=True,
+        )
 
     def ping(self):
         try:
@@ -104,20 +117,17 @@ class OpenSearchUsageClient:
             ),
         )
 
-    def increment_documents_for_daily_job(
+    def increment_document_items_for_daily_job(
         self,
         index_name,
-        documents,
+        document_items,
         job_id,
         ping_client=False,
     ):
         if ping_client and not self.ping():
             return
 
-        if not documents:
-            return
-
-        helpers.bulk(
+        succeeded, _failed = helpers.bulk(
             self.client,
             (
                 build_idempotent_job_increment_action(
@@ -126,9 +136,11 @@ class OpenSearchUsageClient:
                     document=document,
                     job_id=job_id,
                 )
-                for doc_id, document in documents.items()
+                for doc_id, document in document_items
             ),
+            chunk_size=_BULK_CHUNK_SIZE,
         )
+        return succeeded
 
     def delete_documents(self, index_name, doc_ids, ping_client=False):
         if ping_client and not self.ping():
