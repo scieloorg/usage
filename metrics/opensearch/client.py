@@ -10,13 +10,25 @@ from metrics.opensearch.painless import (
     merge_metric_document,
 )
 
-_BULK_CHUNK_SIZE = 500
-
 
 class OpenSearchUsageClient:
     def __init__(self, url=None, basic_auth=None, api_key=None, verify_certs=None):
+        self.bulk_chunk_size = getattr(
+            settings,
+            "OPENSEARCH_BULK_CHUNK_SIZE",
+            500,
+        )
+        if self.bulk_chunk_size <= 0:
+            raise ValueError("OpenSearch bulk chunk size must be greater than zero.")
+
         self.client = self.get_opensearch_client(url, basic_auth, api_key, verify_certs)
-        logging.info("OpenSearch HTTP request compression is enabled.")
+        logging.info(
+            "OpenSearch HTTP request compression is %s; bulk chunk size is %s.",
+            "enabled"
+            if getattr(settings, "OPENSEARCH_HTTP_COMPRESS", True)
+            else "disabled",
+            self.bulk_chunk_size,
+        )
 
     def get_opensearch_client(
         self,
@@ -30,25 +42,26 @@ class OpenSearchUsageClient:
         api_key = api_key or getattr(settings, "OPENSEARCH_API_KEY", None)
         if verify_certs is None:
             verify_certs = getattr(settings, "OPENSEARCH_VERIFY_CERTS", False)
+        http_compress = getattr(settings, "OPENSEARCH_HTTP_COMPRESS", True)
 
         if basic_auth:
             return OpenSearch(
                 url,
                 http_auth=tuple(basic_auth),
                 verify_certs=verify_certs,
-                http_compress=True,
+                http_compress=http_compress,
             )
         if api_key:
             return OpenSearch(
                 url,
                 api_key=api_key,
                 verify_certs=verify_certs,
-                http_compress=True,
+                http_compress=http_compress,
             )
         return OpenSearch(
             url,
             verify_certs=verify_certs,
-            http_compress=True,
+            http_compress=http_compress,
         )
 
     def ping(self):
@@ -138,7 +151,7 @@ class OpenSearchUsageClient:
                 )
                 for doc_id, document in document_items
             ),
-            chunk_size=_BULK_CHUNK_SIZE,
+            chunk_size=self.bulk_chunk_size,
         )
         return succeeded
 

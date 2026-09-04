@@ -167,6 +167,18 @@ class DailyAccessAccumulator:
         finally:
             self.clear()
 
+    def iter_materialized_record_items(self):
+        for record_key, record in self._records.items():
+            yield record_key, record.as_dict(self)
+
+    def iter_materialized_record_keys(self, record_keys, consume=False):
+        for record_key in record_keys:
+            if consume:
+                record = self._records.pop(record_key)
+            else:
+                record = self._records[record_key]
+            yield record.as_dict(self)
+
     def clear(self):
         self._records.clear()
         self._documents.clear()

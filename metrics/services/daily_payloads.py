@@ -57,18 +57,28 @@ class DailyPayloadWriter:
         self._write_text(',"documents":{"month":')
         return self
 
-    def write_documents(self, granularity, documents):
+    def write_document_items(self, granularity, document_items):
         if granularity != self.next_granularity:
             raise RuntimeError(
                 f"Expected {self.next_granularity} documents, got {granularity}."
             )
 
-        self._write_json(documents)
+        document_count = 0
+        self._write_text("{")
+        for document_id, document in document_items:
+            if document_count:
+                self._write_text(",")
+            self._write_json(document_id)
+            self._write_text(":")
+            self._write_json(document)
+            document_count += 1
+        self._write_text("}")
         if granularity == "month":
             self._write_text(',"year":')
             self.next_granularity = "year"
         else:
             self.next_granularity = None
+        return document_count
 
     def finalize(self, input_log_hashes, summary):
         if self.next_granularity is not None:

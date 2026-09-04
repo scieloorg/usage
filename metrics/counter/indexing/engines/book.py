@@ -8,6 +8,17 @@ from metrics.counter.indexing.engines.base import (
 
 
 class BookPipeline(DocumentPipeline):
+    def partition_key(self, value, granularity):
+        title_pid_generic = _extract_title_pid_generic(value)
+        if title_pid_generic:
+            return self._generate_document_id(
+                value,
+                granularity,
+                metric_scope="title",
+                pid_generic=title_pid_generic,
+            )
+        return self._generate_document_id(value, granularity)
+
     def accumulate(self, data, unique_state, value, granularity):
         if not isinstance(value, dict):
             return

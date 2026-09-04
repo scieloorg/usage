@@ -29,6 +29,9 @@ class DocumentPipeline:
             is_request_event=is_request(value.get("content_type")),
         )
 
+    def partition_key(self, value, granularity):
+        return self._generate_document_id(value, granularity)
+
     def _generate_document_id(
         self, value, granularity, metric_scope=None, pid_generic=None
     ):

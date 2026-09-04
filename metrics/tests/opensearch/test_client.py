@@ -37,6 +37,7 @@ class OpenSearchUsageClientTests(TestCase):
         OPENSEARCH_VERIFY_CERTS=True,
         OPENSEARCH_BASIC_AUTH=None,
         OPENSEARCH_API_KEY=None,
+        OPENSEARCH_HTTP_COMPRESS=True,
     )
     @patch("metrics.opensearch.client.OpenSearch")
     def test_verify_certs_false_explicitly_overrides_settings(self, mock_opensearch):
@@ -49,6 +50,21 @@ class OpenSearchUsageClientTests(TestCase):
             "https://example.org:9200",
             verify_certs=False,
             http_compress=True,
+        )
+
+    @override_settings(
+        OPENSEARCH_BASIC_AUTH=None,
+        OPENSEARCH_API_KEY=None,
+        OPENSEARCH_HTTP_COMPRESS=False,
+    )
+    @patch("metrics.opensearch.client.OpenSearch")
+    def test_http_compression_can_be_disabled(self, mock_opensearch):
+        OpenSearchUsageClient(url="https://example.org:9200")
+
+        mock_opensearch.assert_called_once_with(
+            "https://example.org:9200",
+            verify_certs=False,
+            http_compress=False,
         )
 
     def test_get_index_mappings_returns_books_specific_mappings(self):
@@ -95,6 +111,7 @@ class OpenSearchUsageClientTests(TestCase):
             )
             self.assertFalse(source_mapping["properties"]["publisher_name"]["index"])
 
+    @override_settings(OPENSEARCH_BULK_CHUNK_SIZE=2000)
     @patch("metrics.opensearch.client.helpers.bulk")
     @patch.object(OpenSearchUsageClient, "get_opensearch_client")
     def test_increment_documents_for_daily_job_uses_applied_jobs(
@@ -138,4 +155,9 @@ class OpenSearchUsageClientTests(TestCase):
         )
         self.assertEqual(action["upsert"], {"applied_jobs": []})
         self.assertEqual(succeeded, 1)
-        self.assertEqual(mock_bulk.call_args.kwargs["chunk_size"], 500)
+        self.assertEqual(mock_bulk.call_args.kwargs["chunk_size"], 2000)
+
+    @override_settings(OPENSEARCH_BULK_CHUNK_SIZE=0)
+    def test_bulk_chunk_size_must_be_positive(self):
+        with self.assertRaisesRegex(ValueError, "greater than zero"):
+            OpenSearchUsageClient(url="https://example.org:9200")

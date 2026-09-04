@@ -1,5 +1,4 @@
 import tempfile
-import weakref
 from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -21,10 +20,6 @@ from metrics.services.parsing.job_payloads import (
     _write_job_payload,
     build_daily_metric_job_payload,
 )
-
-
-class TrackableDict(dict):
-    pass
 
 
 class DailyMetricJobServiceTests(TestCase):
@@ -143,10 +138,6 @@ class DailyMetricJobServiceTests(TestCase):
         self.assertIsNotNone(job.exported_at)
 
     @patch(
-        "metrics.services.parsing.job_payloads.index_docs.convert_granularity",
-        side_effect=({}, {}),
-    )
-    @patch(
         "metrics.services.parsing.job_payloads.process_line", return_value=(True, None)
     )
     @patch("metrics.services.parsing.job_payloads.setup_parsing_environment")
@@ -154,7 +145,6 @@ class DailyMetricJobServiceTests(TestCase):
         self,
         mock_setup_parsing_environment,
         mock_process_line,
-        mock_convert_documents,
     ):
         selected = self._log_file("1" * 32)
         extra = self._log_file("2" * 32)
@@ -217,11 +207,7 @@ class DailyMetricJobServiceTests(TestCase):
                 job, robots_list=["robot"], mmdb=Mock(data={})
             )
 
-    @patch("metrics.services.parsing.job_payloads.index_docs.convert_granularity")
-    def test_payload_generation_releases_each_granularity_and_accumulator(
-        self,
-        mock_convert,
-    ):
+    def test_payload_generation_releases_accumulator(self):
         job = DailyMetricJob.objects.create(
             collection=self.collection,
             access_date=date(2012, 3, 10),
@@ -235,15 +221,6 @@ class DailyMetricJobServiceTests(TestCase):
             url="/book",
             second=5,
         )
-        references = {}
-
-        def convert(values, granularity):
-            list(values)
-            documents = TrackableDict()
-            references[granularity] = weakref.ref(documents)
-            return documents
-
-        mock_convert.side_effect = convert
         summary = {
             "log_files": 1,
             "input_log_hashes": ["1" * 32],
@@ -256,7 +233,5 @@ class DailyMetricJobServiceTests(TestCase):
             with self.settings(MEDIA_ROOT=media_root):
                 _write_job_payload(job, accumulator, summary)
 
-        self.assertIsNone(references["month"]())
-        self.assertIsNone(references["year"]())
         self.assertEqual(len(accumulator), 0)
         self.assertEqual(accumulator._documents, [])

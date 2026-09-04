@@ -433,6 +433,14 @@ OPENSEARCH_VERIFY_CERTS = env.bool(
     "OPENSEARCH_VERIFY_CERTS",
     default=False,
 )
+OPENSEARCH_HTTP_COMPRESS = env.bool(
+    "OPENSEARCH_HTTP_COMPRESS",
+    default=True,
+)
+OPENSEARCH_BULK_CHUNK_SIZE = env.int(
+    "OPENSEARCH_BULK_CHUNK_SIZE",
+    default=500,
+)
 
 # Resources
 # ------------------------------------------------------------------------------

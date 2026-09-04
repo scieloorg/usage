@@ -223,8 +223,8 @@ class TestAccumulation(unittest.TestCase):
             accumulation.accumulate(compact, self._book_counter_access(), event)
 
         values = list(compact.iter_materialized_values())
-        month = index_docs.convert_granularity(iter(values), "month")
-        year = index_docs.convert_granularity(iter(values), "year")
+        month = dict(index_docs.iter_partitioned_values(values, "month"))
+        year = dict(index_docs.iter_partitioned_values(values, "year"))
         self.assertEqual(len(month), 2)
         self.assertEqual(len(year), 2)
 
