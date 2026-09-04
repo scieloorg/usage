@@ -13,8 +13,8 @@ from metrics.counter.indexing import converter as index_docs
 def _convert(data):
     values = list(data.values())
     return {
-        "month": index_docs.convert_granularity(iter(values), "month"),
-        "year": index_docs.convert_granularity(iter(values), "year"),
+        "month": dict(index_docs.iter_partitioned_values(values, "month")),
+        "year": dict(index_docs.iter_partitioned_values(values, "year")),
     }
 
 
@@ -434,8 +434,8 @@ class TestConverter(unittest.TestCase):
 
         values = list(results.iter_materialized_values())
         metrics_data = {
-            "month": index_docs.convert_granularity(iter(values), "month"),
-            "year": index_docs.convert_granularity(iter(values), "year"),
+            "month": dict(index_docs.iter_partitioned_values(values, "month")),
+            "year": dict(index_docs.iter_partitioned_values(values, "year")),
         }
         month_item = metrics_data["month"][
             "books|c2248|||BOOK:C2248/CHAPTER:03|2024-01|Open|Regular|2018"
@@ -481,4 +481,4 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(month_doc["total_investigations"], 1)
 
     def test_empty_iterable_returns_empty(self):
-        self.assertEqual(index_docs.convert_granularity(iter(()), "month"), {})
+        self.assertEqual(dict(index_docs.iter_partitioned_values((), "month")), {})

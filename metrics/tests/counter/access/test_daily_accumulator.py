@@ -62,3 +62,22 @@ def test_consuming_materialization_releases_structures_after_consumer_error():
 
     assert len(accumulator) == 0
     assert accumulator._documents == []
+
+
+def test_partitioned_year_conversion_releases_accumulator_after_consumer_error():
+    from metrics.counter.indexing import converter
+
+    accumulator = DailyAccessAccumulator()
+    _accumulate(accumulator, "first", "127.0.0.1")
+    _accumulate(accumulator, "second", "127.0.0.2")
+    documents = converter.iter_partitioned_documents(
+        accumulator,
+        "year",
+        partition_count=2,
+    )
+
+    next(documents)
+    documents.close()
+
+    assert len(accumulator) == 0
+    assert accumulator._documents == []
