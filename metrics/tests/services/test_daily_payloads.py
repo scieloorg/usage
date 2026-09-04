@@ -44,8 +44,12 @@ class DailyPayloadTests(SimpleTestCase):
             payload["collection"],
             payload["access_date"],
         ) as writer:
-            writer.write_documents("month", payload["documents"]["month"])
-            writer.write_documents("year", payload["documents"]["year"])
+            writer.write_document_items(
+                "month", sorted(payload["documents"]["month"].items())
+            )
+            writer.write_document_items(
+                "year", sorted(payload["documents"]["year"].items())
+            )
             payload_hash = writer.finalize(
                 payload["input_log_hashes"],
                 payload["summary"],
@@ -72,8 +76,8 @@ class DailyPayloadTests(SimpleTestCase):
             payload["collection"],
             payload["access_date"],
         ) as writer:
-            writer.write_documents("month", payload["documents"]["month"])
-            writer.write_documents("year", payload["documents"]["year"])
+            writer.write_document_items("month", payload["documents"]["month"].items())
+            writer.write_document_items("year", payload["documents"]["year"].items())
             writer.finalize(payload["input_log_hashes"], payload["summary"])
 
         self.assertEqual(
@@ -97,8 +101,32 @@ class DailyPayloadTests(SimpleTestCase):
                 "scl",
                 "2026-08-25",
             ) as writer:
-                writer.write_documents("month", {})
-                writer.write_documents("year", {"invalid": object()})
+                writer.write_document_items("month", iter(()))
+                writer.write_document_items("year", [("invalid", object())])
 
         self.assertEqual(resolved_path.read_bytes(), b"previous canonical payload")
         self.assertFalse(resolved_path.with_suffix(".json.tmp").exists())
+
+    def test_document_item_order_produces_deterministic_payload(self):
+        hashes = []
+        contents = []
+
+        for filename in ("first.json", "second.json"):
+            storage_path = Path("scl/2026/08") / filename
+            with daily_payloads.DailyPayloadWriter(
+                storage_path,
+                "scl",
+                "2026-08-25",
+            ) as writer:
+                writer.write_document_items(
+                    "month",
+                    [("b", {"total": 2}), ("a", {"total": 1})],
+                )
+                writer.write_document_items("year", [("c", {"total": 3})])
+                hashes.append(writer.finalize(["abc"], {"valid_lines": 1}))
+            contents.append(
+                daily_payloads.resolve_storage_path(storage_path).read_bytes()
+            )
+
+        self.assertEqual(hashes[0], hashes[1])
+        self.assertEqual(contents[0], contents[1])
