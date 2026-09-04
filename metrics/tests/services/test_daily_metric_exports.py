@@ -39,13 +39,13 @@ class DailyMetricExportTests(SimpleTestCase):
             "scl",
             "2026-08-25",
         ) as writer:
-            writer.write_documents(
+            writer.write_document_items(
                 "month",
-                {"month-doc": {"access": {"month": "2026-08"}}},
+                [("month-doc", {"access": {"month": "2026-08"}})],
             )
-            writer.write_documents(
+            writer.write_document_items(
                 "year",
-                {"year-doc": {"access": {"year": "2026"}}},
+                [("year-doc", {"access": {"year": "2026"}})],
             )
             writer.finalize(["abc"], {"valid_lines": 1})
 
