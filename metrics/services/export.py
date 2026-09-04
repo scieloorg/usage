@@ -1,5 +1,4 @@
 import logging
-import resource
 from itertools import chain
 from time import monotonic
 
@@ -7,7 +6,7 @@ from django.conf import settings
 
 from metrics.opensearch.mappings import get_index_mappings
 from metrics.opensearch.names import generate_month_index_name, generate_year_index_name
-from metrics.services import daily_payloads
+from metrics.services import daily_payloads, memory
 
 
 def daily_metric_payload_exists(job):
@@ -40,12 +39,12 @@ def export_daily_metric_payload(search_client, job):
         )
         logging.info(
             "Daily metric job %s %s OpenSearch export completed in %.3f "
-            "seconds; %s documents; peak RSS %.1f MiB.",
+            "seconds; %s documents; %s.",
             job.pk,
             granularity,
             monotonic() - started,
             exported,
-            _peak_rss_mib(),
+            memory.format_snapshot(),
         )
 
 
@@ -86,7 +85,3 @@ def _sync_documents_group(
         document_items=chain((first_item,), document_items),
         job_id=job_id,
     )
-
-
-def _peak_rss_mib():
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
