@@ -1,14 +1,15 @@
 import gc
 import logging
-import resource
 from time import monotonic
 
 from django.conf import settings
 
+from config.collections import get_collection_size
 from log_manager.models import LogFile
 from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.counter.indexing import converter as index_docs
-from metrics.services import daily_payloads
+from metrics.services import daily_payloads, memory
+from metrics.services.parsing import metadata_cache
 from metrics.services.parsing.environment import setup_parsing_environment
 from metrics.services.parsing.lines import process_line
 from metrics.services.parsing.log_files import (
@@ -41,12 +42,21 @@ def build_daily_metric_job_payload(job, robots_list, mmdb, track_errors=False):
         _merge_log_summary(summary, log_summary)
     logging.info(
         "Daily metric job %s parsing completed in %.3f seconds; "
-        "%s compact records; peak RSS %.1f MiB.",
+        "%s compact records; %s.",
         job.pk,
         monotonic() - parsing_started,
         len(results),
-        _peak_rss_mib(),
+        memory.format_snapshot(),
     )
+
+    if get_collection_size(job.collection.acron3) == "xlarge":
+        metadata_cache.clear()
+        gc.collect()
+        logging.info(
+            "Daily metric job %s released parsing metadata cache; %s.",
+            job.pk,
+            memory.format_snapshot(),
+        )
 
     return _write_job_payload(job, results, summary)
 
@@ -142,7 +152,7 @@ def _write_job_payload(job, results, summary):
     )
     month_document_count = 0
     year_document_count = 0
-    serialization_seconds = 0
+    payload_started = monotonic()
 
     with daily_payloads.DailyPayloadWriter(
         storage_path=storage_path,
@@ -150,57 +160,46 @@ def _write_job_payload(job, results, summary):
         access_date=job.access_date.isoformat(),
     ) as writer:
         month_started = monotonic()
-        month_documents = index_docs.convert_granularity(
-            results.iter_materialized_values(),
+        month_documents = index_docs.iter_partitioned_documents(
+            results,
             "month",
         )
-        month_document_count = len(month_documents)
+        month_document_count = writer.write_document_items("month", month_documents)
         month_conversion_seconds = monotonic() - month_started
-
-        serialization_started = monotonic()
-        writer.write_documents("month", month_documents)
-        serialization_seconds += monotonic() - serialization_started
-        del month_documents
         gc.collect()
         logging.info(
-            "Daily metric job %s monthly conversion completed in %.3f seconds; "
-            "%s documents; peak RSS %.1f MiB.",
+            "Daily metric job %s monthly conversion and serialization completed "
+            "in %.3f seconds; %s documents; %s.",
             job.pk,
             month_conversion_seconds,
             month_document_count,
-            _peak_rss_mib(),
+            memory.format_snapshot(),
         )
 
         year_started = monotonic()
-        year_documents = index_docs.convert_granularity(
-            results.iter_materialized_values(consume=True),
+        year_documents = index_docs.iter_partitioned_documents(
+            results,
             "year",
         )
-        year_document_count = len(year_documents)
-        year_conversion_seconds = monotonic() - year_started
+        year_document_count = writer.write_document_items("year", year_documents)
         del results
-
-        serialization_started = monotonic()
-        writer.write_documents("year", year_documents)
-        del year_documents
         payload_hash = writer.finalize(summary["input_log_hashes"], summary)
-        serialization_seconds += monotonic() - serialization_started
+        year_conversion_seconds = monotonic() - year_started
         gc.collect()
         logging.info(
-            "Daily metric job %s yearly conversion completed in %.3f seconds; "
-            "%s documents; peak RSS %.1f MiB.",
+            "Daily metric job %s yearly conversion and serialization completed "
+            "in %.3f seconds; %s documents; %s.",
             job.pk,
             year_conversion_seconds,
             year_document_count,
-            _peak_rss_mib(),
+            memory.format_snapshot(),
         )
 
     logging.info(
-        "Daily metric job %s serialization completed in %.3f seconds; "
-        "peak RSS %.1f MiB.",
+        "Daily metric job %s payload generation completed in %.3f seconds; " "%s.",
         job.pk,
-        serialization_seconds,
-        _peak_rss_mib(),
+        monotonic() - payload_started,
+        memory.format_snapshot(),
     )
 
     job.input_log_hashes = summary["input_log_hashes"]
@@ -221,7 +220,3 @@ def _write_job_payload(job, results, summary):
         ]
     )
     return storage_path.as_posix(), payload_hash
-
-
-def _peak_rss_mib():
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
