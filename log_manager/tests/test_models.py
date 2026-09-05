@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import patch
 
 from django.db import IntegrityError
@@ -42,3 +43,44 @@ class LogFileModelTests(TestCase):
             )
 
         self.assertEqual(log_file.pk, existing.pk)
+
+    def test_parsing_candidates_exclude_file_read_errors(self):
+        read_error = LogFile.objects.create(
+            collection=self.collection,
+            path="/tmp/read-error.log.gz",
+            stat_result={},
+            hash="2" * 32,
+            status=choices.LOG_FILE_STATUS_ERROR,
+            date=date(2026, 9, 4),
+            validation={
+                "file_error": {
+                    "code": "file_read_error",
+                    "kind": "corrupted",
+                    "stage": "validation",
+                }
+            },
+        )
+        parse_error = LogFile.objects.create(
+            collection=self.collection,
+            path="/tmp/parse-error.log.gz",
+            stat_result={},
+            hash="3" * 32,
+            status=choices.LOG_FILE_STATUS_ERROR,
+            date=date(2026, 9, 4),
+        )
+
+        access_dates = LogFile.distinct_access_dates_for_parsing(
+            collection=self.collection,
+            from_date=date(2026, 9, 4),
+            until_date=date(2026, 9, 4),
+            status_filters=[choices.LOG_FILE_STATUS_ERROR],
+        )
+        log_files = LogFile.for_collection_date(
+            collection=self.collection,
+            access_date=date(2026, 9, 4),
+            status_filters=[choices.LOG_FILE_STATUS_ERROR],
+        )
+
+        self.assertEqual(access_dates, [date(2026, 9, 4)])
+        self.assertEqual(log_files, [parse_error])
+        self.assertNotIn(read_error, log_files)

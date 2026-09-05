@@ -9,7 +9,7 @@ from wagtailautocomplete.edit_handlers import AutocompletePanel
 from collection.models import Collection
 from core.utils.date_utils import get_date_obj
 
-from log_manager import choices
+from log_manager import choices, file_errors
 
 
 class LogFile(models.Model):
@@ -123,6 +123,8 @@ class LogFile(models.Model):
         if status_filters:
             queryset = queryset.filter(status__in=status_filters)
 
+        queryset = _exclude_file_read_errors(queryset)
+
         return list(queryset)
 
     @classmethod
@@ -146,14 +148,14 @@ class LogFile(models.Model):
         status_filters,
         skip_hashes=None,
     ):
+        date_queryset = cls.objects.filter(
+            status__in=status_filters,
+            collection=collection,
+            date__gte=from_date,
+            date__lte=until_date,
+        ).exclude(hash__in=skip_hashes or [])
         date_queryset = (
-            cls.objects.filter(
-                status__in=status_filters,
-                collection=collection,
-                date__gte=from_date,
-                date__lte=until_date,
-            )
-            .exclude(hash__in=skip_hashes or [])
+            _exclude_file_read_errors(date_queryset)
             .values_list("date", flat=True)
             .distinct()
             .order_by("date")
@@ -168,3 +170,11 @@ class LogFile(models.Model):
 
     def __str__(self):
         return f"{self.path}"
+
+
+def _exclude_file_read_errors(queryset):
+    read_error_ids = LogFile.objects.filter(
+        status=choices.LOG_FILE_STATUS_ERROR,
+        validation__file_error__code=file_errors.FILE_READ_ERROR_CODE,
+    ).values_list("pk", flat=True)
+    return queryset.exclude(pk__in=read_error_ids)

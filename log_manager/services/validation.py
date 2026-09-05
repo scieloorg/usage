@@ -2,7 +2,7 @@ import logging
 
 from collection.models import Collection
 from core.utils import date_utils
-from log_manager import choices, models, utils
+from log_manager import choices, file_errors, models, utils
 from log_manager_config import models as lmc_models
 
 LOGFILE_STAT_RESULT_CTIME_INDEX = 9
@@ -184,7 +184,15 @@ def _update_log_file_with_validation_result(
     log_file.validation = validation_result
     log_file.validation.update({"buffer_size": buffer_size, "sample_size": sample_size})
 
-    if validation_result.get("is_valid", {}).get("all", False):
+    content_error = validation_result.get("content", {}).get("error") or {}
+    if content_error.get("code") == file_errors.FILE_READ_ERROR_CODE:
+        log_file.validation["file_error"] = {
+            **content_error,
+            "stage": "validation",
+        }
+        log_file.date = None
+        log_file.status = choices.LOG_FILE_STATUS_ERROR
+    elif validation_result.get("is_valid", {}).get("all", False):
         log_file.date = validation_result.get("probably_date") or None
         log_file.status = choices.LOG_FILE_STATUS_QUEUED
     else:

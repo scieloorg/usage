@@ -47,6 +47,27 @@ class LogReportServiceTests(TestCase):
                 }
             },
         )
+        LogFile.objects.create(
+            collection=collection,
+            path="/tmp/2026-05-10-error.log.gz",
+            stat_result={},
+            hash="2" * 32,
+            status=choices.LOG_FILE_STATUS_INVALIDATED,
+        )
+        LogFile.objects.create(
+            collection=collection,
+            path="/tmp/2026-05-10-corrupted.log.gz",
+            stat_result={},
+            hash="3" * 32,
+            status=choices.LOG_FILE_STATUS_ERROR,
+            validation={
+                "file_error": {
+                    "code": "file_read_error",
+                    "kind": "corrupted",
+                    "stage": "catalog",
+                }
+            },
+        )
 
         result = log_report.populate_log_report_tables(
             year=2026,
@@ -60,8 +81,10 @@ class LogReportServiceTests(TestCase):
         yearly = YearlyLogReport.objects.get(collection=collection)
 
         for report in [weekly, monthly, yearly]:
-            self.assertEqual(report.total_files, 1)
+            self.assertEqual(report.total_files, 3)
             self.assertEqual(report.validated_files, 1)
+            self.assertEqual(report.invalidated_files, 1)
+            self.assertEqual(report.errored_files, 1)
             self.assertEqual(report.lines_parsed, 10)
             self.assertEqual(report.valid_lines, 7)
             self.assertEqual(report.discarded_lines, 3)
