@@ -19,6 +19,10 @@ class ReadOnlyPermissionPolicy(BasePermissionPolicy):
 
 COMMON_LIST_DISPLAY = (
     "total_files",
+    "created_files",
+    "validated_files",
+    "invalidated_files",
+    "errored_files",
     "pct_validated",
     "lines_parsed",
     "pct_valid_lines",
