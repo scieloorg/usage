@@ -98,7 +98,7 @@ def _safe_sample_size(path, sample_size, buffer_size):
     try:
         total_lines = validator.get_total_lines(path=path, buffer_size=buffer_size)
     except (
-        exceptions.TruncatedLogFileError,
+        exceptions.LogFileReadError,
         exceptions.InvalidLogFileMimeError,
         exceptions.LogFileIsEmptyError,
     ):

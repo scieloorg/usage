@@ -1,3 +1,4 @@
+import gzip
 import tempfile
 from datetime import date
 from unittest.mock import patch
@@ -51,6 +52,22 @@ class ValidationServiceTests(TestCase):
         )
         self.assertIsNone(result["probably_date"])
 
+    def test_validate_file_returns_structured_error_for_corrupted_gzip(self):
+        with tempfile.NamedTemporaryFile(suffix=".log.gz") as tmp_file:
+            compressed = bytearray(gzip.compress(b"valid line\n"))
+            compressed[-1] ^= 0xFF
+            tmp_file.write(compressed)
+            tmp_file.flush()
+
+            result = utils.validate_file(
+                tmp_file.name,
+                sample_size=1.0,
+                buffer_size=2048,
+            )
+
+        self.assertEqual(result["content"]["error"]["code"], "file_read_error")
+        self.assertEqual(result["content"]["error"]["kind"], "corrupted")
+
     @patch("log_manager.services.validation.utils.validate_file")
     def test_validate_log_file_updates_status_and_normalizes_result(
         self, mock_validate_file
@@ -79,3 +96,55 @@ class ValidationServiceTests(TestCase):
         self.assertEqual(log_file.date, date(2026, 5, 10))
         self.assertNotIn("datetimes", log_file.validation["content"]["summary"])
         self.assertEqual(log_file.validation["probably_date"], "2026-05-10")
+
+    @patch("log_manager.services.validation.utils.validate_file")
+    def test_validate_log_file_marks_read_failure_as_error(self, mock_validate_file):
+        log_file = LogFile.objects.create(
+            collection=self.collection,
+            path="/tmp/2026-05-10_access.log.gz",
+            stat_result={"size": 10},
+            hash="3" * 32,
+            status=choices.LOG_FILE_STATUS_QUEUED,
+            date=date(2026, 5, 10),
+        )
+        mock_validate_file.return_value = {
+            "probably_date": None,
+            "is_valid": {"all": False},
+            "content": {
+                "summary": {"total_lines": {"error": "File is corrupted"}},
+                "error": {
+                    "code": "file_read_error",
+                    "kind": "corrupted",
+                    "message": "File is corrupted",
+                },
+            },
+        }
+
+        validation.validate_log_file_and_update_status(log_file.hash)
+
+        log_file.refresh_from_db()
+        self.assertEqual(log_file.status, choices.LOG_FILE_STATUS_ERROR)
+        self.assertIsNone(log_file.date)
+        self.assertEqual(log_file.validation["file_error"]["stage"], "validation")
+
+    @patch("log_manager.services.validation.utils.validate_file")
+    def test_validate_log_file_keeps_readable_invalid_file_invalidated(
+        self, mock_validate_file
+    ):
+        log_file = LogFile.objects.create(
+            collection=self.collection,
+            path="/tmp/2026-05-10-error_access.log.gz",
+            stat_result={"size": 10},
+            hash="4" * 32,
+            status=choices.LOG_FILE_STATUS_CREATED,
+        )
+        mock_validate_file.return_value = {
+            "probably_date": date(2026, 5, 10),
+            "is_valid": {"all": False},
+            "content": {"summary": {"total_lines": 10}},
+        }
+
+        validation.validate_log_file_and_update_status(log_file.hash)
+
+        log_file.refresh_from_db()
+        self.assertEqual(log_file.status, choices.LOG_FILE_STATUS_INVALIDATED)
