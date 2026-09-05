@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -7,6 +8,7 @@ from collection.models import Collection
 from document.models import Document
 from document.tasks import common as document_tasks_common
 from document.tasks import opac as document_tasks_opac
+from document.tasks import preprints as document_tasks_preprints
 from document.tasks import scielo_books as document_tasks_scielo_books
 from source.models import Source
 
@@ -140,3 +142,42 @@ class TestDocumentOPACSync:
 
         assert result is False
         mock_fetch_counter_dict.assert_not_called()
+
+
+class DocumentPreprintsSyncTests(TestCase):
+    @patch("document.tasks.preprints.preprint_service.upsert_preprint_document")
+    @patch("document.tasks.preprints.preprints_collector.extract_record_data")
+    @patch("document.tasks.preprints.preprints_collector.iter_records")
+    @patch("document.tasks.preprints._get_collection")
+    def test_load_skips_deleted_and_metadata_less_records(
+        self,
+        mock_get_collection,
+        mock_iter_records,
+        mock_extract_record_data,
+        mock_upsert,
+    ):
+        collection = SimpleNamespace(acron3="preprints")
+        deleted_record = SimpleNamespace(deleted=True)
+        metadata_less_record = SimpleNamespace(deleted=False)
+        valid_record = SimpleNamespace(deleted=False, metadata={"title": ["Title"]})
+        mock_get_collection.return_value = collection
+        mock_iter_records.return_value = [
+            deleted_record,
+            metadata_less_record,
+            valid_record,
+        ]
+        mock_extract_record_data.return_value = {"pid_generic": "123"}
+
+        result = document_tasks_preprints.load_preprints_from_preprints_api(
+            from_date="2026-08-29",
+            until_date="2026-09-05",
+        )
+
+        self.assertTrue(result)
+        mock_extract_record_data.assert_called_once_with(valid_record)
+        mock_upsert.assert_called_once_with(
+            {"pid_generic": "123"},
+            collection=collection,
+            user=None,
+            force_update=True,
+        )

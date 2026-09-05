@@ -1,7 +1,12 @@
+import logging
+
 from django.conf import settings
+from requests.exceptions import HTTPError
 from sickle import Sickle
 
 from core.utils import standardizer
+
+FILTER_FALLBACK_STATUS_CODE = 500
 
 
 def iter_records(from_date, until_date):
@@ -10,16 +15,63 @@ def iter_records(from_date, until_date):
         max_retries=settings.OAI_PMH_MAX_RETRIES,
         verify=False,
     )
-    records = oai_client.ListRecords(
-        **{
-            "metadataPrefix": settings.OAI_METADATA_PREFIX,
-            "from": from_date,
-            "until": until_date,
-        }
+    yielded_identifiers = set()
+
+    try:
+        for record in _list_records(oai_client, from_date, until_date):
+            yielded_identifiers.add(record.header.identifier)
+            yield record
+        return
+    except HTTPError as exc:
+        response = exc.response
+        has_date_filter = from_date or until_date
+        if (
+            response is None
+            or response.status_code != FILTER_FALLBACK_STATUS_CODE
+            or not has_date_filter
+        ):
+            raise
+
+    logging.warning(
+        "Preprints OAI rejected date filters with HTTP 500. "
+        "Falling back to the full feed and filtering locally. "
+        "From: %s, Until: %s",
+        from_date,
+        until_date,
     )
 
-    for record in records:
-        yield record
+    for record in _list_records(oai_client):
+        if record.header.identifier in yielded_identifiers:
+            continue
+
+        if _is_record_in_date_range(record, from_date, until_date):
+            yield record
+
+
+def _list_records(oai_client, from_date=None, until_date=None):
+    params = {"metadataPrefix": settings.OAI_METADATA_PREFIX}
+
+    if from_date:
+        params["from"] = from_date
+
+    if until_date:
+        params["until"] = until_date
+
+    return oai_client.ListRecords(ignore_deleted=True, **params)
+
+
+def _is_record_in_date_range(record, from_date=None, until_date=None):
+    datestamp = str(getattr(record.header, "datestamp", ""))[:10]
+    if not datestamp:
+        return False
+
+    if from_date and datestamp < from_date:
+        return False
+
+    if until_date and datestamp > until_date:
+        return False
+
+    return True
 
 
 def extract_record_data(record):

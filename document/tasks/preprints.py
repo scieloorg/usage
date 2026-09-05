@@ -8,7 +8,6 @@ from core.collectors import preprints as preprints_collector
 from core.utils import date_utils
 from core.utils.request_utils import _get_user
 from document.services import preprint as preprint_service
-
 from document.tasks.common import _get_collection
 
 
@@ -36,6 +35,10 @@ def load_preprints_from_preprints_api(
         return False
 
     for record in preprints_collector.iter_records(from_date, until_date):
+        if getattr(record, "deleted", False) or not getattr(record, "metadata", None):
+            logging.info("Skipping deleted or metadata-less preprint: %s", record)
+            continue
+
         payload = preprints_collector.extract_record_data(record)
 
         if not payload.get("pid_generic"):
