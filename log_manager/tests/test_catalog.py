@@ -16,11 +16,13 @@ class CatalogLogFilesTests(TestCase):
     def setUp(self):
         self.collection = Collection.objects.create(acron3="per", acron2="pe")
 
-    def _catalog_directory(self, directory):
+    def _catalog_directory(self, directory, visible_dates=None):
         catalog._catalog_log_files_in_directory(
             collection=self.collection,
             directory_path=directory,
-            visible_dates=[date.today()],
+            visible_dates=visible_dates
+            if visible_dates is not None
+            else [date.today()],
             supported_extensions=[".gz"],
         )
 
@@ -81,6 +83,22 @@ class CatalogLogFilesTests(TestCase):
         self.assertEqual(log_file.hash, expected_hash)
         self.assertEqual(log_file.status, choices.LOG_FILE_STATUS_CREATED)
         self.assertEqual(log_file.validation, {})
+
+    def test_read_error_is_retried_outside_the_visible_date_range(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "2026-09-04_scielo.pe.log.gz"
+            path.write_bytes(b"\x1f\x8bcorrupted")
+            self._catalog_directory(directory)
+            log_file_id = LogFile.objects.get().pk
+
+            with gzip.open(path, "wb") as output:
+                output.write(b"repaired content\n")
+            self._catalog_directory(directory, visible_dates=[])
+
+            log_file = LogFile.objects.get()
+
+        self.assertEqual(log_file.pk, log_file_id)
+        self.assertEqual(log_file.status, choices.LOG_FILE_STATUS_CREATED)
 
     def test_valid_duplicate_removes_the_error_placeholder(self):
         with tempfile.TemporaryDirectory() as directory:

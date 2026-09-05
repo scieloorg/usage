@@ -53,6 +53,8 @@ def _catalog_log_files_in_directory(
     visible_dates,
     supported_extensions,
 ):
+    retry_paths = _get_file_read_error_paths(collection, directory_path)
+
     for root, _sub_dirs, files in os.walk(directory_path):
         for name in files:
             _name, extension = os.path.splitext(name)
@@ -79,7 +81,7 @@ def _catalog_log_files_in_directory(
             file_ctime = date_utils.get_date_obj_from_timestamp(file_stat.st_ctime)
 
             logging.debug("Checking file %s with ctime %s.", file_path, file_ctime)
-            if file_ctime not in visible_dates:
+            if file_ctime not in visible_dates and file_path not in retry_paths:
                 continue
 
             try:
@@ -104,6 +106,17 @@ def _catalog_log_files_in_directory(
                 stat_result=file_stat,
                 file_hash=file_hash,
             )
+
+
+def _get_file_read_error_paths(collection, directory_path):
+    return set(
+        models.LogFile.objects.filter(
+            collection=collection,
+            path__startswith=directory_path,
+            status=choices.LOG_FILE_STATUS_ERROR,
+            validation__file_error__code=file_errors.FILE_READ_ERROR_CODE,
+        ).values_list("path", flat=True)
+    )
 
 
 def _record_file_read_error(collection, path, stat_result, exc):
