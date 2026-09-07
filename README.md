@@ -106,6 +106,7 @@ task_search_log_files.delay(
     from_date="2021-05-21",
     until_date="2021-05-21",
     trigger_validation=True,
+    parse_queue_name="parse_xlarge",
 )
 ```
 
@@ -150,6 +151,15 @@ Use `compose=production.yml` or another Compose file when needed:
 make ps compose=production.yml
 ```
 
+Parsing behavior can be adjusted through comma-separated environment variables:
+
+| Variable | Default |
+|---|---|
+| `DEFAULT_PARSE_QUEUE` | `parse_small` |
+| `PARSING_METADATA_CACHE_COLLECTIONS` | All active log collections |
+| `PARSING_METADATA_CACHE_RELEASE_COLLECTIONS` | `scl` |
+| `YEAR_PARTITIONED_COLLECTIONS` | `chl,col,mex,scl` |
+
 Run one test path:
 
 ```bash
@@ -172,14 +182,17 @@ Metadata synchronization keeps sources and documents updated from ArticleMeta, O
 
 Configure the default schedule manually in Wagtail/Admin through `django-celery-beat`
 `PeriodicTask` records. Exact cron times may vary by installation, but the default
-operational setup should include:
+operational setup should include the entries below. Every task that triggers
+parsing can receive an explicit `parse_queue_name`. If omitted, the downstream
+worker uses `DEFAULT_PARSE_QUEUE` (`parse_small` by default). The periodic task
+itself runs on `load`, while `parse_queue_name` selects the parsing worker.
 
 | Task | Suggested schedule | Notes |
 |---|---|---|
-| `[Metadata] Daily Sync Routine (Auto)` | Daily, early morning | Refreshes sources and documents before log processing. Use the `load` queue. |
-| `[Log Pipeline] Daily Routine (Auto)` | Daily, after metadata sync | Runs Search -> Validate -> Parse -> Export for new logs. Use the `load` queue. |
-| `[Metrics] Resume Log Exports` | Every 15-30 minutes | Retries errored or stale daily metric export jobs. |
-| `[Metrics] Resume Stale Parsing Logs` | Every 30-60 minutes | Marks stale `PAR` logs for retry. |
+| Individual `[Metadata] Sync ...` tasks | Daily, early morning | Stagger the required ArticleMeta, OPAC, Books, Preprints, and Dataverse collectors on the `load` queue. |
+| `[Log Pipeline] 1. Search Logs (Manual)` | Daily, after metadata sync | Create one entry per collection group. Use `load` as the task queue and set `parse_queue_name` for parsing. |
+| `[Metrics] Resume Log Exports` | Every 15-30 minutes | Retries errored or stale daily metric export jobs. Accepts `queue_name`; otherwise uses `DEFAULT_PARSE_QUEUE`. |
+| `[Metrics] Resume Stale Parsing Logs` | Every 30-60 minutes | Marks stale `PAR` logs for retry. Accepts `queue_name`; otherwise uses `DEFAULT_PARSE_QUEUE`. |
 | `[Metrics] Cleanup Daily Payloads` | Daily or weekly | Removes old exported daily payload files. |
 | `[Reports] Populate All Reports` | Daily, after log processing | Refreshes weekly, monthly, and yearly log report tables. |
 
