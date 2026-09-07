@@ -324,7 +324,6 @@ CELERY_IMPORTS = (
     "document.tasks.articlemeta",
     "document.tasks.dataverse",
     "document.tasks.opac",
-    "document.tasks.pipeline",
     "document.tasks.preprints",
     "document.tasks.scielo_books",
     "metrics.tasks.cleanup",

@@ -1,5 +1,3 @@
-import logging
-
 from celery import chord
 
 from config import celery_app
@@ -118,15 +116,6 @@ def task_validate_log_file(self, log_file_hash, user_id=None, username=None):
     """Validate a single LogFile and update its status."""
     _get_user(self.request, username=username, user_id=user_id)
     validation.validate_log_file_and_update_status(log_file_hash)
-
-
-@celery_app.task(bind=True, name="[Log Pipeline] Daily Routine (Auto)", queue="load")
-def task_daily_log_ingestion_pipeline(self):
-    """
-    Start the daily Search -> Validate -> Parse chain with default parameters.
-    """
-    logging.info("Starting Daily Log Ingestion Pipeline")
-    task_search_log_files.apply_async(kwargs={"trigger_validation": True})
 
 
 def _build_validation_tasks(log_hashes_by_collection, user_id, username):
