@@ -4,12 +4,9 @@ from unittest.mock import patch
 import pytest
 
 from collection.models import Collection
-from config.collections import COLLECTION_ACRON3_SIZE_MAP, LOG_MANAGER_SEED_DATA
+from config.collections import LOG_MANAGER_SEED_DATA
 from document.models import Document
-from log_manager_config.models import (
-    CollectionLogDirectory,
-    LogManagerCollectionConfig,
-)
+from log_manager_config.models import CollectionLogDirectory, LogManagerCollectionConfig
 from metrics.services.parsing import metadata, metadata_cache
 from source.models import Source
 
@@ -56,10 +53,18 @@ def parsing_collection(db, settings):
 def test_all_known_collections_are_enabled_by_default(settings):
     active_log_collections = {item["acronym"] for item in LOG_MANAGER_SEED_DATA}
 
-    assert active_log_collections <= set(COLLECTION_ACRON3_SIZE_MAP)
-    assert set(settings.PARSING_METADATA_CACHE_COLLECTIONS) == set(
-        COLLECTION_ACRON3_SIZE_MAP
-    )
+    assert active_log_collections <= set(settings.PARSING_METADATA_CACHE_COLLECTIONS)
+
+
+def test_release_after_job_uses_dedicated_collection_setting(settings):
+    collection = SimpleNamespace(acron3="scl")
+    settings.PARSING_METADATA_CACHE_RELEASE_COLLECTIONS = ["scl"]
+
+    assert metadata_cache.should_release_after_job(collection)
+
+    settings.PARSING_METADATA_CACHE_RELEASE_COLLECTIONS = []
+
+    assert not metadata_cache.should_release_after_job(collection)
 
 
 @pytest.mark.django_db

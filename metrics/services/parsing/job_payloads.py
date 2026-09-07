@@ -4,7 +4,6 @@ from time import monotonic
 
 from django.conf import settings
 
-from config.collections import get_collection_size
 from log_manager.models import LogFile
 from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.counter.indexing import converter as index_docs
@@ -49,7 +48,7 @@ def build_daily_metric_job_payload(job, robots_list, mmdb, track_errors=False):
         memory.format_snapshot(),
     )
 
-    if get_collection_size(job.collection.acron3) == "xlarge":
+    if metadata_cache.should_release_after_job(job.collection):
         metadata_cache.clear()
         gc.collect()
         logging.info(

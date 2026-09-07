@@ -7,7 +7,6 @@ from django.conf import settings
 from django.db import connection, transaction
 from django.db.models import Count, Max
 
-from config.collections import get_collection_size
 from document.models import Document
 from source.models import Source
 
@@ -16,18 +15,23 @@ _CACHE_LOCK = Lock()
 
 
 def is_enabled(collection):
-    enabled_collections = {
-        value.lower()
-        for value in getattr(settings, "PARSING_METADATA_CACHE_COLLECTIONS", [])
-    }
-    return collection.acron3.lower() in enabled_collections
+    return _is_collection_configured(
+        collection,
+        "PARSING_METADATA_CACHE_COLLECTIONS",
+    )
+
+
+def should_release_after_job(collection):
+    return _is_collection_configured(
+        collection,
+        "PARSING_METADATA_CACHE_RELEASE_COLLECTIONS",
+    )
 
 
 def get_url_translation_manager(collection, translator_class, build_manager):
     global _CACHE_ENTRY
 
     acronym = collection.acron3
-    size = get_collection_size(acronym)
     translator_name = translator_class.__name__
 
     with _CACHE_LOCK:
@@ -38,9 +42,8 @@ def get_url_translation_manager(collection, translator_class, build_manager):
             signature = _read_signature(collection)
             if signature == entry["signature"]:
                 logging.info(
-                    "Parsing metadata cache hit for %s (size=%s, signature=%s).",
+                    "Parsing metadata cache hit for %s (signature=%s).",
                     acronym,
-                    size,
                     signature,
                 )
                 return _fresh_manager(entry)
@@ -57,10 +60,9 @@ def get_url_translation_manager(collection, translator_class, build_manager):
 
         logging.info(
             "Parsing metadata cache %s for %s "
-            "(size=%s, reason=%s, signature=%s, build_seconds=%.3f).",
+            "(reason=%s, signature=%s, build_seconds=%.3f).",
             "miss" if entry is None else "rebuild",
             acronym,
-            size,
             reason,
             new_entry["signature"],
             elapsed,
@@ -73,6 +75,13 @@ def clear():
 
     with _CACHE_LOCK:
         _CACHE_ENTRY = None
+
+
+def _is_collection_configured(collection, setting_name):
+    configured_collections = {
+        value.strip().lower() for value in getattr(settings, setting_name, [])
+    }
+    return collection.acron3.lower() in configured_collections
 
 
 def _get_rebuild_reason(entry, collection, translator_name):
