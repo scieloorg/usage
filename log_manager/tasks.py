@@ -1,7 +1,7 @@
 from celery import chord
+from django.conf import settings
 
 from config import celery_app
-from config.collections import get_collection_parse_queue
 from core.utils.request_utils import _get_user
 from log_manager.services import catalog, validation
 from metrics.tasks.log_parsing import task_enqueue_log_parsing_jobs
@@ -17,13 +17,17 @@ def task_search_log_files(
     user_id=None,
     username=None,
     trigger_validation=False,
+    parse_queue_name=None,
 ):
     """
     Search for log files in configured collection directories.
 
     When trigger_validation=True, this starts the full Search -> Validate -> Parse
-    chain. Parse callbacks are routed by collection size.
+    chain using parse_queue_name or the configured default parse queue.
     """
+    if trigger_validation:
+        parse_queue_name = parse_queue_name or settings.DEFAULT_PARSE_QUEUE
+
     _get_user(self.request, username=username, user_id=user_id)
 
     catalog.catalog_log_files_from_configured_directories(
@@ -43,6 +47,7 @@ def task_search_log_files(
                 "user_id": user_id,
                 "username": username,
                 "trigger_parse": True,
+                "parse_queue_name": parse_queue_name,
             }
         )
 
@@ -65,13 +70,17 @@ def task_validate_log_files(
     trigger_parse=False,
     revalidate=False,
     status_list=None,
+    parse_queue_name=None,
 ):
     """
     Validate cataloged log files.
 
     When trigger_parse=True, one parse orchestration task is enqueued per
-    collection and routed to the proper parse_<size> queue.
+    collection using parse_queue_name or the configured default parse queue.
     """
+    if trigger_parse:
+        parse_queue_name = parse_queue_name or settings.DEFAULT_PARSE_QUEUE
+
     log_hashes_by_collection = validation.get_validation_candidate_hashes_by_collection(
         collections=collections,
         from_date=from_date,
@@ -98,6 +107,7 @@ def task_validate_log_files(
             days_to_go_back=days_to_go_back,
             user_id=user_id,
             username=username,
+            parse_queue_name=parse_queue_name,
         )
         return
 
@@ -129,7 +139,13 @@ def _build_validation_tasks(log_hashes_by_collection, user_id, username):
 
 
 def _enqueue_parse_after_validation(
-    tasks_by_collection, from_date, until_date, days_to_go_back, user_id, username
+    tasks_by_collection,
+    from_date,
+    until_date,
+    days_to_go_back,
+    user_id,
+    username,
+    parse_queue_name,
 ):
     for collection_code, validation_tasks in tasks_by_collection.items():
         if validation_tasks:
@@ -141,6 +157,7 @@ def _enqueue_parse_after_validation(
                     days_to_go_back,
                     user_id,
                     username,
+                    parse_queue_name,
                 )
             )
         else:
@@ -152,12 +169,19 @@ def _enqueue_parse_after_validation(
                     days_to_go_back,
                     user_id,
                     username,
+                    parse_queue_name,
                 )
             )
 
 
 def _build_parse_signature(
-    collection_code, from_date, until_date, days_to_go_back, user_id, username
+    collection_code,
+    from_date,
+    until_date,
+    days_to_go_back,
+    user_id,
+    username,
+    parse_queue_name,
 ):
     apply_kwargs = _build_parse_apply_kwargs(
         collection_code,
@@ -166,28 +190,33 @@ def _build_parse_signature(
         days_to_go_back,
         user_id,
         username,
+        parse_queue_name,
     )
     parse_callback = task_enqueue_log_parsing_jobs.si(**apply_kwargs["kwargs"])
-    if apply_kwargs.get("queue"):
-        parse_callback.set(queue=apply_kwargs["queue"])
+    parse_callback.set(queue=apply_kwargs["queue"])
     return parse_callback
 
 
 def _build_parse_apply_kwargs(
-    collection_code, from_date, until_date, days_to_go_back, user_id, username
+    collection_code,
+    from_date,
+    until_date,
+    days_to_go_back,
+    user_id,
+    username,
+    parse_queue_name,
 ):
     collections = [collection_code]
-    parse_queue = get_collection_parse_queue(collection_code)
     apply_kwargs = {
         "kwargs": {
             "collections": collections,
             "from_date": from_date,
             "until_date": until_date,
             "days_to_go_back": days_to_go_back,
-            "queue_name": parse_queue,
+            "queue_name": parse_queue_name,
             "user_id": user_id,
             "username": username,
         },
-        "queue": parse_queue,
+        "queue": parse_queue_name,
     }
     return apply_kwargs
