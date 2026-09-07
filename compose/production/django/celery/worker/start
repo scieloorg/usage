@@ -4,32 +4,17 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-# Worker padrão
-celery -A config.celery_app worker -l INFO --concurrency=1 -n worker.default@%h &
+worker_args=(
+  -A config.celery_app
+  worker
+  -l "${CELERY_WORKER_LOG_LEVEL:-INFO}"
+  --concurrency="${CELERY_WORKER_CONCURRENCY:-1}"
+  --prefetch-multiplier="${CELERY_WORKER_PREFETCH_MULTIPLIER:-1}"
+  -n "${CELERY_WORKER_NAME:-worker.default@%h}"
+)
 
-# Worker para load e validação de dados
-celery -A config.celery_app worker -l INFO --concurrency=4 -Q load -n worker.load@%h &
+if [ -n "${CELERY_WORKER_QUEUES:-}" ]; then
+  worker_args+=(-Q "${CELERY_WORKER_QUEUES}")
+fi
 
-# Worker para parse_scl (coleções extra-grandes)
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_xlarge -n worker.parse_xlarge@%h &
-
-# Worker para chl col mex (coleções grandes)
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_large -n worker.parse_large@%h &
-
-# Worker para cri esp psi prt ven (coleções médias)
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_medium -n worker.parse_medium@%h &
-
-# Worker para arg bol cub data ecu per preprints pry rve spa sss sza ury wid (coleções pequenas)
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small -n worker.parse_small@%h &
-
-# Workers seriais adicionais para backfill paralelo de colecoes pequenas
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small_1 -n worker.parse_small_1@%h &
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small_2 -n worker.parse_small_2@%h &
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small_3 -n worker.parse_small_3@%h &
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small_4 -n worker.parse_small_4@%h &
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small_5 -n worker.parse_small_5@%h &
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small_6 -n worker.parse_small_6@%h &
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small_7 -n worker.parse_small_7@%h &
-celery -A config.celery_app worker -l INFO --concurrency=1 -Q parse_small_8 -n worker.parse_small_8@%h &
-
-wait
+exec celery "${worker_args[@]}"
