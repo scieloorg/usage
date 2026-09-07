@@ -1,16 +1,13 @@
 import logging
 
-from config import celery_app
-from config.collections import (
-    COLLECTION_OPAC_URL_MAP,
-    COLLECTION_SIZE_SAMPLE_MAP,
-    LOG_MANAGER_SEED_DATA,
-    get_collection_size,
-)
 from collection.models import Collection
+from config import celery_app
+from config.collections import COLLECTION_OPAC_URL_MAP, LOG_MANAGER_SEED_DATA
 from core.utils.request_utils import _get_user
-
 from log_manager_config import models
+
+DEFAULT_VALIDATION_SAMPLE_SIZE = 1.0
+DEFAULT_VALIDATION_BUFFER_SIZE = 2048
 
 
 @celery_app.task(bind=True, name="[Log Pipeline] Load Log Manager Settings (Seed)")
@@ -19,9 +16,10 @@ def task_load_log_manager_collection_settings(
 ):
     user = _get_user(self.request, username=username, user_id=user_id)
 
-    if not data:
-        data = LOG_MANAGER_SEED_DATA
+    using_default_data = not data
+    data = [dict(item) for item in (data or LOG_MANAGER_SEED_DATA)]
 
+    if using_default_data:
         for acronym, opac_url in COLLECTION_OPAC_URL_MAP.items():
             try:
                 collection = Collection.objects.get(acron3=acronym)
@@ -33,10 +31,9 @@ def task_load_log_manager_collection_settings(
             collection.updated_by = user
             collection.save(update_fields=["opac_url", "updated_by", "updated"])
 
-        for i in data:
-            size = get_collection_size(i["acronym"])
-            i["sample_size"] = COLLECTION_SIZE_SAMPLE_MAP.get(size, 1.0)
-            i["buffer_size"] = 2048
+    for item in data:
+        item.setdefault("sample_size", DEFAULT_VALIDATION_SAMPLE_SIZE)
+        item.setdefault("buffer_size", DEFAULT_VALIDATION_BUFFER_SIZE)
 
     models.LogManagerCollectionConfig.load(data, user)
     models.CollectionLogDirectory.load(data, user)

@@ -146,7 +146,7 @@ class CollectionLogDirectory(Orderable, CommonControlField):
                 config=config,
                 directory_name=item.get("directory_name"),
                 path=item.get("path"),
-                active=item.get("active", True),
+                active=item.get("directory_active", item.get("active", True)),
                 translator_class=item.get("translator_class", "classic"),
             )
 

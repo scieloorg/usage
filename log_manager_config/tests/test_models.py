@@ -82,3 +82,20 @@ class CollectionLogDirectoryTests(TestCase):
         )
 
         self.assertEqual(directory.translator_class, "classic")
+
+    def test_load_uses_directory_active_independently(self):
+        CollectionLogDirectory.load(
+            [
+                {
+                    "acronym": "scl",
+                    "directory_name": "legacy logs",
+                    "path": "/data/logs/legacy",
+                    "directory_active": False,
+                }
+            ],
+            self.user,
+        )
+
+        directory = CollectionLogDirectory.objects.get(path="/data/logs/legacy")
+
+        self.assertFalse(directory.active)
