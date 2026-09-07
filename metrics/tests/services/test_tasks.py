@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from collection.models import Collection
@@ -47,6 +47,7 @@ class ParseLogsTaskTests(TestCase):
                 include_logs_with_error=False,
                 from_date="2012-03-01",
                 until_date="2012-03-31",
+                queue_name="parse_tiny",
             )
 
         self.assertEqual(result["enqueued_jobs"], 2)
@@ -59,7 +60,7 @@ class ParseLogsTaskTests(TestCase):
         self.assertEqual(jobs[0].input_log_hashes, sorted([first.hash, second.hash]))
         self.assertEqual(jobs[1].input_log_hashes, [third.hash])
 
-    def test_task_enqueue_log_parsing_jobs_allows_queue_override_and_robots_source(
+    def test_task_enqueue_log_parsing_jobs_uses_queue_and_robots_source(
         self,
     ):
         self._log_file("1" * 32, "2012-03-10")
@@ -96,6 +97,7 @@ class ParseLogsTaskTests(TestCase):
                 include_logs_with_error=False,
                 from_date="2012-03-01",
                 until_date="2012-03-31",
+                queue_name="parse_tiny",
             )
 
         mocked_apply_async.assert_called_once()
@@ -122,6 +124,7 @@ class ParseLogsTaskTests(TestCase):
                 from_date="2012-03-01",
                 until_date="2012-03-31",
                 skip_log_hashes=[skipped.hash],
+                queue_name="parse_tiny",
             )
 
         mocked_apply_async.assert_called_once()
@@ -143,6 +146,7 @@ class ParseLogsTaskTests(TestCase):
                 max_log_files=1,
                 from_date="2012-03-01",
                 until_date="2012-03-31",
+                queue_name="parse_tiny",
             )
 
         mocked_apply_async.assert_called_once()
@@ -172,6 +176,7 @@ class ParseLogsTaskTests(TestCase):
                     include_logs_with_error=False,
                     max_log_files=2,
                     auto_reexecute=True,
+                    queue_name="parse_tiny",
                 )
 
         self.assertEqual(
@@ -202,6 +207,21 @@ class ParseLogsTaskTests(TestCase):
         self.assertEqual(
             mocked_wait_apply_async.call_args.kwargs["queue"], "parse_small"
         )
+
+    @override_settings(DEFAULT_PARSE_QUEUE="parse_default")
+    def test_task_enqueue_log_parsing_jobs_uses_default_queue(self):
+        self._log_file("4" * 32, "2012-03-10")
+
+        with patch(
+            "metrics.tasks.log_parsing.task_build_and_export_daily_metric_job.apply_async"
+        ) as mocked_apply_async:
+            task_enqueue_log_parsing_jobs.run(
+                collections=["books"],
+                from_date="2012-03-01",
+                until_date="2012-03-31",
+            )
+
+        self.assertEqual(mocked_apply_async.call_args.kwargs["queue"], "parse_default")
 
 
 class ResumeDailyMetricJobTests(TestCase):
@@ -241,6 +261,16 @@ class ResumeDailyMetricJobTests(TestCase):
         )
         self.assertEqual(result["resumed_logs"], 1)
 
+    @override_settings(DEFAULT_PARSE_QUEUE="parse_default")
+    @patch(
+        "metrics.services.resume._enqueue_resumable_daily_metric_jobs",
+        return_value=0,
+    )
+    def test_resume_log_exports_uses_default_queue(self, mocked_enqueue):
+        task_resume_log_exports.run(collections=["books"])
+
+        self.assertEqual(mocked_enqueue.call_args.kwargs["queue_name"], "parse_default")
+
     def test_resume_log_exports_clears_payload_when_current_logs_change(self):
         log_file = LogFile.objects.create(
             hash="2" * 32,
@@ -267,6 +297,7 @@ class ResumeDailyMetricJobTests(TestCase):
                 collections=["books"],
                 from_date="2012-03-01",
                 until_date="2012-03-31",
+                queue_name="parse_tiny",
             )
 
         job.refresh_from_db()
@@ -301,6 +332,7 @@ class ResumeDailyMetricJobTests(TestCase):
                 collections=["books"],
                 from_date="2012-03-01",
                 until_date="2012-03-31",
+                queue_name="parse_tiny",
             )
 
         job.refresh_from_db()
@@ -325,6 +357,7 @@ class ResumeDailyMetricJobTests(TestCase):
                 collections=["books"],
                 from_date="2012-03-01",
                 until_date="2012-03-31",
+                queue_name="parse_tiny",
             )
 
         mocked_apply_async.assert_called_once()
@@ -345,6 +378,7 @@ class ResumeDailyMetricJobTests(TestCase):
                 collections=["books"],
                 from_date="2012-03-01",
                 until_date="2012-03-31",
+                queue_name="parse_tiny",
             )
 
         mocked_apply_async.assert_not_called()
@@ -375,6 +409,7 @@ class ResumeDailyMetricJobTests(TestCase):
                 from_date="2012-03-01",
                 until_date="2012-03-31",
                 stale_after_minutes=60,
+                queue_name="parse_tiny",
             )
 
         job.refresh_from_db()

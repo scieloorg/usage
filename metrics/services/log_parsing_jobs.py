@@ -1,5 +1,6 @@
+from django.conf import settings
+
 from collection.models import Collection
-from config.collections import get_collection_parse_queue
 from core.utils.date_utils import get_date_obj, get_date_range_str
 from log_manager import choices
 from log_manager.models import LogFile
@@ -28,6 +29,8 @@ def enqueue_log_parsing_jobs(
     skip_log_hashes=None,
     robots_source=None,
 ):
+    queue_name = queue_name or settings.DEFAULT_PARSE_QUEUE
+
     from_date, until_date = get_date_range_str(from_date, until_date, days_to_go_back)
     from_date_obj = get_date_obj(from_date)
     until_date_obj = get_date_obj(until_date)
@@ -119,6 +122,8 @@ def wait_log_parsing_wave(
     robots_source=None,
     wave_log_hashes=None,
 ):
+    queue_name = queue_name or settings.DEFAULT_PARSE_QUEUE
+
     wave_job_ids = wave_job_ids or wave_log_hashes or []
     if DailyMetricJob.objects.filter(
         pk__in=wave_job_ids,
@@ -146,9 +151,8 @@ def wait_log_parsing_wave(
         apply_kwargs = {
             "kwargs": kwargs,
             "countdown": poll_interval_seconds,
+            "queue": queue_name,
         }
-        if queue_name:
-            apply_kwargs["queue"] = queue_name
         wait_log_parsing_wave_task.apply_async(**apply_kwargs)
         return {"wave_completed": False, "reexecution_enqueued": False}
 
@@ -169,10 +173,7 @@ def wait_log_parsing_wave(
         skip_log_hashes=skip_log_hashes,
         robots_source=robots_source,
     )
-    apply_kwargs = {"kwargs": kwargs}
-    if queue_name:
-        apply_kwargs["queue"] = queue_name
-    log_parsing_task.apply_async(**apply_kwargs)
+    log_parsing_task.apply_async(kwargs=kwargs, queue=queue_name)
     return {"wave_completed": True, "reexecution_enqueued": True}
 
 
@@ -251,7 +252,7 @@ def _enqueue_collection_daily_jobs(
 
         daily_metric_export_task.apply_async(
             args=(job.pk, track_errors, user_id, username, robots_source),
-            queue=queue_name or get_collection_parse_queue(collection.acron3),
+            queue=queue_name,
         )
         result["enqueued_wave_job_ids"].append(job.pk)
         result["enqueued_jobs"] += 1
@@ -308,10 +309,7 @@ def _schedule_log_parsing_reexecution(
         robots_source=robots_source,
     )
 
-    apply_kwargs = {"kwargs": kwargs}
-    if queue_name:
-        apply_kwargs["queue"] = queue_name
-    wait_log_parsing_wave_task.apply_async(**apply_kwargs)
+    wait_log_parsing_wave_task.apply_async(kwargs=kwargs, queue=queue_name)
     return True
 
 

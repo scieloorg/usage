@@ -6,7 +6,34 @@ from pathlib import Path
 
 import environ
 
-from config.collections import COLLECTION_ACRON3_SIZE_MAP  # noqa: F401
+DEFAULT_PARSING_METADATA_CACHE_COLLECTIONS = (
+    "arg",
+    "bol",
+    "books",
+    "chl",
+    "col",
+    "cri",
+    "cub",
+    "data",
+    "dom",
+    "ecu",
+    "esp",
+    "mex",
+    "per",
+    "preprints",
+    "prt",
+    "pry",
+    "psi",
+    "rve",
+    "scl",
+    "sss",
+    "sza",
+    "ury",
+    "ven",
+    "wid",
+)
+DEFAULT_PARSING_METADATA_CACHE_RELEASE_COLLECTIONS = ("scl",)
+DEFAULT_YEAR_PARTITIONED_COLLECTIONS = ("chl", "col", "mex", "scl")
 
 ROOT_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 # core/
@@ -279,7 +306,7 @@ WAGTAIL_ADMIN_URL = "admin/"
 # https://docs.djangoproject.com/en/dev/ref/settings/#admins
 ADMINS = [
     ("""Rafael JP Damaceno""", "contato@pitangainnovare.com.br"),
-    ("""Jamil Atta Junior""", "atta.jamil@innolabs.com.br")
+    ("""Jamil Atta Junior""", "atta.jamil@innolabs.com.br"),
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#managers
 MANAGERS = ADMINS
@@ -324,7 +351,6 @@ CELERY_IMPORTS = (
     "document.tasks.articlemeta",
     "document.tasks.dataverse",
     "document.tasks.opac",
-    "document.tasks.pipeline",
     "document.tasks.preprints",
     "document.tasks.scielo_books",
     "metrics.tasks.cleanup",
@@ -492,10 +518,21 @@ SCIELO_BOOKS_TIMEOUT = env.int("SCIELO_BOOKS_TIMEOUT", default=60)
 SCIELO_BOOKS_DB_NAME = env("SCIELO_BOOKS_DB_NAME", default="scielobooks_1a")
 SCIELO_BOOKS_LIMIT = env.int("SCIELO_BOOKS_LIMIT", default=1000)
 
-# Collection size categories
+# Log parsing
 # ------------------------------------------------------------------------------
-SUPPORTED_LOGFILE_EXTENSIONS = env.list("SUPPORTED_LOGFILE_EXTENSIONS", default=[".log", ".gz", ".zip"])
+DEFAULT_PARSE_QUEUE = env("DEFAULT_PARSE_QUEUE", default="parse_small")
+SUPPORTED_LOGFILE_EXTENSIONS = env.list(
+    "SUPPORTED_LOGFILE_EXTENSIONS", default=[".log", ".gz", ".zip"]
+)
 PARSING_METADATA_CACHE_COLLECTIONS = env.list(
     "PARSING_METADATA_CACHE_COLLECTIONS",
-    default=list(COLLECTION_ACRON3_SIZE_MAP),
+    default=list(DEFAULT_PARSING_METADATA_CACHE_COLLECTIONS),
+)
+PARSING_METADATA_CACHE_RELEASE_COLLECTIONS = env.list(
+    "PARSING_METADATA_CACHE_RELEASE_COLLECTIONS",
+    default=list(DEFAULT_PARSING_METADATA_CACHE_RELEASE_COLLECTIONS),
+)
+YEAR_PARTITIONED_COLLECTIONS = env.list(
+    "YEAR_PARTITIONED_COLLECTIONS",
+    default=list(DEFAULT_YEAR_PARTITIONED_COLLECTIONS),
 )

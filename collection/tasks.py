@@ -1,10 +1,6 @@
-from django.contrib.auth import get_user_model
-
 from collection.models import Collection
 from config import celery_app
 from core.utils.request_utils import _get_user
-
-User = get_user_model()
 
 
 @celery_app.task(bind=True, name="[Collection] Load Collection Data")

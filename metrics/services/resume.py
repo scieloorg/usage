@@ -1,8 +1,8 @@
 import logging
 
+from django.conf import settings
 from django.utils import timezone
 
-from config.collections import get_collection_parse_queue
 from core.utils.date_utils import get_date_obj, get_date_range_str
 from log_manager import choices
 from log_manager.models import LogFile
@@ -29,6 +29,8 @@ def resume_daily_metric_jobs(
     username=None,
     robots_source=None,
 ):
+    queue_name = queue_name or settings.DEFAULT_PARSE_QUEUE
+
     from_date, until_date = get_date_range_str(from_date, until_date, days_to_go_back)
     from_date_obj = get_date_obj(from_date)
     until_date_obj = get_date_obj(until_date)
@@ -79,6 +81,8 @@ def resume_stale_parsing_logs(
     username=None,
     robots_source=None,
 ):
+    queue_name = queue_name or settings.DEFAULT_PARSE_QUEUE
+
     from_date, until_date = get_date_range_str(from_date, until_date, days_to_go_back)
     from_date_obj = get_date_obj(from_date)
     until_date_obj = get_date_obj(until_date)
@@ -129,7 +133,7 @@ def _enqueue_resumable_daily_metric_jobs(
 
         daily_metric_export_task.apply_async(
             args=(job.pk, False, user_id, username, robots_source),
-            queue=queue_name or get_collection_parse_queue(job.collection.acron3),
+            queue=queue_name,
         )
         resumed_jobs += 1
     return resumed_jobs
@@ -226,27 +230,23 @@ def _enqueue_log_parsing_retry(
     username,
     robots_source,
 ):
-    apply_kwargs = {
-        "kwargs": {
-            "collections": collections,
-            "include_logs_with_error": True,
-            "batch_size": batch_size,
-            "max_log_files": max_log_files,
-            "auto_reexecute": False,
-            "replace": False,
-            "track_errors": track_errors,
-            "from_date": from_date,
-            "until_date": until_date,
-            "days_to_go_back": None,
-            "queue_name": queue_name,
-            "user_id": user_id,
-            "username": username,
-            "robots_source": robots_source,
-        }
+    kwargs = {
+        "collections": collections,
+        "include_logs_with_error": True,
+        "batch_size": batch_size,
+        "max_log_files": max_log_files,
+        "auto_reexecute": False,
+        "replace": False,
+        "track_errors": track_errors,
+        "from_date": from_date,
+        "until_date": until_date,
+        "days_to_go_back": None,
+        "queue_name": queue_name,
+        "user_id": user_id,
+        "username": username,
+        "robots_source": robots_source,
     }
-    if queue_name:
-        apply_kwargs["queue"] = queue_name
-    log_parsing_task.apply_async(**apply_kwargs)
+    log_parsing_task.apply_async(kwargs=kwargs, queue=queue_name)
 
 
 def _extract_date_from_validation_dict(validation):

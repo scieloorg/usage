@@ -1,52 +1,7 @@
-COLLECTION_ACRON3_SIZE_MAP = {
-    "scl": "xlarge",
-    "chl": "large",
-    "col": "large",
-    "mex": "large",
-    "cri": "medium",
-    "esp": "medium",
-    "psi": "medium",
-    "prt": "medium",
-    "ven": "medium",
-    "arg": "small",
-    "bol": "small",
-    "books": "small",
-    "cub": "small",
-    "data": "small",
-    "dom": "small",
-    "ecu": "small",
-    "per": "small",
-    "preprints": "small",
-    "pry": "small",
-    "rve": "small",
-    "rvt": "small",
-    "spa": "small",
-    "sss": "small",
-    "sza": "small",
-    "ury": "small",
-    "wid": "small",
-}
-
-COLLECTION_SIZE_SAMPLE_MAP = {
-    "small": 1.0,
-    "medium": 0.5,
-    "large": 0.1,
-    "xlarge": 0.1,
-}
-
 COLLECTION_OPAC_URL_MAP = {
     "dom": "https://scielo.do/api/v1/counter_dict",
     "scl": "https://www.scielo.br/api/v1/counter_dict",
 }
-
-
-def get_collection_size(collection_acronym):
-    return COLLECTION_ACRON3_SIZE_MAP.get(collection_acronym, "small")
-
-
-def get_collection_parse_queue(collection_acronym):
-    return f"parse_{get_collection_size(collection_acronym)}"
-
 LOG_MANAGER_SEED_DATA = [
     {
         "acronym": "arg",
@@ -74,6 +29,7 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
+        "sample_size": 0.1,
     },
     {
         "acronym": "col",
@@ -83,6 +39,7 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
+        "sample_size": 0.1,
     },
     {
         "acronym": "cri",
@@ -92,6 +49,7 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
+        "sample_size": 0.5,
     },
     {
         "acronym": "cub",
@@ -101,6 +59,25 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
+    },
+    {
+        "acronym": "data",
+        "directory_name": "Dataverse legado",
+        "path": "/app/logs/bkp-dataverse",
+        "quantity": 1,
+        "start_date": "2020-01-01",
+        "e-mail": "tecnologia@scielo.org",
+        "translator_class": "dataverse",
+        "directory_active": False,
+    },
+    {
+        "acronym": "data",
+        "directory_name": "BunnyNet Data",
+        "path": "/app/logs/bkp-bunnynet/data",
+        "quantity": 1,
+        "start_date": "2020-01-01",
+        "e-mail": "tecnologia@scielo.org",
+        "translator_class": "dataverse",
     },
     {
         "acronym": "ecu",
@@ -119,6 +96,7 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
+        "sample_size": 0.5,
     },
     {
         "acronym": "mex",
@@ -128,6 +106,7 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
+        "sample_size": 0.1,
     },
     {
         "acronym": "per",
@@ -139,6 +118,15 @@ LOG_MANAGER_SEED_DATA = [
         "translator_class": "classic",
     },
     {
+        "acronym": "preprints",
+        "directory_name": "BunnyNet Preprints",
+        "path": "/app/logs/bkp-bunnynet/preprints",
+        "quantity": 1,
+        "start_date": "2020-01-01",
+        "e-mail": "tecnologia@scielo.org",
+        "translator_class": "preprints",
+    },
+    {
         "acronym": "prt",
         "directory_name": "Site clássico",
         "path": "/app/logs/bkp-ratchet/scielo.pt",
@@ -146,6 +134,7 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
+        "sample_size": 0.5,
     },
     {
         "acronym": "pry",
@@ -164,6 +153,7 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
+        "sample_size": 0.5,
     },
     {
         "acronym": "rve",
@@ -182,6 +172,7 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "opac",
+        "sample_size": 0.1,
     },
     {
         "acronym": "scl",
@@ -191,6 +182,7 @@ LOG_MANAGER_SEED_DATA = [
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "opac",
+        "sample_size": 0.1,
     },
     {
         "acronym": "sza",
@@ -212,17 +204,60 @@ LOG_MANAGER_SEED_DATA = [
     },
     {
         "acronym": "ven",
-        "directory_name": "Site clássico",
+        "directory_name": "Venezuela legado",
+        "path": "/app/logs/bkp-venezuela",
+        "quantity": 1,
+        "start_date": "2020-01-01",
+        "e-mail": "tecnologia@scielo.org",
+        "translator_class": "classic",
+        "directory_active": False,
+        "sample_size": 0.5,
+    },
+    {
+        "acronym": "ven",
+        "directory_name": "Ratchet Venezuela",
         "path": "/app/logs/bkp-ratchet/scielo.ve",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",
         "translator_class": "classic",
+        "directory_active": False,
+        "sample_size": 0.5,
+    },
+    {
+        "acronym": "ven",
+        "directory_name": "BunnyNet Venezuela",
+        "path": "/app/logs/bkp-bunnynet/venezuela",
+        "quantity": 1,
+        "start_date": "2020-01-01",
+        "e-mail": "tecnologia@scielo.org",
+        "translator_class": "classic",
+        "sample_size": 0.5,
     },
     {
         "acronym": "wid",
-        "directory_name": "SciELO Caribbean",
+        "directory_name": "Ratchet West Indies",
+        "path": "/app/logs/bkp-ratchet/scielo.wi",
+        "quantity": 1,
+        "start_date": "2020-01-01",
+        "e-mail": "tecnologia@scielo.org",
+        "translator_class": "classic",
+        "directory_active": False,
+    },
+    {
+        "acronym": "wid",
+        "directory_name": "BunnyNet Caribbean legado",
         "path": "/app/logs/bkp-bunnynet/caribbean",
+        "quantity": 1,
+        "start_date": "2020-01-01",
+        "e-mail": "tecnologia@scielo.org",
+        "translator_class": "classic",
+        "directory_active": False,
+    },
+    {
+        "acronym": "wid",
+        "directory_name": "BunnyNet West Indies",
+        "path": "/app/logs/bkp-bunnynet/westindies",
         "quantity": 1,
         "start_date": "2020-01-01",
         "e-mail": "tecnologia@scielo.org",

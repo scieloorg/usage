@@ -1,4 +1,4 @@
-from config.collections import get_collection_size
+from django.conf import settings
 
 
 def _validate_index_inputs(index_prefix, collection, date):
@@ -15,17 +15,22 @@ def extract_access_year(date):
     return date.split("-")[0]
 
 
+def _uses_year_partition(collection):
+    configured_collections = {
+        value.strip().lower() for value in settings.YEAR_PARTITIONED_COLLECTIONS
+    }
+    return collection.lower() in configured_collections
+
+
 def generate_month_index_name(index_prefix, collection, date):
     _validate_index_inputs(index_prefix, collection, date)
-    size = get_collection_size(collection)
-    if size in ("xlarge", "large"):
+    if _uses_year_partition(collection):
         return f"{index_prefix}_monthly_{collection}_{extract_access_year(date)}"
     return f"{index_prefix}_monthly_{collection}"
 
 
 def generate_year_index_name(index_prefix, collection, date):
     _validate_index_inputs(index_prefix, collection, date)
-    size = get_collection_size(collection)
-    if size in ("xlarge", "large"):
+    if _uses_year_partition(collection):
         return f"{index_prefix}_yearly_{collection}_{extract_access_year(date)}"
     return f"{index_prefix}_yearly_{collection}"
