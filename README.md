@@ -160,6 +160,11 @@ Parsing behavior can be adjusted through comma-separated environment variables:
 | `PARSING_METADATA_CACHE_RELEASE_COLLECTIONS` | `scl` |
 | `YEAR_PARTITIONED_COLLECTIONS` | `chl,col,mex,scl` |
 
+The worker image starts one Celery process per container. Its entrypoint accepts
+`CELERY_WORKER_QUEUES`, `CELERY_WORKER_CONCURRENCY`,
+`CELERY_WORKER_PREFETCH_MULTIPLIER`, `CELERY_WORKER_NAME`, and
+`CELERY_WORKER_LOG_LEVEL`. An empty queue setting consumes Celery's default queue.
+
 Run one test path:
 
 ```bash
