@@ -18,8 +18,8 @@ services:
     env_file:
       - ./.envs/.local/.django
       - ./.envs/.local/.postgres
-    environment:
-      - USE_LOCAL_SCIELO_LIBS=0
+    environment: &django_environment
+      USE_LOCAL_SCIELO_LIBS: 0
     ports:
       - "8009:8000"
     command: /start
@@ -50,7 +50,7 @@ services:
     ports:
       - "6399:6379"
 
-  celeryworker:
+  celeryworker: &celeryworker
     <<: *django
     image: scielo_usage_local_celeryworker
     container_name: scielo_usage_local_celeryworker
@@ -60,6 +60,66 @@ services:
       - mailhog
     ports: []
     command: /start-celeryworker
+    environment:
+      <<: *django_environment
+      CELERY_WORKER_NAME: worker.default@%h
+
+  celeryworker_load:
+    <<: *celeryworker
+    container_name: scielo_usage_local_celeryworker_load
+    environment:
+      <<: *django_environment
+      CELERY_WORKER_CONCURRENCY: 4
+      CELERY_WORKER_NAME: worker.load@%h
+      CELERY_WORKER_QUEUES: load
+
+  celeryworker_tiny:
+    <<: *celeryworker
+    container_name: scielo_usage_local_celeryworker_tiny
+    environment:
+      <<: *django_environment
+      CELERY_WORKER_NAME: worker.parse_tiny@%h
+      CELERY_WORKER_QUEUES: parse_tiny
+
+  celeryworker_small_1:
+    <<: *celeryworker
+    container_name: scielo_usage_local_celeryworker_small_1
+    environment:
+      <<: *django_environment
+      CELERY_WORKER_NAME: worker.parse_small_1@%h
+      CELERY_WORKER_QUEUES: parse_small
+
+  celeryworker_small_2:
+    <<: *celeryworker
+    container_name: scielo_usage_local_celeryworker_small_2
+    environment:
+      <<: *django_environment
+      CELERY_WORKER_NAME: worker.parse_small_2@%h
+      CELERY_WORKER_QUEUES: parse_small
+
+  celeryworker_medium:
+    <<: *celeryworker
+    container_name: scielo_usage_local_celeryworker_medium
+    environment:
+      <<: *django_environment
+      CELERY_WORKER_NAME: worker.parse_medium@%h
+      CELERY_WORKER_QUEUES: parse_medium
+
+  celeryworker_large:
+    <<: *celeryworker
+    container_name: scielo_usage_local_celeryworker_large
+    environment:
+      <<: *django_environment
+      CELERY_WORKER_NAME: worker.parse_large@%h
+      CELERY_WORKER_QUEUES: parse_large
+
+  celeryworker_xlarge:
+    <<: *celeryworker
+    container_name: scielo_usage_local_celeryworker_xlarge
+    environment:
+      <<: *django_environment
+      CELERY_WORKER_NAME: worker.parse_xlarge@%h
+      CELERY_WORKER_QUEUES: parse_xlarge
 
   celerybeat:
     <<: *django
