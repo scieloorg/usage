@@ -149,8 +149,8 @@ def _write_job_payload(job, results, summary):
         job.collection,
         job.access_date,
     )
-    month_document_count = 0
-    year_document_count = 0
+    counter_document_count = 0
+    analytics_document_count = 0
     payload_started = monotonic()
 
     with daily_payloads.DailyPayloadWriter(
@@ -158,39 +158,45 @@ def _write_job_payload(job, results, summary):
         collection=job.collection.acron3,
         access_date=job.access_date.isoformat(),
     ) as writer:
-        month_started = monotonic()
-        month_documents = index_docs.iter_partitioned_documents(
+        counter_started = monotonic()
+        counter_documents = index_docs.iter_partitioned_documents(
             results,
-            "month",
+            "counter",
         )
-        month_document_count = writer.write_document_items("month", month_documents)
-        month_conversion_seconds = monotonic() - month_started
+        counter_document_count = writer.write_document_items(
+            "counter",
+            counter_documents,
+        )
+        counter_conversion_seconds = monotonic() - counter_started
         gc.collect()
         logging.info(
-            "Daily metric job %s monthly conversion and serialization completed "
+            "Daily metric job %s COUNTER conversion and serialization completed "
             "in %.3f seconds; %s documents; %s.",
             job.pk,
-            month_conversion_seconds,
-            month_document_count,
+            counter_conversion_seconds,
+            counter_document_count,
             memory.format_snapshot(),
         )
 
-        year_started = monotonic()
-        year_documents = index_docs.iter_partitioned_documents(
+        analytics_started = monotonic()
+        analytics_documents = index_docs.iter_partitioned_documents(
             results,
-            "year",
+            "analytics",
         )
-        year_document_count = writer.write_document_items("year", year_documents)
+        analytics_document_count = writer.write_document_items(
+            "analytics",
+            analytics_documents,
+        )
         del results
         payload_hash = writer.finalize(summary["input_log_hashes"], summary)
-        year_conversion_seconds = monotonic() - year_started
+        analytics_conversion_seconds = monotonic() - analytics_started
         gc.collect()
         logging.info(
-            "Daily metric job %s yearly conversion and serialization completed "
+            "Daily metric job %s analytics conversion and serialization completed "
             "in %.3f seconds; %s documents; %s.",
             job.pk,
-            year_conversion_seconds,
-            year_document_count,
+            analytics_conversion_seconds,
+            analytics_document_count,
             memory.format_snapshot(),
         )
 
@@ -206,8 +212,8 @@ def _write_job_payload(job, results, summary):
     job.payload_hash = payload_hash
     job.summary = {
         **summary,
-        "month_document_count": month_document_count,
-        "year_document_count": year_document_count,
+        "counter_document_count": counter_document_count,
+        "analytics_document_count": analytics_document_count,
     }
     job.save(
         update_fields=[
