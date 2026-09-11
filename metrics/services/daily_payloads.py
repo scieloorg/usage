@@ -44,7 +44,7 @@ class DailyPayloadWriter:
         )
         self.payload_hash = hashlib.sha256()
         self.output = None
-        self.next_granularity = "month"
+        self.next_dataset = "counter"
         self.completed = False
 
     def __enter__(self):
@@ -54,13 +54,13 @@ class DailyPayloadWriter:
         self._write_json(self.access_date)
         self._write_text(',"collection":')
         self._write_json(self.collection)
-        self._write_text(',"documents":{"month":')
+        self._write_text(',"documents":{"counter":')
         return self
 
-    def write_document_items(self, granularity, document_items):
-        if granularity != self.next_granularity:
+    def write_document_items(self, dataset, document_items):
+        if dataset != self.next_dataset:
             raise RuntimeError(
-                f"Expected {self.next_granularity} documents, got {granularity}."
+                f"Expected {self.next_dataset} documents, got {dataset}."
             )
 
         document_count = 0
@@ -73,16 +73,16 @@ class DailyPayloadWriter:
             self._write_json(document)
             document_count += 1
         self._write_text("}")
-        if granularity == "month":
-            self._write_text(',"year":')
-            self.next_granularity = "year"
+        if dataset == "counter":
+            self._write_text(',"analytics":')
+            self.next_dataset = "analytics"
         else:
-            self.next_granularity = None
+            self.next_dataset = None
         return document_count
 
     def finalize(self, input_log_hashes, summary):
-        if self.next_granularity is not None:
-            raise RuntimeError("Month and year documents must be written first.")
+        if self.next_dataset is not None:
+            raise RuntimeError("Counter and analytics documents must be written first.")
 
         self._write_text('},"input_log_hashes":')
         self._write_json(input_log_hashes)
@@ -115,10 +115,10 @@ class DailyPayloadWriter:
         self.output.write(encoded_value)
 
 
-def iter_document_items(storage_path, granularity):
+def iter_document_items(storage_path, dataset):
     resolved_path = resolve_storage_path(storage_path)
     with resolved_path.open("rb") as payload_file:
-        yield from ijson.kvitems(payload_file, f"documents.{granularity}")
+        yield from ijson.kvitems(payload_file, f"documents.{dataset}")
 
 
 def cleanup_exported_payloads(collections=None, older_than_days=7):

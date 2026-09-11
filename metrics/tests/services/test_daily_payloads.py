@@ -23,19 +23,19 @@ class DailyPayloadTests(SimpleTestCase):
     def test_incremental_writer_preserves_canonical_bytes_and_hash(self):
         storage_path = Path("scl/2026/08/2026-08-25.json")
         payload = {
-            "collection": "scl",
             "access_date": "2026-08-25",
-            "input_log_hashes": ["abc"],
+            "collection": "scl",
             "documents": {
-                "month": {"á": {"total_requests": 2}},
-                "year": {"z": {"total_requests": 3}},
+                "counter": {"á": {"total_requests": 2}},
+                "analytics": {"z": {"total_requests": 3}},
             },
+            "input_log_hashes": ["abc"],
             "summary": {"valid_lines": 1},
         }
         expected = json.dumps(
             payload,
             ensure_ascii=True,
-            sort_keys=True,
+            sort_keys=False,
             separators=(",", ":"),
         ).encode("utf-8")
 
@@ -45,10 +45,10 @@ class DailyPayloadTests(SimpleTestCase):
             payload["access_date"],
         ) as writer:
             writer.write_document_items(
-                "month", sorted(payload["documents"]["month"].items())
+                "counter", sorted(payload["documents"]["counter"].items())
             )
             writer.write_document_items(
-                "year", sorted(payload["documents"]["year"].items())
+                "analytics", sorted(payload["documents"]["analytics"].items())
             )
             payload_hash = writer.finalize(
                 payload["input_log_hashes"],
@@ -66,8 +66,8 @@ class DailyPayloadTests(SimpleTestCase):
             "access_date": "2026-08-25",
             "input_log_hashes": ["abc"],
             "documents": {
-                "month": {"month-1": {"total_requests": 2}},
-                "year": {"year-1": {"total_requests": 3}},
+                "counter": {"month-1": {"total_requests": 2}},
+                "analytics": {"analytics-1": {"total_requests": 3}},
             },
             "summary": {},
         }
@@ -76,17 +76,21 @@ class DailyPayloadTests(SimpleTestCase):
             payload["collection"],
             payload["access_date"],
         ) as writer:
-            writer.write_document_items("month", payload["documents"]["month"].items())
-            writer.write_document_items("year", payload["documents"]["year"].items())
+            writer.write_document_items(
+                "counter", payload["documents"]["counter"].items()
+            )
+            writer.write_document_items(
+                "analytics", payload["documents"]["analytics"].items()
+            )
             writer.finalize(payload["input_log_hashes"], payload["summary"])
 
         self.assertEqual(
-            list(daily_payloads.iter_document_items(storage_path, "month")),
+            list(daily_payloads.iter_document_items(storage_path, "counter")),
             [("month-1", {"total_requests": 2})],
         )
         self.assertEqual(
-            list(daily_payloads.iter_document_items(storage_path, "year")),
-            [("year-1", {"total_requests": 3})],
+            list(daily_payloads.iter_document_items(storage_path, "analytics")),
+            [("analytics-1", {"total_requests": 3})],
         )
 
     def test_incremental_writer_removes_temporary_file_after_error(self):
@@ -101,8 +105,8 @@ class DailyPayloadTests(SimpleTestCase):
                 "scl",
                 "2026-08-25",
             ) as writer:
-                writer.write_document_items("month", iter(()))
-                writer.write_document_items("year", [("invalid", object())])
+                writer.write_document_items("counter", iter(()))
+                writer.write_document_items("analytics", [("invalid", object())])
 
         self.assertEqual(resolved_path.read_bytes(), b"previous canonical payload")
         self.assertFalse(resolved_path.with_suffix(".json.tmp").exists())
@@ -119,10 +123,10 @@ class DailyPayloadTests(SimpleTestCase):
                 "2026-08-25",
             ) as writer:
                 writer.write_document_items(
-                    "month",
+                    "counter",
                     [("b", {"total": 2}), ("a", {"total": 1})],
                 )
-                writer.write_document_items("year", [("c", {"total": 3})])
+                writer.write_document_items("analytics", [("c", {"total": 3})])
                 hashes.append(writer.finalize(["abc"], {"valid_lines": 1}))
             contents.append(
                 daily_payloads.resolve_storage_path(storage_path).read_bytes()
