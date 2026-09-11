@@ -1,50 +1,44 @@
 from scielo_usage_counter.counter import is_request
 
-from metrics.counter.indexing.engines.base import (
-    DocumentPipeline,
-    _strip_empty_identifiers,
-    _strip_empty_values,
-)
+from metrics.counter.indexing.engines.base import DocumentPipeline, _strip_empty_values
 
 
 class BookPipeline(DocumentPipeline):
-    def partition_key(self, value, granularity):
+    def partition_key(self, value, projection=None):
         title_pid_generic = _extract_title_pid_generic(value)
         if title_pid_generic:
             return self._generate_document_id(
                 value,
-                granularity,
+                projection=projection,
                 metric_scope="title",
                 pid_generic=title_pid_generic,
             )
-        return self._generate_document_id(value, granularity)
+        return self._generate_document_id(value, projection=projection)
 
-    def accumulate(self, data, unique_state, value, granularity):
+    def accumulate(self, data, unique_state, value, projection=None):
         if not isinstance(value, dict):
             return
 
         if _should_create_item_document(value):
-            self._accumulate_item(data, unique_state, value, granularity)
+            self._accumulate_item(data, unique_state, value, projection)
 
         title_pid_generic = _extract_title_pid_generic(value)
         if not title_pid_generic:
             return
 
-        self._accumulate_title(
-            data, unique_state, value, granularity, title_pid_generic
-        )
+        self._accumulate_title(data, unique_state, value, projection, title_pid_generic)
 
-    def _accumulate_item(self, data, unique_state, value, granularity):
+    def _accumulate_item(self, data, unique_state, value, projection):
         item_document_id = self._generate_document_id(
             value,
-            granularity,
+            projection=projection,
             metric_scope="item",
         )
         item_document = data.setdefault(
             item_document_id,
             self._build_document(
                 value=value,
-                granularity=granularity,
+                projection=projection,
                 metric_scope="item",
             ),
         )
@@ -64,11 +58,11 @@ class BookPipeline(DocumentPipeline):
         )
 
     def _accumulate_title(
-        self, data, unique_state, value, granularity, title_pid_generic
+        self, data, unique_state, value, projection, title_pid_generic
     ):
         title_document_id = self._generate_document_id(
             value,
-            granularity,
+            projection=projection,
             metric_scope="title",
             pid_generic=title_pid_generic,
         )
@@ -76,10 +70,9 @@ class BookPipeline(DocumentPipeline):
             title_document_id,
             self._build_document(
                 value=value,
-                granularity=granularity,
+                projection=projection,
                 metric_scope="title",
                 pid_generic=title_pid_generic,
-                document_type="book",
             ),
         )
         self._apply_totals(
@@ -97,67 +90,61 @@ class BookPipeline(DocumentPipeline):
             is_request_event=is_request(value.get("content_type")),
         )
 
-    def _build_document(self, value, granularity, **kwargs):
+    def _build_document(self, value, projection=None, **kwargs):
         metric_scope = kwargs.get("metric_scope") or "item"
         pid_generic = kwargs.get("pid_generic")
-        document_type = kwargs.get("document_type")
-
         document_id = pid_generic or value.get("pid_generic")
-        parent_id = _extract_title_pid_generic(value, fallback=document_id)
-        if parent_id == document_id or metric_scope == "title":
-            parent_id = None
-        raw_source = value.get("source") or {}
-        source = self._build_source(raw_source)
+        counter = _strip_empty_values(
+            {
+                "metric_scope": metric_scope,
+                "data_type": "Book" if metric_scope == "title" else "Book_Segment",
+                "parent_data_type": "Book" if metric_scope != "title" else None,
+                "access_type": value.get("counter_access_type") or "Open",
+                "access_method": value.get("access_method") or "Regular",
+            }
+        )
+
+        if projection:
+            country_code, content_language = self._projection_values(
+                value,
+                projection,
+            )
+            analytics_document = {
+                "year": self._access_year(value),
+                "source_key": self._source_key(value),
+                "document_key": self._document_key(
+                    value,
+                    pid_generic=document_id,
+                    metric_scope=metric_scope,
+                ),
+                **counter,
+                "country_code": country_code,
+                "content_language": content_language,
+                "total_requests": 0,
+                "total_investigations": 0,
+                "unique_requests": 0,
+                "unique_investigations": 0,
+            }
+            return _strip_empty_values(analytics_document)
 
         base_document = {
             "collection": value.get("collection"),
-            "source": source,
-            "document": self._build_document_section(
-                value=value,
-                document_id=document_id,
-                document_type=document_type or value.get("document_type"),
-                parent_id=parent_id,
-                source_identifiers=raw_source.get("identifiers"),
+            "source_key": self._source_key(value),
+            "document_key": self._document_key(
+                value,
+                pid_generic=document_id,
                 metric_scope=metric_scope,
             ),
-            "counter": _strip_empty_values(
-                {
-                    "metric_scope": metric_scope,
-                    "data_type": "Book" if metric_scope == "title" else "Book_Segment",
-                    "parent_data_type": "Book" if metric_scope != "title" else None,
-                    "access_type": value.get("counter_access_type") or "Open",
-                    "access_method": value.get("access_method") or "Regular",
-                }
-            ),
+            "month": self._access_month(value),
+            **counter,
             "total_requests": 0,
             "total_investigations": 0,
             "unique_requests": 0,
             "unique_investigations": 0,
         }
 
-        base_document["access"] = self._build_access(value, granularity)
-        if granularity == "month":
-            base_document["daily_metrics"] = self._build_daily_metrics(value)
-        return base_document
-
-    def _document_identifiers(
-        self, value, document_id, source_identifiers=None, metric_scope="item"
-    ):
-        if metric_scope == "title":
-            identifiers = _book_identifiers_from_pid(document_id)
-            identifiers.update(source_identifiers or {})
-            return _strip_empty_identifiers(identifiers, canonical_id=document_id)
-
-        document_identifiers = (value.get("document") or {}).get("identifiers") or {}
-        identifiers = {
-            "pid_v2": value.get("pid_v2"),
-            "pid_v3": value.get("pid_v3"),
-            "pid_generic": value.get("pid_generic"),
-        }
-        identifiers.update(document_identifiers)
-        identifiers.update(_book_identifiers_from_pid(value.get("pid_generic")))
-        identifiers.update(source_identifiers or {})
-        return _strip_empty_identifiers(identifiers, canonical_id=document_id)
+        base_document["daily_metrics"] = self._build_daily_metrics(value)
+        return _strip_empty_values(base_document)
 
 
 def _should_create_item_document(value):
@@ -185,22 +172,3 @@ def _extract_title_pid_generic(value, fallback=None):
         return f"BOOK:{str(source_id).upper()}"
 
     return fallback
-
-
-def _book_identifiers_from_pid(pid_generic):
-    value = str(pid_generic or "")
-    if not value.upper().startswith("BOOK:"):
-        return {}
-
-    identifiers = {}
-    parts = value.split("/", 1)
-    book_id = parts[0].split(":", 1)[1] if ":" in parts[0] else ""
-    if book_id:
-        identifiers["book_id"] = book_id
-
-    if len(parts) > 1 and parts[1].upper().startswith("CHAPTER:"):
-        chapter_id = parts[1].split(":", 1)[1] if ":" in parts[1] else ""
-        if chapter_id:
-            identifiers["chapter_id"] = chapter_id
-
-    return identifiers

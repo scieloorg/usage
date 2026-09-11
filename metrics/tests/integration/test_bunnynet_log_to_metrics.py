@@ -1,12 +1,12 @@
 import unittest
 from pathlib import Path
 
-from scielo_usage_counter import log_handler
 from scielo_usage_counter.values import CONTENT_TYPE_FULL_TEXT, MEDIA_FORMAT_HTML
 
 from metrics.counter.access import accumulation, extraction
 from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.tests.helpers import convert_accumulator
+from scielo_usage_counter import log_handler
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -80,7 +80,11 @@ class TestBunnynetLogToMetrics(unittest.TestCase):
 
         self.assertEqual(line["country_code"], "US")
         self.assertEqual(line["local_datetime"], "2026-08-04 23:59:59")
-        year_document = next(iter(metrics["year"].values()))
-        self.assertEqual(year_document["access"]["country_code"], "US")
-        month_document = next(iter(metrics["month"].values()))
-        self.assertNotIn("country_code", month_document["access"])
+        country_document = next(
+            document
+            for document in metrics["analytics"].values()
+            if document["country_code"] == "US"
+        )
+        self.assertEqual(country_document["country_code"], "US")
+        counter_document = next(iter(metrics["counter"].values()))
+        self.assertNotIn("country_code", counter_document)

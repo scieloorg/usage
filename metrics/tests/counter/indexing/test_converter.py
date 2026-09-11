@@ -1,484 +1,112 @@
-import unittest
+from scielo_usage_counter.values import CONTENT_TYPE_FULL_TEXT
 
-from scielo_usage_counter.values import (
-    CONTENT_TYPE_ABSTRACT,
-    CONTENT_TYPE_FULL_TEXT,
-    DEFAULT_SCIELO_ISSN,
-    MEDIA_FORMAT_HTML,
-)
-
-from metrics.counter.indexing import converter as index_docs
+from metrics.counter.indexing import converter
 
 
-def _convert(data):
-    values = list(data.values())
+def _article(country="BR", language="pt", session="session-1"):
     return {
-        "month": dict(index_docs.iter_partitioned_values(values, "month")),
-        "year": dict(index_docs.iter_partitioned_values(values, "year")),
+        "collection": "scl",
+        "source_key": "0101-0101",
+        "document_type": "article",
+        "pid_v3": "abc123",
+        "user_session_id": session,
+        "click_timestamps": {"00:05": 1},
+        "access_country_code": country,
+        "content_language": language,
+        "content_type": CONTENT_TYPE_FULL_TEXT,
+        "access_date": "2026-08-20",
+        "publication_year": "2025",
+        "source": {
+            "source_type": "journal",
+            "source_id": "0101-0101",
+            "main_title": "Journal title that must not be copied",
+        },
+        "document": {"title": "Article title that must not be copied"},
     }
 
 
-class TestConverter(unittest.TestCase):
-    def test_creates_month_and_year_views_for_book_chapter(self):
-        data = {
-            "books|q7gtd|||BOOK:Q7GTD/CHAPTER:03|browser|1.0|127.0.0.1|BR|en|html|full_text": {
-                "collection": "books",
-                "source_key": "q7gtd",
-                "document_type": "chapter",
-                "pid_v2": None,
-                "pid_v3": None,
-                "pid_generic": "BOOK:Q7GTD/CHAPTER:03",
-                "document": {"title": "Chapter Title"},
-                "title_pid_generic": "BOOK:Q7GTD",
-                "user_session_id": "browser|1.0|127.0.0.1|2024-01-15|10",
-                "click_timestamps": {"00:05": 1},
-                "access_country_code": "BR",
-                "content_language": "en",
-                "content_type": CONTENT_TYPE_FULL_TEXT,
-                "access_date": "2024-01-15",
-                "access_month": "202401",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "book",
-                    "source_id": "q7gtd",
-                    "scielo_issn": DEFAULT_SCIELO_ISSN,
-                    "main_title": "Book Title",
-                    "identifiers": {"book_id": "q7gtd", "isbn": "9788578791889"},
-                    "city": "Sao Paulo",
-                    "country": "BR",
-                    "subject_area_capes": [],
-                    "subject_area_wos": [],
-                    "acronym": None,
-                    "publisher_name": ["SciELO Books"],
-                },
-                "publication_year": "2023",
-            }
-        }
+def test_counter_facts_are_monthly_and_reference_metadata_keys():
+    documents = dict(converter.iter_partitioned_values([_article()], "counter"))
 
-        metrics_data = _convert(data)
+    assert len(documents) == 1
+    document_id, document = next(iter(documents.items()))
+    assert document_id.startswith("k1_")
+    assert document["month"] == "2026-08"
+    assert document["data_type"] == "Article"
+    assert document["parent_data_type"] == "Journal"
+    assert document["total_requests"] == 1
+    assert document["unique_requests"] == 1
+    assert document["source_key"].startswith("k1_")
+    assert document["document_key"].startswith("k1_")
+    assert "source" not in document
+    assert "document" not in document
+    assert "country_code" not in document
+    assert "content_language" not in document
+    assert "year" not in document
 
-        self.assertEqual(set(metrics_data.keys()), {"month", "year"})
-        self.assertEqual(len(metrics_data["month"]), 2)
-        self.assertEqual(len(metrics_data["year"]), 2)
 
-        month_item = metrics_data["month"][
-            "books|q7gtd|||BOOK:Q7GTD/CHAPTER:03|2024-01|Open|Regular|2023"
-        ]
-        self.assertEqual(month_item["access"], {"month": "2024-01"})
-        self.assertIn("daily_metrics", month_item)
-        self.assertNotIn("access_country_code", month_item)
-        self.assertNotIn("content_language", month_item)
-        self.assertEqual(month_item["document"]["id"], "BOOK:Q7GTD/CHAPTER:03")
-        self.assertEqual(month_item["document"]["type"], "chapter")
-        self.assertEqual(month_item["document"]["title"], "Chapter Title")
-        self.assertEqual(month_item["document"]["parent_id"], "BOOK:Q7GTD")
-        self.assertEqual(month_item["document"]["publication_year"], "2023")
-        self.assertEqual(month_item["document"]["identifiers"]["book_id"], "q7gtd")
-        self.assertEqual(month_item["document"]["identifiers"]["chapter_id"], "03")
-        self.assertEqual(month_item["document"]["identifiers"]["isbn"], "9788578791889")
-        self.assertNotIn("pid_generic", month_item["document"]["identifiers"])
-        self.assertEqual(month_item["counter"]["metric_scope"], "item")
-        self.assertEqual(month_item["counter"]["data_type"], "Book_Segment")
-        self.assertEqual(month_item["total_requests"], 1)
-        self.assertEqual(month_item["unique_requests"], 1)
-        self.assertNotIn("scielo_issn", month_item["source"])
-        self.assertNotIn("book_id", month_item["source"].get("identifiers", {}))
-        self.assertEqual(month_item["source"]["publisher_name"], ["SciELO Books"])
+def test_analytics_builds_annual_country_and_language_matrix():
+    values = [
+        _article(country="BR", language="pt", session="same-session"),
+        _article(country="US", language="pt", session="same-session"),
+    ]
+    documents = list(converter.iter_partitioned_values(values, "analytics"))
 
-        month_title = metrics_data["month"][
-            "title|books|q7gtd|||BOOK:Q7GTD|2024-01|Open|Regular|2023"
-        ]
-        self.assertEqual(month_title["document"]["id"], "BOOK:Q7GTD")
-        self.assertEqual(month_title["document"]["type"], "book")
-        self.assertEqual(month_title["document"]["title"], "Book Title")
-        self.assertNotIn("parent_id", month_title["document"])
-        self.assertEqual(month_title["counter"]["metric_scope"], "title")
-        self.assertEqual(month_title["counter"]["data_type"], "Book")
-        self.assertEqual(month_title["total_requests"], 1)
-        self.assertEqual(month_title["total_investigations"], 1)
-        self.assertEqual(month_title["unique_requests"], 1)
-        self.assertEqual(month_title["unique_investigations"], 1)
+    assert len(documents) == 2
+    assert {item["year"] for _key, item in documents} == {"2026"}
+    assert {item["country_code"] for _key, item in documents} == {"BR", "US"}
+    assert {item["content_language"] for _key, item in documents} == {"pt"}
+    assert all("collection" not in item for _key, item in documents)
+    assert all(item["source_key"].startswith("k1_") for _key, item in documents)
+    assert all(item["document_key"].startswith("k1_") for _key, item in documents)
+    assert all("month" not in item for _key, item in documents)
+    assert all("counter_key" not in item for _key, item in documents)
+    assert all("projection" not in item for _key, item in documents)
+    assert all("daily_metrics" not in item for _key, item in documents)
 
-        year_item = metrics_data["year"][
-            "books|q7gtd|||BOOK:Q7GTD/CHAPTER:03|en|BR|2024|Open|Regular|2023"
-        ]
-        self.assertEqual(
-            year_item["access"],
-            {"year": "2024", "country_code": "BR", "content_language": "en"},
-        )
-        self.assertNotIn("daily_metrics", year_item)
-        self.assertEqual(year_item["document"]["title"], "Chapter Title")
-        self.assertEqual(year_item["counter"]["metric_scope"], "item")
-        self.assertEqual(year_item["total_requests"], 1)
 
-        year_title = metrics_data["year"][
-            "title|books|q7gtd|||BOOK:Q7GTD|en|BR|2024|Open|Regular|2023"
-        ]
-        self.assertEqual(year_title["counter"]["metric_scope"], "title")
-        self.assertEqual(year_title["document"]["title"], "Book Title")
-        self.assertNotIn("daily_metrics", year_title)
-        self.assertEqual(year_title["total_requests"], 1)
-        self.assertEqual(year_title["total_investigations"], 1)
-        self.assertEqual(year_title["unique_requests"], 1)
-        self.assertEqual(year_title["unique_investigations"], 1)
+def test_analytics_combines_the_same_dimensions_across_months():
+    january = _article()
+    february = {**_article(), "access_date": "2026-02-20"}
 
-    def test_maps_counter_data_types_for_preprint_and_dataset(self):
-        data = {
-            "preprints|scielo-preprints|||10.1590/SCIELOPREPRINTS.1234|sess|BR|un|html|full_text": {
-                "collection": "preprints",
-                "source_key": "scielo-preprints",
-                "document_type": "preprint",
-                "pid_generic": "10.1590/SCIELOPREPRINTS.1234",
-                "user_session_id": "browser|1.0|127.0.0.1|2024-01-15|10",
-                "click_timestamps": {"00:05": 1},
-                "access_country_code": "BR",
-                "content_language": "un",
-                "content_type": CONTENT_TYPE_FULL_TEXT,
-                "access_date": "2024-01-15",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "preprint_server",
-                    "source_id": "scielo-preprints",
-                    "main_title": "SciELO Preprints",
-                },
-                "publication_year": "2024",
-            },
-            "data|scielo-data|||10.48331/SCIELODATA.ABC123|sess|BR|un|html|abstract": {
-                "collection": "data",
-                "source_key": "scielo-data",
-                "document_type": "dataset",
-                "pid_generic": "10.48331/SCIELODATA.ABC123",
-                "user_session_id": "browser|1.0|127.0.0.1|2024-01-15|10",
-                "click_timestamps": {"00:05": 1},
-                "access_country_code": "BR",
-                "content_language": "un",
-                "content_type": CONTENT_TYPE_ABSTRACT,
-                "access_date": "2024-01-15",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "data_repository",
-                    "source_id": "scielo-data",
-                    "main_title": "SciELO Data",
-                },
-                "publication_year": "2024",
-            },
-        }
+    documents = dict(
+        converter.iter_partitioned_values([january, february], "analytics")
+    )
 
-        metrics_data = _convert(data)
-        preprint_doc = metrics_data["month"][
-            "preprints|scielo-preprints|||10.1590/SCIELOPREPRINTS.1234|2024-01|Open|Regular|2024"
-        ]
-        dataset_doc = metrics_data["month"][
-            "data|scielo-data|||10.48331/SCIELODATA.ABC123|2024-01|Open|Regular|2024"
-        ]
+    assert len(documents) == 1
+    document = next(iter(documents.values()))
+    assert document["year"] == "2026"
+    assert document["total_requests"] == 2
 
-        self.assertEqual(preprint_doc["counter"]["data_type"], "Article")
-        self.assertEqual(preprint_doc["document"]["type"], "preprint")
-        self.assertEqual(preprint_doc["document"]["id"], "10.1590/SCIELOPREPRINTS.1234")
-        self.assertEqual(preprint_doc["counter"]["article_version"], "Preprint")
-        self.assertEqual(dataset_doc["counter"]["data_type"], "Dataset")
-        self.assertNotIn("article_version", dataset_doc["counter"])
 
-    def test_dedupes_book_unique_item_across_formats(self):
-        data = {
-            "books|c2248|||BOOK:C2248/CHAPTER:03|sess|BR|pt|html|full_text": {
-                "collection": "books",
-                "source_key": "c2248",
-                "document_type": "chapter",
-                "pid_v2": None,
-                "pid_v3": None,
-                "pid_generic": "BOOK:C2248/CHAPTER:03",
-                "title_pid_generic": "BOOK:C2248",
-                "user_session_id": "browser|1.0|127.0.0.1|2024-01-15|10",
-                "click_timestamps": {"00:05": 1},
-                "access_country_code": "BR",
-                "content_language": "pt",
-                "content_type": CONTENT_TYPE_FULL_TEXT,
-                "access_date": "2024-01-15",
-                "access_month": "202401",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "book",
-                    "source_id": "c2248",
-                    "main_title": "C2248 Book",
-                    "identifiers": {"book_id": "c2248", "isbn": "9788599662830"},
-                    "publisher_name": ["SciELO Books"],
-                },
-                "publication_year": "2018",
-            },
-            "books|c2248|||BOOK:C2248/CHAPTER:03|sess|BR|pt|pdf|full_text": {
-                "collection": "books",
-                "source_key": "c2248",
-                "document_type": "chapter",
-                "pid_v2": None,
-                "pid_v3": None,
-                "pid_generic": "BOOK:C2248/CHAPTER:03",
-                "title_pid_generic": "BOOK:C2248",
-                "user_session_id": "browser|1.0|127.0.0.1|2024-01-15|10",
-                "click_timestamps": {"00:45": 1},
-                "access_country_code": "BR",
-                "content_language": "pt",
-                "content_type": CONTENT_TYPE_FULL_TEXT,
-                "access_date": "2024-01-15",
-                "access_month": "202401",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "book",
-                    "source_id": "c2248",
-                    "main_title": "C2248 Book",
-                    "identifiers": {"book_id": "c2248", "isbn": "9788599662830"},
-                    "publisher_name": ["SciELO Books"],
-                },
-                "publication_year": "2018",
-            },
-        }
+def test_book_and_chapter_keep_item_and_title_scopes():
+    chapter = {
+        **_article(),
+        "collection": "books",
+        "source_key": "book-1",
+        "document_type": "chapter",
+        "pid_v3": None,
+        "pid_generic": "BOOK:BOOK-1/CHAPTER:01",
+        "title_pid_generic": "BOOK:BOOK-1",
+        "source": {"source_type": "book", "source_id": "book-1"},
+    }
 
-        metrics_data = _convert(data)
-        month_item = metrics_data["month"][
-            "books|c2248|||BOOK:C2248/CHAPTER:03|2024-01|Open|Regular|2018"
-        ]
-        month_title = metrics_data["month"][
-            "title|books|c2248|||BOOK:C2248|2024-01|Open|Regular|2018"
-        ]
+    documents = dict(converter.iter_partitioned_values([chapter], "counter"))
 
-        self.assertEqual(month_item["total_requests"], 2)
-        self.assertEqual(month_item["total_investigations"], 2)
-        self.assertEqual(month_item["unique_requests"], 1)
-        self.assertEqual(month_item["unique_investigations"], 1)
-        self.assertEqual(month_title["unique_requests"], 1)
-        self.assertEqual(month_title["unique_investigations"], 1)
+    assert len(documents) == 2
+    assert {item["metric_scope"] for item in documents.values()} == {"item", "title"}
+    assert {item["data_type"] for item in documents.values()} == {
+        "Book",
+        "Book_Segment",
+    }
+    assert all(item["total_requests"] == 1 for item in documents.values())
 
-    def test_skips_book_landing_page_from_item_scope(self):
-        data = {
-            "books|c2248|||BOOK:C2248|sess|BR|pt|html|abstract": {
-                "collection": "books",
-                "source_key": "c2248",
-                "document_type": "book",
-                "pid_v2": None,
-                "pid_v3": None,
-                "pid_generic": "BOOK:C2248",
-                "document": {"title": "C2248 Book"},
-                "title_pid_generic": "BOOK:C2248",
-                "user_session_id": "browser|1.0|127.0.0.1|2024-01-15|10",
-                "click_timestamps": {"00:05": 1},
-                "access_country_code": "BR",
-                "content_language": "pt",
-                "content_type": CONTENT_TYPE_ABSTRACT,
-                "access_date": "2024-01-15",
-                "access_month": "202401",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "book",
-                    "source_id": "c2248",
-                    "main_title": "C2248 Book",
-                    "identifiers": {"book_id": "c2248", "isbn": "9788599662830"},
-                    "publisher_name": ["SciELO Books"],
-                },
-                "publication_year": "2018",
-            },
-        }
 
-        metrics_data = _convert(data)
-        self.assertEqual(
-            set(metrics_data["month"].keys()),
-            {"title|books|c2248|||BOOK:C2248|2024-01|Open|Regular|2018"},
-        )
-        self.assertEqual(
-            set(metrics_data["year"].keys()),
-            {"title|books|c2248|||BOOK:C2248|pt|BR|2024|Open|Regular|2018"},
-        )
+def test_compact_keys_and_output_are_deterministic():
+    first = list(converter.iter_partitioned_values([_article()], "counter"))
+    second = list(converter.iter_partitioned_values([_article()], "counter"))
+    assert first == second
 
-    def test_whole_book_without_segments_counts_as_book_segment(self):
-        data = {
-            "books|c2248|||BOOK:C2248|sess|BR|pt|pdf|full_text": {
-                "collection": "books",
-                "source_key": "c2248",
-                "document_type": "book",
-                "pid_v2": None,
-                "pid_v3": None,
-                "pid_generic": "BOOK:C2248",
-                "document": {"title": "C2248 Book"},
-                "title_pid_generic": "BOOK:C2248",
-                "user_session_id": "browser|1.0|127.0.0.1|2024-01-15|10",
-                "click_timestamps": {"00:05": 1},
-                "access_country_code": "BR",
-                "content_language": "pt",
-                "content_type": CONTENT_TYPE_FULL_TEXT,
-                "access_date": "2024-01-15",
-                "access_month": "202401",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "book",
-                    "source_id": "c2248",
-                    "main_title": "C2248 Book",
-                    "identifiers": {"book_id": "c2248"},
-                    "publisher_name": ["SciELO Books"],
-                },
-                "publication_year": "2018",
-            },
-        }
 
-        metrics_data = _convert(data)
-        month_item = metrics_data["month"][
-            "books|c2248|||BOOK:C2248|2024-01|Open|Regular|2018"
-        ]
-        month_title = metrics_data["month"][
-            "title|books|c2248|||BOOK:C2248|2024-01|Open|Regular|2018"
-        ]
-
-        self.assertEqual(month_item["counter"]["data_type"], "Book_Segment")
-        self.assertEqual(month_item["counter"]["metric_scope"], "item")
-        self.assertEqual(month_item["document"]["id"], "BOOK:C2248")
-        self.assertNotIn("parent_id", month_item["document"])
-        self.assertEqual(month_title["counter"]["data_type"], "Book")
-        self.assertEqual(month_title["counter"]["metric_scope"], "title")
-
-    def test_aggregates_multiple_chapters_at_title_level(self):
-        data = {
-            "books|q7gtd|||BOOK:Q7GTD/CHAPTER:01|session1|BR|en|html|full_text": {
-                "collection": "books",
-                "source_key": "q7gtd",
-                "document_type": "chapter",
-                "pid_generic": "BOOK:Q7GTD/CHAPTER:01",
-                "title_pid_generic": "BOOK:Q7GTD",
-                "user_session_id": "session1",
-                "click_timestamps": {"00:05": 1},
-                "content_type": CONTENT_TYPE_FULL_TEXT,
-                "access_date": "2024-01-15",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "book",
-                    "source_id": "q7gtd",
-                    "scielo_issn": DEFAULT_SCIELO_ISSN,
-                    "main_title": "Book Title",
-                    "identifiers": {"book_id": "q7gtd"},
-                    "publisher_name": ["SciELO Books"],
-                },
-                "publication_year": "2023",
-            },
-            "books|q7gtd|||BOOK:Q7GTD/CHAPTER:02|session1|BR|en|html|full_text": {
-                "collection": "books",
-                "source_key": "q7gtd",
-                "document_type": "chapter",
-                "pid_generic": "BOOK:Q7GTD/CHAPTER:02",
-                "title_pid_generic": "BOOK:Q7GTD",
-                "user_session_id": "session1",
-                "click_timestamps": {"00:10": 1},
-                "content_type": CONTENT_TYPE_FULL_TEXT,
-                "access_date": "2024-01-15",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "book",
-                    "source_id": "q7gtd",
-                    "scielo_issn": DEFAULT_SCIELO_ISSN,
-                    "main_title": "Book Title",
-                    "identifiers": {"book_id": "q7gtd"},
-                    "publisher_name": ["SciELO Books"],
-                },
-                "publication_year": "2023",
-            },
-        }
-
-        metrics_data = _convert(data)
-        self.assertEqual(len(metrics_data["month"]), 3)
-        self.assertEqual(len(metrics_data["year"]), 3)
-
-        month_title = metrics_data["month"][
-            "title|books|q7gtd|||BOOK:Q7GTD|2024-01|Open|Regular|2023"
-        ]
-        self.assertEqual(month_title["total_requests"], 2)
-        self.assertEqual(month_title["total_investigations"], 2)
-        self.assertEqual(month_title["unique_requests"], 1)
-        self.assertEqual(month_title["unique_investigations"], 1)
-
-    def test_double_click_collapses_same_url_within_30_seconds(self):
-        from datetime import datetime
-
-        from metrics.counter.access import accumulation
-        from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
-
-        results = DailyAccessAccumulator()
-        counter_access = {
-            "collection": "books",
-            "source_type": "book",
-            "source_id": "c2248",
-            "scielo_issn": DEFAULT_SCIELO_ISSN,
-            "pid_v2": None,
-            "pid_v3": None,
-            "pid_generic": "BOOK:C2248/CHAPTER:03",
-            "title_pid_generic": "BOOK:C2248",
-            "media_language": "pt",
-            "media_format": MEDIA_FORMAT_HTML,
-            "content_type": CONTENT_TYPE_FULL_TEXT,
-            "publication_year": "2018",
-            "source_main_title": "C2248 Book",
-        }
-        base_line = {
-            "client_name": "browser",
-            "client_version": "1.0",
-            "ip_address": "127.0.0.1",
-            "country_code": "BR",
-            "url": "/id/c2248/03?from=search",
-        }
-
-        accumulation.accumulate(
-            results,
-            counter_access,
-            {**base_line, "local_datetime": datetime(2024, 1, 15, 10, 0, 5)},
-        )
-        accumulation.accumulate(
-            results,
-            counter_access,
-            {**base_line, "local_datetime": datetime(2024, 1, 15, 10, 0, 20)},
-        )
-
-        values = list(results.iter_materialized_values())
-        metrics_data = {
-            "month": dict(index_docs.iter_partitioned_values(values, "month")),
-            "year": dict(index_docs.iter_partitioned_values(values, "year")),
-        }
-        month_item = metrics_data["month"][
-            "books|c2248|||BOOK:C2248/CHAPTER:03|2024-01|Open|Regular|2018"
-        ]
-        self.assertEqual(month_item["total_requests"], 1)
-        self.assertEqual(month_item["unique_requests"], 1)
-
-    def test_article_pipeline_sets_journal_parent(self):
-        data = {
-            "scl|1234-5678||abc123||sess|BR|en|pdf|full_text": {
-                "collection": "scl",
-                "source_key": "1234-5678",
-                "document_type": "article",
-                "pid_v2": None,
-                "pid_v3": "abc123",
-                "pid_generic": None,
-                "document": {"title": "Article Title"},
-                "user_session_id": "sess",
-                "click_timestamps": {"00:05": 1},
-                "access_country_code": "BR",
-                "content_language": "en",
-                "content_type": CONTENT_TYPE_FULL_TEXT,
-                "access_date": "2024-01-15",
-                "access_year": "2024",
-                "source": {
-                    "source_type": "journal",
-                    "source_id": "1234-5678",
-                    "scielo_issn": "1234-5678",
-                    "main_title": "Test Journal",
-                },
-                "publication_year": "2024",
-            }
-        }
-
-        metrics_data = _convert(data)
-        month_doc = list(metrics_data["month"].values())[0]
-
-        self.assertEqual(month_doc["counter"]["data_type"], "Article")
-        self.assertEqual(month_doc["counter"]["parent_data_type"], "Journal")
-        self.assertEqual(month_doc["counter"]["metric_scope"], "item")
-        self.assertEqual(month_doc["document"]["type"], "article")
-        self.assertEqual(month_doc["total_requests"], 1)
-        self.assertEqual(month_doc["total_investigations"], 1)
-
-    def test_empty_iterable_returns_empty(self):
-        self.assertEqual(dict(index_docs.iter_partitioned_values((), "month")), {})
+def test_empty_iterable_returns_empty():
+    assert list(converter.iter_partitioned_values((), "counter")) == []

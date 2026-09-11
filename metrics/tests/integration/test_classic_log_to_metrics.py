@@ -1,13 +1,13 @@
 import unittest
 from pathlib import Path
 
-from scielo_usage_counter import log_handler
 from scielo_usage_counter.translator.classic import URLTranslatorClassicSite
 from scielo_usage_counter.url_translator import URLTranslationManager
 
 from metrics.counter.access import accumulation, extraction, validation
 from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.tests.helpers import convert_accumulator
+from scielo_usage_counter import log_handler
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -78,10 +78,9 @@ class TestClassicLogToMetrics(unittest.TestCase):
 
         metrics = convert_accumulator(results)
 
-        for doc in metrics["month"].values():
-            self.assertEqual(doc["counter"]["data_type"], "Article")
-            self.assertEqual(doc["counter"]["metric_scope"], "item")
-            self.assertEqual(doc["document"]["type"], "article")
+        for doc in metrics["counter"].values():
+            self.assertEqual(doc["data_type"], "Article")
+            self.assertEqual(doc["metric_scope"], "item")
 
     def test_sets_journal_parent_data_type(self):
         results, _, _, _ = self._full_pipeline()
@@ -90,10 +89,8 @@ class TestClassicLogToMetrics(unittest.TestCase):
             return
 
         metrics = convert_accumulator(results)
-        for doc in metrics["month"].values():
-            source_type = doc.get("source", {}).get("type")
-            if source_type == "journal":
-                self.assertEqual(doc["counter"]["parent_data_type"], "Journal")
+        for doc in metrics["counter"].values():
+            self.assertEqual(doc["parent_data_type"], "Journal")
 
     def test_handles_truncated_user_agent(self):
         lines, _ = self._parse_log()

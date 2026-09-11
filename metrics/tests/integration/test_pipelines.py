@@ -42,14 +42,12 @@ class TestPreprintPipeline(unittest.TestCase):
         accumulation.accumulate(results, counter_access, line)
         metrics = convert_accumulator(results)
 
-        month_docs = list(metrics["month"].values())
-        self.assertEqual(len(month_docs), 1)
-        doc = month_docs[0]
-        self.assertEqual(doc["counter"]["data_type"], "Article")
-        self.assertEqual(doc["counter"]["article_version"], "Preprint")
-        self.assertEqual(doc["counter"]["metric_scope"], "item")
-        self.assertEqual(doc["document"]["type"], "preprint")
-        self.assertEqual(doc["document"]["id"], "10.1590/SCIELOPREPRINTS.1234")
+        counter_docs = list(metrics["counter"].values())
+        self.assertEqual(len(counter_docs), 1)
+        doc = counter_docs[0]
+        self.assertEqual(doc["data_type"], "Article")
+        self.assertEqual(doc["article_version"], "Preprint")
+        self.assertEqual(doc["metric_scope"], "item")
         self.assertEqual(doc["total_requests"], 1)
         self.assertEqual(doc["unique_requests"], 1)
 
@@ -83,12 +81,11 @@ class TestDataversePipeline(unittest.TestCase):
         accumulation.accumulate(results, counter_access, line)
         metrics = convert_accumulator(results)
 
-        month_docs = list(metrics["month"].values())
-        self.assertEqual(len(month_docs), 1)
-        doc = month_docs[0]
-        self.assertEqual(doc["counter"]["data_type"], "Dataset")
-        self.assertNotIn("article_version", doc["counter"])
-        self.assertEqual(doc["document"]["type"], "dataset")
+        counter_docs = list(metrics["counter"].values())
+        self.assertEqual(len(counter_docs), 1)
+        doc = counter_docs[0]
+        self.assertEqual(doc["data_type"], "Dataset")
+        self.assertNotIn("article_version", doc)
         self.assertEqual(doc["total_investigations"], 1)
         self.assertEqual(doc["total_requests"], 0)
 
@@ -121,10 +118,9 @@ class TestOPACPipeline(unittest.TestCase):
         accumulation.accumulate(results, counter_access, line)
         metrics = convert_accumulator(results)
 
-        doc = list(metrics["month"].values())[0]
-        self.assertEqual(doc["counter"]["data_type"], "Article")
-        self.assertEqual(doc["counter"]["parent_data_type"], "Journal")
-        self.assertEqual(doc["document"]["type"], "article")
-        self.assertEqual(doc["source"]["type"], "journal")
-        self.assertEqual(doc["source"]["id"], "1234-5678")
+        doc = list(metrics["counter"].values())[0]
+        self.assertEqual(doc["data_type"], "Article")
+        self.assertEqual(doc["parent_data_type"], "Journal")
+        self.assertTrue(doc["source_key"].startswith("k1_"))
+        self.assertTrue(doc["document_key"].startswith("k1_"))
         self.assertEqual(doc["total_requests"], 1)

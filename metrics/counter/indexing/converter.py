@@ -15,29 +15,46 @@ _PIPELINES = {
 }
 _DEFAULT = DocumentPipeline()
 _DEFAULT_PARTITION_COUNT = 64
+ANALYTICS_PROJECTION = "country_language"
 
 
 def iter_partitioned_documents(
     accumulator,
-    granularity,
+    dataset,
     partition_count=_DEFAULT_PARTITION_COUNT,
 ):
+    if dataset not in {"counter", "analytics"}:
+        raise ValueError("Dataset must be 'counter' or 'analytics'.")
     if partition_count <= 0:
         raise ValueError("Partition count must be greater than zero.")
 
-    consume = granularity == "year"
+    consume = dataset == "analytics"
     partitions = [[] for _ in range(partition_count)]
     for record_key, value in accumulator.iter_materialized_record_items():
-        partition = _partition_for_value(value, granularity, partition_count)
+        partition = _partition_for_value(
+            value,
+            partition_count,
+            projection=ANALYTICS_PROJECTION if dataset == "analytics" else None,
+        )
         partitions[partition].append(record_key)
 
     try:
         for record_keys in partitions:
-            values = accumulator.iter_materialized_record_keys(
-                record_keys,
-                consume=consume,
-            )
-            yield from _convert_partition(values, granularity)
+            if dataset == "counter":
+                values = accumulator.iter_materialized_record_keys(record_keys)
+                yield from _convert_partition(values)
+            else:
+                materialized = list(
+                    accumulator.iter_materialized_record_keys(
+                        record_keys,
+                        consume=True,
+                    )
+                )
+                yield from _convert_partition(
+                    materialized,
+                    projection=ANALYTICS_PROJECTION,
+                )
+                materialized.clear()
             record_keys.clear()
     finally:
         for record_keys in partitions:
@@ -49,7 +66,7 @@ def iter_partitioned_documents(
 
 def iter_partitioned_values(
     values,
-    granularity,
+    dataset,
     partition_count=_DEFAULT_PARTITION_COUNT,
 ):
     if partition_count <= 0:
@@ -57,12 +74,22 @@ def iter_partitioned_values(
 
     partitions = [[] for _ in range(partition_count)]
     for value in values:
-        partition = _partition_for_value(value, granularity, partition_count)
+        partition = _partition_for_value(
+            value,
+            partition_count,
+            projection=ANALYTICS_PROJECTION if dataset == "analytics" else None,
+        )
         partitions[partition].append(value)
 
     try:
         for partition_values in partitions:
-            yield from _convert_partition(partition_values, granularity)
+            if dataset == "counter":
+                yield from _convert_partition(partition_values)
+            else:
+                yield from _convert_partition(
+                    partition_values,
+                    projection=ANALYTICS_PROJECTION,
+                )
             partition_values.clear()
     finally:
         for partition_values in partitions:
@@ -70,9 +97,9 @@ def iter_partitioned_values(
         partitions.clear()
 
 
-def _partition_for_value(value, granularity, partition_count):
+def _partition_for_value(value, partition_count, projection=None):
     pipeline = _get_pipeline(value)
-    partition_key = pipeline.partition_key(value, granularity)
+    partition_key = pipeline.partition_key(value, projection=projection)
     digest = hashlib.blake2b(
         partition_key.encode("utf-8"),
         digest_size=8,
@@ -80,7 +107,7 @@ def _partition_for_value(value, granularity, partition_count):
     return int.from_bytes(digest, "big") % partition_count
 
 
-def _convert_partition(values, granularity):
+def _convert_partition(values, projection=None):
     converted_data = {}
     unique_state = _initialize_unique_state()
 
@@ -91,7 +118,7 @@ def _convert_partition(values, granularity):
                 data=converted_data,
                 unique_state=unique_state,
                 value=value,
-                granularity=granularity,
+                projection=projection,
             )
 
         for document_id in sorted(converted_data):
