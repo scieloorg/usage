@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import Mock
 
 from django.test import TestCase
@@ -76,8 +76,6 @@ class ProcessLineTests(TestCase):
         self.assertIsNone(error)
 
     def test_valid_line_accumulates_result(self):
-        from datetime import datetime
-
         results = DailyAccessAccumulator()
         is_valid, error = process_line(
             results=results,
@@ -88,6 +86,22 @@ class ProcessLineTests(TestCase):
         self.assertTrue(is_valid)
         self.assertIsNone(error)
         self.assertEqual(len(results), 1)
+
+    def test_uses_validated_log_date_at_year_boundary(self):
+        self.log_file.date = date(2026, 1, 1)
+        results = DailyAccessAccumulator()
+
+        is_valid, error = process_line(
+            results=results,
+            line=self._line(local_datetime=datetime(2025, 12, 31, 23, 59, 59)),
+            utm=self._fake_utm(),
+            log_file=self.log_file,
+        )
+
+        record = next(results.iter_materialized_values())
+        self.assertTrue(is_valid)
+        self.assertIsNone(error)
+        self.assertEqual(record["access_date"], "2026-01-01")
 
     def test_validation_failure_without_track_errors_returns_no_discarded_line(self):
         results = DailyAccessAccumulator()
