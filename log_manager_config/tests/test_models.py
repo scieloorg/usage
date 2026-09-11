@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from collection.models import Collection
 from core.users.tests.factories import UserFactory
+from log_manager_config.choices import OpenSearchPartitionStrategy
 from log_manager_config.models import CollectionLogDirectory, LogManagerCollectionConfig
 
 
@@ -17,12 +18,19 @@ class LogManagerCollectionConfigTests(TestCase):
             sample_size=0.2,
             buffer_size=4096,
             expected_logs_per_day=3,
+            opensearch_primary_shards=2,
+            opensearch_partition_strategy=OpenSearchPartitionStrategy.YEARLY,
         )
 
         self.assertEqual(config.collection, self.collection)
         self.assertEqual(config.sample_size, 0.2)
         self.assertEqual(config.buffer_size, 4096)
         self.assertEqual(config.expected_logs_per_day, 3)
+        self.assertEqual(config.opensearch_primary_shards, 2)
+        self.assertEqual(
+            config.opensearch_partition_strategy,
+            OpenSearchPartitionStrategy.YEARLY,
+        )
 
     def test_create_or_update_updates_existing(self):
         LogManagerCollectionConfig.create_or_update(
@@ -38,11 +46,17 @@ class LogManagerCollectionConfigTests(TestCase):
             sample_size=0.5,
             buffer_size=8192,
             expected_logs_per_day=5,
+            opensearch_primary_shards=3,
         )
 
         self.assertEqual(LogManagerCollectionConfig.objects.count(), 1)
         self.assertEqual(config.sample_size, 0.5)
         self.assertEqual(config.buffer_size, 8192)
+        self.assertEqual(config.opensearch_primary_shards, 3)
+        self.assertEqual(
+            config.opensearch_partition_strategy,
+            OpenSearchPartitionStrategy.ROLLOVER,
+        )
 
 
 class CollectionLogDirectoryTests(TestCase):

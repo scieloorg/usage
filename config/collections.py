@@ -1,3 +1,5 @@
+from log_manager_config.choices import OpenSearchPartitionStrategy
+
 COLLECTION_OPAC_URL_MAP = {
     "dom": "https://scielo.do/api/v1/counter_dict",
     "scl": "https://www.scielo.br/api/v1/counter_dict",
@@ -23,6 +25,7 @@ LOG_MANAGER_SEED_DATA = [
     },
     {
         "acronym": "chl",
+        "opensearch_partition_strategy": OpenSearchPartitionStrategy.YEARLY,
         "directory_name": "Site clássico",
         "path": "/app/logs/bkp-ratchet/scielo.cl",
         "quantity": 1,
@@ -33,6 +36,7 @@ LOG_MANAGER_SEED_DATA = [
     },
     {
         "acronym": "col",
+        "opensearch_partition_strategy": OpenSearchPartitionStrategy.YEARLY,
         "directory_name": "Site clássico",
         "path": "/app/logs/bkp-ratchet/scielo.co",
         "quantity": 1,
@@ -100,6 +104,7 @@ LOG_MANAGER_SEED_DATA = [
     },
     {
         "acronym": "mex",
+        "opensearch_partition_strategy": OpenSearchPartitionStrategy.YEARLY,
         "directory_name": "Site clássico",
         "path": "/app/logs/bkp-ratchet/scielo.mx",
         "quantity": 1,
@@ -166,6 +171,7 @@ LOG_MANAGER_SEED_DATA = [
     },
     {
         "acronym": "scl",
+        "opensearch_partition_strategy": OpenSearchPartitionStrategy.YEARLY,
         "directory_name": "SciELO Brasil",
         "path": "/app/logs/bkp-bunnynet/scielo-br",
         "quantity": 2,
@@ -176,6 +182,7 @@ LOG_MANAGER_SEED_DATA = [
     },
     {
         "acronym": "scl",
+        "opensearch_partition_strategy": OpenSearchPartitionStrategy.YEARLY,
         "directory_name": "SciELO Brasil 2",
         "path": "/app/logs/bkp-bunnynet/scielo-br-2",
         "quantity": 2,

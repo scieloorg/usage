@@ -11,6 +11,7 @@ from wagtailautocomplete.edit_handlers import AutocompletePanel
 
 from collection.models import Collection
 from core.models import CommonControlField
+from log_manager_config.choices import OpenSearchPartitionStrategy
 
 
 class LogManagerCollectionConfig(ClusterableModel, CommonControlField):
@@ -36,12 +37,28 @@ class LogManagerCollectionConfig(ClusterableModel, CommonControlField):
         verbose_name=_("Expected Logs Per Day"),
         default=1,
     )
+    opensearch_primary_shards = models.PositiveSmallIntegerField(
+        verbose_name=_("OpenSearch Primary Shards"),
+        default=1,
+        help_text=_("Applied only when a new physical index is created."),
+    )
+    opensearch_partition_strategy = models.CharField(
+        verbose_name=_("OpenSearch Partition Strategy"),
+        max_length=16,
+        choices=OpenSearchPartitionStrategy.choices,
+        default=OpenSearchPartitionStrategy.ROLLOVER,
+        help_text=_(
+            "Uses yearly physical indexes or continuous indexes rolled over by size."
+        ),
+    )
 
     panels = [
         AutocompletePanel("collection"),
         FieldPanel("sample_size"),
         FieldPanel("buffer_size"),
         FieldPanel("expected_logs_per_day"),
+        FieldPanel("opensearch_primary_shards"),
+        FieldPanel("opensearch_partition_strategy"),
         InlinePanel("directories", label=_("Directories")),
         InlinePanel("emails", label=_("Emails")),
     ]
@@ -68,6 +85,11 @@ class LogManagerCollectionConfig(ClusterableModel, CommonControlField):
                 sample_size=item.get("sample_size", 0.1),
                 buffer_size=item.get("buffer_size", 2048),
                 expected_logs_per_day=item.get("quantity", 1),
+                opensearch_primary_shards=item.get("opensearch_primary_shards", 1),
+                opensearch_partition_strategy=item.get(
+                    "opensearch_partition_strategy",
+                    OpenSearchPartitionStrategy.ROLLOVER,
+                ),
             )
 
     @classmethod
@@ -78,6 +100,8 @@ class LogManagerCollectionConfig(ClusterableModel, CommonControlField):
         sample_size,
         buffer_size,
         expected_logs_per_day,
+        opensearch_primary_shards=1,
+        opensearch_partition_strategy=OpenSearchPartitionStrategy.ROLLOVER,
     ):
         obj, created = cls.objects.get_or_create(collection=collection)
         if created:
@@ -89,6 +113,8 @@ class LogManagerCollectionConfig(ClusterableModel, CommonControlField):
         obj.sample_size = sample_size
         obj.buffer_size = buffer_size
         obj.expected_logs_per_day = expected_logs_per_day
+        obj.opensearch_primary_shards = opensearch_primary_shards
+        obj.opensearch_partition_strategy = opensearch_partition_strategy
         obj.save()
         logging.info(f"Config for {collection.acron3} updated.")
         return obj

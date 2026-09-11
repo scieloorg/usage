@@ -467,6 +467,10 @@ OPENSEARCH_BULK_CHUNK_SIZE = env.int(
     "OPENSEARCH_BULK_CHUNK_SIZE",
     default=500,
 )
+OPENSEARCH_ROLLOVER_MAX_SIZE = env(
+    "OPENSEARCH_ROLLOVER_MAX_SIZE",
+    default="50gb",
+)
 
 # Resources
 # ------------------------------------------------------------------------------
