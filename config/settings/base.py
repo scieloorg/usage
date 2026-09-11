@@ -356,6 +356,7 @@ CELERY_IMPORTS = (
     "metrics.tasks.daily_metric_exports",
     "metrics.tasks.index",
     "metrics.tasks.log_parsing",
+    "metrics.tasks.metadata_sync",
     "metrics.tasks.resume",
 )
 # http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-task_serializer
