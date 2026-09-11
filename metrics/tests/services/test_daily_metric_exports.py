@@ -22,7 +22,10 @@ class DailyMetricExportTests(SimpleTestCase):
         self.storage_path = Path("scl/2026/08/2026-08-25.json")
         self.job = SimpleNamespace(
             pk=1,
-            collection=SimpleNamespace(acron3="scl"),
+            collection=SimpleNamespace(
+                acron3="scl",
+                log_manager_config=SimpleNamespace(opensearch_primary_shards=3),
+            ),
             access_date=date(2026, 8, 25),
             storage_path=self.storage_path.as_posix(),
             payload_hash="payload-hash",
@@ -40,25 +43,32 @@ class DailyMetricExportTests(SimpleTestCase):
             "2026-08-25",
         ) as writer:
             writer.write_document_items(
-                "month",
-                [("month-doc", {"access": {"month": "2026-08"}})],
+                "counter",
+                [("month-doc", {"month": "2026-08"})],
             )
             writer.write_document_items(
-                "year",
-                [("year-doc", {"access": {"year": "2026"}})],
+                "analytics",
+                [
+                    (
+                        "analytics-doc",
+                        {"year": "2026", "country_code": "BR"},
+                    )
+                ],
             )
             writer.finalize(["abc"], {"valid_lines": 1})
 
-    def test_export_streams_each_granularity_as_document_items(self):
+    def test_export_streams_each_dataset_as_document_items(self):
         self._write_payload()
         search_client = Mock()
         exported_groups = []
 
-        def consume_items(index_name, document_items, job_id):
-            exported_groups.append((index_name, list(document_items), job_id))
+        def consume_items(index_name, document_items, access_day, annual=False):
+            exported_groups.append(
+                (index_name, list(document_items), access_day, annual)
+            )
             return 1
 
-        search_client.increment_document_items_for_daily_job.side_effect = consume_items
+        search_client.increment_document_items_for_day.side_effect = consume_items
 
         export_daily_metric_payload(search_client, self.job)
 
@@ -67,40 +77,56 @@ class DailyMetricExportTests(SimpleTestCase):
             [
                 (
                     "usage_monthly_scl_2026",
-                    [("month-doc", {"access": {"month": "2026-08"}})],
-                    self.job.job_id,
+                    [("month-doc", {"month": "2026-08"})],
+                    "2026-08-25",
+                    False,
                 ),
                 (
-                    "usage_yearly_scl_2026",
-                    [("year-doc", {"access": {"year": "2026"}})],
-                    self.job.job_id,
+                    "usage_yearly_analytics_scl_2026",
+                    [
+                        (
+                            "analytics-doc",
+                            {"year": "2026", "country_code": "BR"},
+                        )
+                    ],
+                    "2026-08-25",
+                    True,
                 ),
             ],
         )
+        self.assertEqual(
+            [
+                call.kwargs["primary_shards"]
+                for call in search_client.create_alias_if_not_exists.call_args_list
+            ],
+            [3, 3],
+        )
 
-    def test_retry_after_partial_export_reuses_same_payload_and_job_id(self):
+    def test_retry_after_partial_export_reuses_same_payload_and_access_day(self):
         self._write_payload()
         first_client = Mock()
-        first_client.increment_document_items_for_daily_job.side_effect = [
+        first_client.increment_document_items_for_day.side_effect = [
             1,
-            RuntimeError("year export failed"),
+            RuntimeError("analytics export failed"),
         ]
 
-        with self.assertRaisesMessage(RuntimeError, "year export failed"):
+        with self.assertRaisesMessage(RuntimeError, "analytics export failed"):
             export_daily_metric_payload(first_client, self.job)
 
         second_client = Mock()
-        second_client.increment_document_items_for_daily_job.side_effect = (
-            lambda index_name, document_items, job_id: len(list(document_items))
+        second_client.increment_document_items_for_day.side_effect = (
+            lambda index_name, document_items, access_day, annual=False: len(
+                list(document_items)
+            )
         )
         export_daily_metric_payload(second_client, self.job)
 
         self.assertEqual(
             [
-                call.kwargs["job_id"]
-                for call in second_client.increment_document_items_for_daily_job.call_args_list
+                call.kwargs["access_day"]
+                for call in second_client.increment_document_items_for_day.call_args_list
             ],
-            [self.job.job_id, self.job.job_id],
+            ["2026-08-25", "2026-08-25"],
         )
 
     @patch("metrics.services.daily_metric_exports.fetch_required_resources")
