@@ -4,6 +4,7 @@ from time import monotonic
 
 from django.conf import settings
 
+from log_manager_config.choices import OpenSearchPartitionStrategy
 from metrics.opensearch.mappings import get_index_mappings
 from metrics.opensearch.names import (
     generate_analytics_index_name,
@@ -71,28 +72,39 @@ def _sync_documents_group(
         index_name = generate_month_index_name(
             index_prefix=index_prefix,
             collection=collection_code,
-            date=index_date,
         )
     else:
         index_name = generate_analytics_index_name(
             index_prefix=index_prefix,
             collection=collection_code,
-            date=index_date,
         )
 
-    search_client.create_alias_if_not_exists(
-        alias_name=index_name,
-        mappings=get_index_mappings(dataset),
-        primary_shards=_get_primary_shards(collection),
+    config = getattr(collection, "log_manager_config", None)
+    primary_shards = getattr(config, "opensearch_primary_shards", 1)
+    partition_strategy = getattr(
+        config,
+        "opensearch_partition_strategy",
+        OpenSearchPartitionStrategy.ROLLOVER,
     )
-    return search_client.increment_document_items_for_day(
-        index_name=index_name,
+    mappings = get_index_mappings(dataset)
+    write_index = search_client.prepare_usage_index(
+        alias_name=index_name,
+        mappings=mappings,
+        partition_strategy=partition_strategy,
+        access_date=index_date,
+        primary_shards=primary_shards,
+    )
+    exported = search_client.increment_document_items_for_day(
+        index_name=write_index,
         document_items=chain((first_item,), document_items),
         access_day=access_day,
         annual=dataset == "analytics",
+        resolve_existing_indexes=True,
     )
-
-
-def _get_primary_shards(collection):
-    config = getattr(collection, "log_manager_config", None)
-    return getattr(config, "opensearch_primary_shards", 1)
+    search_client.rollover_usage_index(
+        alias_name=write_index,
+        mappings=mappings,
+        primary_shards=primary_shards,
+        read_alias=index_name if write_index != index_name else None,
+    )
+    return exported
