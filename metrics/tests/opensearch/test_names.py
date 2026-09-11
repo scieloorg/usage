@@ -1,47 +1,33 @@
-import unittest
+from metrics.opensearch.names import (
+    generate_analytics_index_name,
+    generate_initial_index_name,
+    generate_metadata_alias,
+    generate_month_index_name,
+    generate_rollover_index_name,
+    generate_yearly_write_alias,
+)
 
-from django.conf import settings
-from django.test import override_settings
 
-from metrics.opensearch.names import generate_month_index_name, generate_year_index_name
+def test_metric_aliases_are_stable_per_collection():
+    assert generate_month_index_name("usage", "scl") == "usage_monthly_scl"
+    assert generate_analytics_index_name("usage", "scl") == (
+        "usage_yearly_analytics_scl"
+    )
 
 
-class TestIndexNames(unittest.TestCase):
-    def test_year_partition_policy_is_explicit(self):
-        self.assertEqual(
-            set(settings.YEAR_PARTITIONED_COLLECTIONS),
-            {"chl", "col", "mex", "scl"},
-        )
+def test_physical_index_names_express_the_partition_strategy():
+    assert generate_rollover_index_name("usage_monthly_books") == (
+        "usage_monthly_books-000001"
+    )
+    assert generate_yearly_write_alias("usage_monthly_scl", "2026-08-20") == (
+        "usage_monthly_scl_2026"
+    )
 
-    def test_generate_index_names_for_year_and_month(self):
-        self.assertEqual(
-            generate_year_index_name("usage", "scl", "2024-01-15"),
-            "usage_yearly_scl_2024",
-        )
-        self.assertEqual(
-            generate_month_index_name("usage", "scl", "2024-01-15"),
-            "usage_monthly_scl_2024",
-        )
-        self.assertEqual(
-            generate_year_index_name("usage", "books", "2024-01-15"),
-            "usage_yearly_books",
-        )
-        self.assertEqual(
-            generate_month_index_name("usage", "books", "2024-01-15"),
-            "usage_monthly_books",
-        )
 
-    @override_settings(YEAR_PARTITIONED_COLLECTIONS=[" books ", "SCL"])
-    def test_generate_index_names_uses_configured_collections(self):
-        self.assertEqual(
-            generate_year_index_name("usage", "books", "2024-01-15"),
-            "usage_yearly_books_2024",
-        )
-        self.assertEqual(
-            generate_month_index_name("usage", "scl", "2024-01-15"),
-            "usage_monthly_scl_2024",
-        )
-        self.assertEqual(
-            generate_year_index_name("usage", "chl", "2024-01-15"),
-            "usage_yearly_chl",
-        )
+def test_non_rollover_alias_uses_a_neutral_physical_name():
+    assert generate_initial_index_name("usage_documents") == ("usage_documents_000001")
+
+
+def test_metadata_alias_names_are_explicit():
+    assert generate_metadata_alias("usage", "documents") == "usage_documents"
+    assert generate_metadata_alias("custom", "sources") == "custom_sources"

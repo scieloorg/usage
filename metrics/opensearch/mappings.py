@@ -1,103 +1,134 @@
-DISPLAY_TEXT_MAPPING = {
-    "type": "text",
-    "index": False,
+_METRIC_PROPERTIES = {
+    "total_requests": {"type": "long"},
+    "total_investigations": {"type": "long"},
+    "unique_requests": {"type": "long"},
+    "unique_investigations": {"type": "long"},
 }
 
-IDENTIFIERS_MAPPING = {"type": "object", "dynamic": True}
-
-DOCUMENT_MAPPINGS = {
-    "properties": {
-        "id": {"type": "keyword"},
-        "type": {"type": "keyword"},
-        "title": DISPLAY_TEXT_MAPPING,
-        "parent_id": {"type": "keyword"},
-        "publication_year": {"type": "integer"},
-        "identifiers": IDENTIFIERS_MAPPING,
-    }
+_COUNTER_DIMENSIONS = {
+    "metric_scope": {"type": "keyword"},
+    "data_type": {"type": "keyword"},
+    "parent_data_type": {"type": "keyword"},
+    "article_version": {"type": "keyword"},
+    "access_type": {"type": "keyword"},
+    "access_method": {"type": "keyword"},
 }
 
-SOURCE_MAPPINGS = {
-    "properties": {
-        "id": {"type": "keyword"},
-        "type": {"type": "keyword"},
-        "title": DISPLAY_TEXT_MAPPING,
-        "scielo_issn": {"type": "keyword"},
-        "acronym": {"type": "keyword"},
-        "publisher_name": DISPLAY_TEXT_MAPPING,
-        "access_type": {"type": "keyword"},
-        "city": {"type": "keyword"},
-        "country": {"type": "keyword"},
-        "subject_area_capes": {"type": "keyword"},
-        "subject_area_wos": {"type": "keyword"},
-        "identifiers": IDENTIFIERS_MAPPING,
-    }
+
+_BASE_METRIC_PROPERTIES = {
+    "collection": {"type": "keyword"},
+    "source_key": {"type": "keyword"},
+    "document_key": {"type": "keyword"},
+    "month": {"type": "date", "format": "yyyy-MM"},
+    "applied_days": {
+        "type": "keyword",
+        "index": False,
+        "doc_values": False,
+    },
+    **_COUNTER_DIMENSIONS,
+    **_METRIC_PROPERTIES,
 }
 
-COUNTER_MAPPINGS = {
+
+MONTH_INDEX_MAPPINGS = {
+    "dynamic": False,
     "properties": {
-        "metric_scope": {"type": "keyword"},
-        "data_type": {"type": "keyword"},
-        "parent_data_type": {"type": "keyword"},
-        "article_version": {"type": "keyword"},
-        "access_type": {"type": "keyword"},
-        "access_method": {"type": "keyword"},
-    }
+        **_BASE_METRIC_PROPERTIES,
+        "daily_metrics": {"type": "object", "dynamic": False},
+    },
 }
 
-MONTH_ACCESS_MAPPINGS = {
+ANALYTICS_INDEX_MAPPINGS = {
+    "dynamic": False,
+    "_source": {
+        "excludes": [
+            "year",
+            "source_key",
+            "document_key",
+            *_COUNTER_DIMENSIONS,
+            "country_code",
+            "content_language",
+        ]
+    },
     "properties": {
-        "month": {"type": "date", "format": "yyyy-MM"},
-    }
-}
-
-YEAR_ACCESS_MAPPINGS = {
-    "properties": {
-        "year": {"type": "date", "format": "yyyy"},
+        "year": {"type": "keyword"},
+        "source_key": {"type": "keyword"},
+        "document_key": {"type": "keyword"},
+        **_COUNTER_DIMENSIONS,
+        "applied_day_masks": {
+            "type": "long",
+            "index": False,
+            "doc_values": False,
+        },
         "country_code": {"type": "keyword"},
         "content_language": {"type": "keyword"},
-    }
+        **_METRIC_PROPERTIES,
+    },
 }
 
-METRIC_PROPERTIES = {
-    "total_requests": {"type": "integer"},
-    "total_investigations": {"type": "integer"},
-    "unique_requests": {"type": "integer"},
-    "unique_investigations": {"type": "integer"},
-}
-
-
-def _build_index_mappings(granularity):
-    properties = {
+SOURCE_INDEX_MAPPINGS = {
+    "dynamic": False,
+    "properties": {
+        "key": {"type": "keyword"},
         "collection": {"type": "keyword"},
-        "source": SOURCE_MAPPINGS,
-        "document": DOCUMENT_MAPPINGS,
-        "access": MONTH_ACCESS_MAPPINGS
-        if granularity == "month"
-        else YEAR_ACCESS_MAPPINGS,
-        "counter": COUNTER_MAPPINGS,
-        "applied_jobs": {"type": "keyword", "index": False},
-        **METRIC_PROPERTIES,
+        "source_id": {"type": "keyword"},
+        "source_type": {"type": "keyword"},
+        "title": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+        "scielo_issn": {"type": "keyword"},
+        "acronym": {"type": "keyword"},
+        "publisher_name": {"type": "keyword"},
+        "access_type": {"type": "keyword"},
+        "country": {"type": "keyword"},
+        "subject_areas": {"type": "keyword"},
+        "wos_subject_areas": {"type": "keyword"},
+        "identifiers": {"type": "flat_object"},
+        "active": {"type": "boolean"},
+        "updated": {"type": "date"},
+    },
+}
+
+DOCUMENT_INDEX_MAPPINGS = {
+    "dynamic": False,
+    "properties": {
+        "key": {"type": "keyword"},
+        "collection": {"type": "keyword"},
+        "document_id": {"type": "keyword"},
+        "document_type": {"type": "keyword"},
+        "source_key": {"type": "keyword"},
+        "parent_document_key": {"type": "keyword"},
+        "title": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+        "publication_year": {"type": "integer"},
+        "default_lang": {"type": "keyword"},
+        "text_langs": {"type": "keyword"},
+        "identifiers": {"type": "flat_object"},
+        "active": {"type": "boolean"},
+        "updated": {"type": "date"},
+    },
+}
+
+_DATASET_MAPPINGS = {
+    "counter": MONTH_INDEX_MAPPINGS,
+    "analytics": ANALYTICS_INDEX_MAPPINGS,
+    "sources": SOURCE_INDEX_MAPPINGS,
+    "documents": DOCUMENT_INDEX_MAPPINGS,
+}
+
+
+def get_index_mappings(dataset):
+    try:
+        return _DATASET_MAPPINGS[dataset]
+    except KeyError as exc:
+        raise ValueError(f"Unknown OpenSearch dataset: {dataset}.") from exc
+
+
+def get_index_settings(primary_shards=1):
+    if primary_shards <= 0:
+        raise ValueError("OpenSearch primary shards must be greater than zero.")
+
+    return {
+        "index": {
+            "number_of_shards": primary_shards,
+            "number_of_replicas": 0,
+            "codec": "best_compression",
+        }
     }
-    if granularity == "month":
-        properties["daily_metrics"] = {"type": "object", "dynamic": True}
-    return {"properties": properties}
-
-
-YEAR_INDEX_MAPPINGS = _build_index_mappings("year")
-MONTH_INDEX_MAPPINGS = _build_index_mappings("month")
-BOOKS_YEAR_INDEX_MAPPINGS = _build_index_mappings("year")
-BOOKS_MONTH_INDEX_MAPPINGS = _build_index_mappings("month")
-
-
-def get_index_mappings(collection, granularity):
-    if granularity not in {"month", "year"}:
-        raise ValueError("Granularity must be 'month' or 'year'.")
-
-    if collection == "books":
-        return (
-            BOOKS_MONTH_INDEX_MAPPINGS
-            if granularity == "month"
-            else BOOKS_YEAR_INDEX_MAPPINGS
-        )
-
-    return MONTH_INDEX_MAPPINGS if granularity == "month" else YEAR_INDEX_MAPPINGS

@@ -1,3 +1,8 @@
+from datetime import date
+
+ANNUAL_MASK_BITS = 63
+DAYS_PER_LEAP_YEAR = 366
+ANNUAL_MASK_BUCKETS = (DAYS_PER_LEAP_YEAR + ANNUAL_MASK_BITS - 1) // ANNUAL_MASK_BITS
 METRIC_FIELDS = (
     "total_requests",
     "total_investigations",
@@ -5,17 +10,17 @@ METRIC_FIELDS = (
     "unique_investigations",
 )
 
-IDEMPOTENT_JOB_INCREMENT_SCRIPT = """
-if (ctx._source.applied_jobs == null) {
-  ctx._source.applied_jobs = [];
+IDEMPOTENT_DAY_INCREMENT_SCRIPT = """
+if (ctx._source.applied_days == null) {
+  ctx._source.applied_days = [];
 }
-if (ctx._source.applied_jobs.contains(params.job_id)) {
+if (ctx._source.applied_days.contains(params.access_day)) {
   ctx.op = 'none';
   return;
 }
 for (entry in params.document.entrySet()) {
   if (!params.metric_fields.contains(entry.getKey())
-      && !'applied_jobs'.equals(entry.getKey())
+      && !'applied_days'.equals(entry.getKey())
       && !'daily_metrics'.equals(entry.getKey())) {
     if (!ctx._source.containsKey(entry.getKey()) || ctx._source[entry.getKey()] != entry.getValue()) {
       ctx._source[entry.getKey()] = entry.getValue();
@@ -45,11 +50,41 @@ if (params.document.containsKey('daily_metrics')) {
     }
   }
 }
-ctx._source.applied_jobs.add(params.job_id);
+ctx._source.applied_days.add(params.access_day);
+"""
+
+IDEMPOTENT_ANNUAL_DAY_INCREMENT_SCRIPT = """
+if (ctx._source.applied_day_masks == null) {
+  ctx._source.applied_day_masks = params.empty_day_masks;
+}
+def currentMask = ctx._source.applied_day_masks[params.mask_index];
+if ((currentMask & params.day_mask) != 0) {
+  ctx.op = 'none';
+  return;
+}
+for (entry in params.document.entrySet()) {
+  if (!params.metric_fields.contains(entry.getKey())
+      && !'applied_day_masks'.equals(entry.getKey())) {
+    if (!ctx._source.containsKey(entry.getKey()) || ctx._source[entry.getKey()] != entry.getValue()) {
+      ctx._source[entry.getKey()] = entry.getValue();
+    }
+  }
+}
+for (field in params.metric_fields) {
+  def currentValue = ctx._source.containsKey(field) ? ctx._source[field] : 0;
+  def increment = params.document.containsKey(field) ? params.document[field] : 0;
+  ctx._source[field] = currentValue + increment;
+}
+ctx._source.applied_day_masks[params.mask_index] = currentMask | params.day_mask;
 """
 
 
-def build_idempotent_job_increment_action(index_name, doc_id, document, job_id):
+def build_idempotent_day_increment_action(
+    index_name,
+    doc_id,
+    document,
+    access_day,
+):
     return {
         "_op_type": "update",
         "_index": index_name,
@@ -58,15 +93,46 @@ def build_idempotent_job_increment_action(index_name, doc_id, document, job_id):
         "scripted_upsert": True,
         "script": {
             "lang": "painless",
-            "source": IDEMPOTENT_JOB_INCREMENT_SCRIPT,
+            "source": IDEMPOTENT_DAY_INCREMENT_SCRIPT,
             "params": {
                 "document": document,
-                "job_id": job_id,
+                "access_day": access_day,
                 "metric_fields": list(METRIC_FIELDS),
             },
         },
         "upsert": {
-            "applied_jobs": [],
+            "applied_days": [],
+        },
+    }
+
+
+def build_idempotent_annual_day_increment_action(
+    index_name,
+    doc_id,
+    document,
+    access_day,
+):
+    access_date = date.fromisoformat(access_day)
+    day_offset = access_date.timetuple().tm_yday - 1
+    return {
+        "_op_type": "update",
+        "_index": index_name,
+        "_id": doc_id,
+        "retry_on_conflict": 5,
+        "scripted_upsert": True,
+        "script": {
+            "lang": "painless",
+            "source": IDEMPOTENT_ANNUAL_DAY_INCREMENT_SCRIPT,
+            "params": {
+                "document": document,
+                "mask_index": day_offset // ANNUAL_MASK_BITS,
+                "day_mask": 1 << (day_offset % ANNUAL_MASK_BITS),
+                "empty_day_masks": [0] * ANNUAL_MASK_BUCKETS,
+                "metric_fields": list(METRIC_FIELDS),
+            },
+        },
+        "upsert": {
+            "applied_day_masks": [0] * ANNUAL_MASK_BUCKETS,
         },
     }
 

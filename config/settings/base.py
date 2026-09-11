@@ -33,7 +33,6 @@ DEFAULT_PARSING_METADATA_CACHE_COLLECTIONS = (
     "wid",
 )
 DEFAULT_PARSING_METADATA_CACHE_RELEASE_COLLECTIONS = ("scl",)
-DEFAULT_YEAR_PARTITIONED_COLLECTIONS = ("chl", "col", "mex", "scl")
 
 ROOT_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 # core/
@@ -357,6 +356,7 @@ CELERY_IMPORTS = (
     "metrics.tasks.daily_metric_exports",
     "metrics.tasks.index",
     "metrics.tasks.log_parsing",
+    "metrics.tasks.metadata_sync",
     "metrics.tasks.resume",
 )
 # http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-task_serializer
@@ -467,6 +467,10 @@ OPENSEARCH_BULK_CHUNK_SIZE = env.int(
     "OPENSEARCH_BULK_CHUNK_SIZE",
     default=500,
 )
+OPENSEARCH_ROLLOVER_MAX_SIZE = env(
+    "OPENSEARCH_ROLLOVER_MAX_SIZE",
+    default="50gb",
+)
 
 # Resources
 # ------------------------------------------------------------------------------
@@ -531,8 +535,4 @@ PARSING_METADATA_CACHE_COLLECTIONS = env.list(
 PARSING_METADATA_CACHE_RELEASE_COLLECTIONS = env.list(
     "PARSING_METADATA_CACHE_RELEASE_COLLECTIONS",
     default=list(DEFAULT_PARSING_METADATA_CACHE_RELEASE_COLLECTIONS),
-)
-YEAR_PARTITIONED_COLLECTIONS = env.list(
-    "YEAR_PARTITIONED_COLLECTIONS",
-    default=list(DEFAULT_YEAR_PARTITIONED_COLLECTIONS),
 )

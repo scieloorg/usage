@@ -53,6 +53,16 @@ def test_default_seed_matches_log_directories():
     assert {
         item["quantity"] for item in LOG_MANAGER_SEED_DATA if item["acronym"] == "scl"
     } == {2}
+    assert {
+        item.get("opensearch_primary_shards", 1)
+        for item in LOG_MANAGER_SEED_DATA
+        if item["acronym"] == "scl"
+    } == {1}
+    assert {
+        item["acronym"]
+        for item in LOG_MANAGER_SEED_DATA
+        if item.get("opensearch_partition_strategy", "rollover") == "yearly"
+    } == {"chl", "col", "mex", "scl"}
     assert not {
         "dom",
         "rvt",

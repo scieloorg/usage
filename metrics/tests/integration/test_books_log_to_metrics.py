@@ -2,13 +2,13 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-from scielo_usage_counter import log_handler
 from scielo_usage_counter.translator.books import URLTranslatorBooksSite
 from scielo_usage_counter.url_translator import URLTranslationManager
 
 from metrics.counter.access import accumulation, extraction, validation
 from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.tests.helpers import convert_accumulator
+from scielo_usage_counter import log_handler
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -119,19 +119,19 @@ class TestBooksLogToMetrics(unittest.TestCase):
         )
 
         metrics = convert_accumulator(results)
-        self.assertGreater(len(metrics["month"]), 0)
-        self.assertGreater(len(metrics["year"]), 0)
+        self.assertGreater(len(metrics["counter"]), 0)
+        self.assertGreater(len(metrics["analytics"]), 0)
 
         has_item = False
         has_title = False
-        for doc in metrics["month"].values():
-            scope = doc["counter"]["metric_scope"]
+        for doc in metrics["counter"].values():
+            scope = doc["metric_scope"]
             if scope == "item":
                 has_item = True
-                self.assertEqual(doc["counter"]["data_type"], "Book_Segment")
+                self.assertEqual(doc["data_type"], "Book_Segment")
             elif scope == "title":
                 has_title = True
-                self.assertEqual(doc["counter"]["data_type"], "Book")
+                self.assertEqual(doc["data_type"], "Book")
 
         self.assertTrue(has_item)
         self.assertTrue(has_title)
@@ -168,19 +168,18 @@ class TestBooksLogToMetrics(unittest.TestCase):
         )
 
         metrics = convert_accumulator(results)
-        for doc in metrics["month"].values():
+        for doc in metrics["counter"].values():
             self.assertIn("total_requests", doc)
             self.assertIn("total_investigations", doc)
             self.assertIn("unique_requests", doc)
             self.assertIn("unique_investigations", doc)
             self.assertIn("collection", doc)
-            self.assertIn("source", doc)
-            self.assertIn("document", doc)
-            self.assertIn("counter", doc)
-            self.assertIn("access", doc)
+            self.assertIn("source_key", doc)
+            self.assertIn("document_key", doc)
+            self.assertIn("data_type", doc)
+            self.assertIn("month", doc)
             self.assertIn("daily_metrics", doc)
 
-        for doc in metrics["year"].values():
-            access = doc.get("access", {})
-            self.assertIn("year", access)
+        for doc in metrics["analytics"].values():
+            self.assertEqual(doc["year"], "2012")
             self.assertNotIn("daily_metrics", doc)

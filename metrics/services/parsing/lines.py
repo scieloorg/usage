@@ -55,6 +55,7 @@ def process_line(results, line, utm, log_file, track_errors=False):
             results,
             counter_access,
             line,
+            reporting_date=log_file.date,
         )
     except Exception as exc:
         logging.error(

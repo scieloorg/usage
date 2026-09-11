@@ -4,7 +4,7 @@ from urllib.parse import unquote, urlparse
 from core.utils.date_utils import coerce_datetime
 
 
-def accumulate(results, counter_access, line):
+def accumulate(results, counter_access, line, reporting_date=None):
     access_url = counter_access.get("access_url") or _normalized_access_path(
         line.get("url")
     )
@@ -18,6 +18,7 @@ def accumulate(results, counter_access, line):
     if local_datetime is None:
         raise ValueError("Invalid local_datetime in parsed log line.")
 
+    reporting_date = reporting_date or local_datetime.date()
     access_datetime = local_datetime.replace(minute=0, second=0, microsecond=0)
     second_of_hour = local_datetime.minute * 60 + local_datetime.second
 
@@ -25,13 +26,13 @@ def accumulate(results, counter_access, line):
         client_name,
         client_version,
         ip_address,
-        access_datetime.date().toordinal(),
+        reporting_date.toordinal(),
         access_datetime.hour,
     )
     raw_record = _build_record(
         counter_access=counter_access,
         line=line,
-        access_datetime=access_datetime,
+        reporting_date=reporting_date,
     )
     access_url_key = access_url or "|".join(
         [
@@ -52,7 +53,7 @@ def accumulate(results, counter_access, line):
 def _build_record(
     counter_access,
     line,
-    access_datetime,
+    reporting_date,
 ):
     collection = counter_access.get("collection")
     source_key = _source_key(counter_access, collection)
@@ -63,7 +64,7 @@ def _build_record(
     content_language = counter_access.get("media_language")
     content_type = counter_access.get("content_type")
     access_country_code = line.get("country_code")
-    access_date = access_datetime.strftime("%Y-%m-%d")
+    access_date = reporting_date.strftime("%Y-%m-%d")
 
     return {
         "collection": collection,
@@ -72,15 +73,12 @@ def _build_record(
         "pid_v2": pid_v2,
         "pid_v3": pid_v3,
         "pid_generic": pid_generic,
-        "document": _document_metadata(counter_access),
         "title_pid_generic": counter_access.get("title_pid_generic") or pid_generic,
         "media_format": media_format,
         "content_language": content_language,
         "content_type": content_type,
         "access_country_code": access_country_code,
         "access_date": access_date,
-        "access_year": access_date[:4],
-        "access_month": access_date[:7].replace("-", ""),
         "publication_year": counter_access.get("publication_year"),
         "counter_access_type": counter_access.get("counter_access_type") or "Open",
         "access_method": counter_access.get("access_method") or "Regular",
@@ -102,25 +100,10 @@ def _normalized_access_path(url):
     return path or None
 
 
-def _document_metadata(counter_access):
-    document_title = counter_access.get("document_title")
-    return {"title": document_title} if document_title else {}
-
-
 def _source_metadata(counter_access):
     return {
         "source_type": counter_access.get("source_type"),
         "source_id": counter_access.get("source_id"),
-        "scielo_issn": counter_access.get("scielo_issn"),
-        "main_title": counter_access.get("source_main_title"),
-        "identifiers": counter_access.get("source_identifiers"),
-        "access_type": counter_access.get("source_access_type"),
-        "city": counter_access.get("source_city"),
-        "country": counter_access.get("source_country"),
-        "subject_area_capes": counter_access.get("source_subject_area_capes"),
-        "subject_area_wos": counter_access.get("source_subject_area_wos"),
-        "acronym": counter_access.get("source_acronym"),
-        "publisher_name": counter_access.get("source_publisher_name"),
     }
 
 

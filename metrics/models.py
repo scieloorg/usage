@@ -111,3 +111,41 @@ class DailyMetricJob(CommonControlField):
 
     def __str__(self):
         return f"{self.collection.acron3}-{self.access_date}"
+
+
+class MetadataSyncState(models.Model):
+    ENTITY_SOURCE = "source"
+    ENTITY_DOCUMENT = "document"
+    ENTITY_CHOICES = (
+        (ENTITY_SOURCE, _("Source")),
+        (ENTITY_DOCUMENT, _("Document")),
+    )
+
+    entity = models.CharField(max_length=16, choices=ENTITY_CHOICES, unique=True)
+    cursor_updated = models.DateTimeField(null=True, blank=True)
+    cursor_pk = models.PositiveBigIntegerField(default=0)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    heartbeat_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+
+class MetadataSyncOutbox(models.Model):
+    entity = models.CharField(max_length=16, choices=MetadataSyncState.ENTITY_CHOICES)
+    object_key = models.CharField(max_length=25)
+    payload = models.JSONField()
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("entity", "object_key"),
+                name="metrics_metadata_outbox_entity_key_uniq",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=("entity", "id"),
+                name="metrics_meta_outbox_entity_idx",
+            )
+        ]

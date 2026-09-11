@@ -234,4 +234,5 @@ class DailyMetricJobServiceTests(TestCase):
                 _write_job_payload(job, accumulator, summary)
 
         self.assertEqual(len(accumulator), 0)
-        self.assertEqual(accumulator._documents, [])
+        self.assertEqual(accumulator._strings, [])
+        self.assertEqual(accumulator._sessions, {})
