@@ -157,7 +157,7 @@ def _should_create_item_document(value):
     return True
 
 
-def _extract_title_pid_generic(value, fallback=None):
+def _extract_title_pid_generic(value):
     title_pid_generic = value.get("title_pid_generic")
     if title_pid_generic:
         return title_pid_generic
@@ -171,4 +171,4 @@ def _extract_title_pid_generic(value, fallback=None):
     if source_id:
         return f"BOOK:{str(source_id).upper()}"
 
-    return fallback
+    return None

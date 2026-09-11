@@ -13,9 +13,9 @@ _PIPELINES = {
     "book": BookPipeline(),
     "chapter": BookPipeline(),
 }
-_DEFAULT = DocumentPipeline()
+_DEFAULT_PIPELINE = DocumentPipeline()
 _DEFAULT_PARTITION_COUNT = 64
-ANALYTICS_PROJECTION = "country_language"
+_ANALYTICS_PROJECTION = "country_language"
 
 
 def iter_partitioned_documents(
@@ -34,7 +34,7 @@ def iter_partitioned_documents(
         partition = _partition_for_value(
             value,
             partition_count,
-            projection=ANALYTICS_PROJECTION if dataset == "analytics" else None,
+            projection=_ANALYTICS_PROJECTION if dataset == "analytics" else None,
         )
         partitions[partition].append(record_key)
 
@@ -52,7 +52,7 @@ def iter_partitioned_documents(
                 )
                 yield from _convert_partition(
                     materialized,
-                    projection=ANALYTICS_PROJECTION,
+                    projection=_ANALYTICS_PROJECTION,
                 )
                 materialized.clear()
             record_keys.clear()
@@ -77,7 +77,7 @@ def iter_partitioned_values(
         partition = _partition_for_value(
             value,
             partition_count,
-            projection=ANALYTICS_PROJECTION if dataset == "analytics" else None,
+            projection=_ANALYTICS_PROJECTION if dataset == "analytics" else None,
         )
         partitions[partition].append(value)
 
@@ -88,7 +88,7 @@ def iter_partitioned_values(
             else:
                 yield from _convert_partition(
                     partition_values,
-                    projection=ANALYTICS_PROJECTION,
+                    projection=_ANALYTICS_PROJECTION,
                 )
             partition_values.clear()
     finally:
@@ -134,7 +134,7 @@ def _get_pipeline(value):
     if collection == "books":
         return _PIPELINES["book"]
 
-    return _PIPELINES.get(value.get("document_type"), _DEFAULT)
+    return _PIPELINES.get(value.get("document_type"), _DEFAULT_PIPELINE)
 
 
 def _initialize_unique_state():

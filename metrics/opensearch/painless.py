@@ -1,7 +1,8 @@
 from datetime import date
 
 ANNUAL_MASK_BITS = 63
-ANNUAL_MASK_BUCKETS = 6
+DAYS_PER_LEAP_YEAR = 366
+ANNUAL_MASK_BUCKETS = (DAYS_PER_LEAP_YEAR + ANNUAL_MASK_BITS - 1) // ANNUAL_MASK_BITS
 METRIC_FIELDS = (
     "total_requests",
     "total_investigations",
