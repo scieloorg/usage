@@ -1,163 +1,149 @@
-from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 
 from metrics.opensearch.client import OpenSearchUsageClient
 from metrics.opensearch.mappings import (
-    BOOKS_MONTH_INDEX_MAPPINGS,
-    BOOKS_YEAR_INDEX_MAPPINGS,
+    ANALYTICS_INDEX_MAPPINGS,
+    DOCUMENT_INDEX_MAPPINGS,
     MONTH_INDEX_MAPPINGS,
-    YEAR_INDEX_MAPPINGS,
-    get_index_mappings,
+    SOURCE_INDEX_MAPPINGS,
+    get_index_settings,
 )
 
 
-class OpenSearchUsageClientTests(TestCase):
-    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
-    def test_create_index_sends_mappings_in_request_body(self, mock_get_client):
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
+class OpenSearchUsageClientTests(SimpleTestCase):
+    def test_rejects_non_positive_primary_shard_count(self):
+        with self.assertRaisesMessage(
+            ValueError,
+            "OpenSearch primary shards must be greater than zero.",
+        ):
+            get_index_settings(0)
 
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_creates_physical_index_with_alias_and_compression(self, get_client):
+        raw_client = Mock()
+        raw_client.indices.exists_alias.return_value = False
+        raw_client.indices.exists.return_value = False
+        get_client.return_value = raw_client
         client = OpenSearchUsageClient(url="https://example.org:9200")
-        client.create_index(
-            index_name="usage_monthly_books_202506",
-            mappings=MONTH_INDEX_MAPPINGS,
+
+        client.create_alias_if_not_exists(
+            "usage_monthly_scl_2026",
+            MONTH_INDEX_MAPPINGS,
+            primary_shards=3,
         )
 
-        mock_client.indices.create.assert_called_once_with(
-            index="usage_monthly_books_202506",
+        raw_client.indices.create.assert_called_once_with(
+            index="usage_monthly_scl_2026_000001",
             body={
-                "settings": {"index": {"number_of_replicas": 0}},
+                "settings": get_index_settings(3),
                 "mappings": MONTH_INDEX_MAPPINGS,
+                "aliases": {"usage_monthly_scl_2026": {}},
             },
         )
 
+    def test_mappings_are_explicit_and_separate_metadata_from_facts(self):
+        assert "source_key" in MONTH_INDEX_MAPPINGS["properties"]
+        assert "document_key" in MONTH_INDEX_MAPPINGS["properties"]
+        assert "year" in ANALYTICS_INDEX_MAPPINGS["properties"]
+        assert "source_key" in ANALYTICS_INDEX_MAPPINGS["properties"]
+        assert "document_key" in ANALYTICS_INDEX_MAPPINGS["properties"]
+        assert set(ANALYTICS_INDEX_MAPPINGS["_source"]["excludes"]) == {
+            "year",
+            "source_key",
+            "document_key",
+            "metric_scope",
+            "data_type",
+            "parent_data_type",
+            "article_version",
+            "access_type",
+            "access_method",
+            "country_code",
+            "content_language",
+        }
+        for mapping in (MONTH_INDEX_MAPPINGS, ANALYTICS_INDEX_MAPPINGS):
+            assert mapping["dynamic"] is False
+            assert "source" not in mapping["properties"]
+            assert "document" not in mapping["properties"]
+        assert "applied_days" in MONTH_INDEX_MAPPINGS["properties"]
+        assert "applied_day_masks" in ANALYTICS_INDEX_MAPPINGS["properties"]
+        assert DOCUMENT_INDEX_MAPPINGS["dynamic"] is False
+        assert SOURCE_INDEX_MAPPINGS["dynamic"] is False
+
+    @override_settings(OPENSEARCH_BULK_CHUNK_SIZE=2000)
+    @patch("metrics.opensearch.client.helpers.bulk")
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_daily_increment_uses_short_access_day(self, get_client, bulk):
+        get_client.return_value = Mock()
+        bulk.return_value = (1, 0)
+        client = OpenSearchUsageClient(url="https://example.org:9200")
+
+        succeeded = client.increment_document_items_for_day(
+            index_name="usage_monthly_scl_2026",
+            document_items=iter([("key", {"total_requests": 1})]),
+            access_day="2026-08-20",
+        )
+
+        action = list(bulk.call_args.args[1])[0]
+        assert action["script"]["params"]["access_day"] == "2026-08-20"
+        assert action["upsert"] == {"applied_days": []}
+        assert bulk.call_args.kwargs["chunk_size"] == 2000
+        assert succeeded == 1
+
+    @patch("metrics.opensearch.client.helpers.bulk")
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_annual_increment_uses_compact_day_mask(self, get_client, bulk):
+        get_client.return_value = Mock()
+        bulk.return_value = (1, 0)
+        client = OpenSearchUsageClient(url="https://example.org:9200")
+
+        client.increment_document_items_for_day(
+            index_name="usage_yearly_analytics_scl_2026",
+            document_items=iter([("key", {"total_requests": 1})]),
+            access_day="2026-08-20",
+            annual=True,
+        )
+
+        action = list(bulk.call_args.args[1])[0]
+        params = action["script"]["params"]
+        assert params["mask_index"] == 3
+        assert params["day_mask"] == 1 << 42
+        assert action["upsert"] == {"applied_day_masks": [0] * 6}
+
+    @patch("metrics.opensearch.client.helpers.bulk")
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_annual_day_mask_covers_last_day_of_leap_year(
+        self,
+        get_client,
+        bulk,
+    ):
+        get_client.return_value = Mock()
+        bulk.return_value = (1, 0)
+        client = OpenSearchUsageClient(url="https://example.org:9200")
+
+        client.increment_document_items_for_day(
+            index_name="usage_yearly_analytics_scl_2024",
+            document_items=iter([("key", {"total_requests": 1})]),
+            access_day="2024-12-31",
+            annual=True,
+        )
+
+        action = list(bulk.call_args.args[1])[0]
+        params = action["script"]["params"]
+        assert params["mask_index"] == 5
+        assert params["day_mask"] == 1 << 50
+
     @override_settings(
-        OPENSEARCH_VERIFY_CERTS=True,
         OPENSEARCH_BASIC_AUTH=None,
         OPENSEARCH_API_KEY=None,
         OPENSEARCH_HTTP_COMPRESS=True,
     )
     @patch("metrics.opensearch.client.OpenSearch")
-    def test_verify_certs_false_explicitly_overrides_settings(self, mock_opensearch):
-        OpenSearchUsageClient(
-            url="https://example.org:9200",
-            verify_certs=False,
-        )
-
-        mock_opensearch.assert_called_once_with(
+    def test_http_compression_remains_configurable(self, opensearch):
+        OpenSearchUsageClient(url="https://example.org:9200")
+        opensearch.assert_called_once_with(
             "https://example.org:9200",
             verify_certs=False,
             http_compress=True,
         )
-
-    @override_settings(
-        OPENSEARCH_BASIC_AUTH=None,
-        OPENSEARCH_API_KEY=None,
-        OPENSEARCH_HTTP_COMPRESS=False,
-    )
-    @patch("metrics.opensearch.client.OpenSearch")
-    def test_http_compression_can_be_disabled(self, mock_opensearch):
-        OpenSearchUsageClient(url="https://example.org:9200")
-
-        mock_opensearch.assert_called_once_with(
-            "https://example.org:9200",
-            verify_certs=False,
-            http_compress=False,
-        )
-
-    def test_get_index_mappings_returns_books_specific_mappings(self):
-        self.assertIs(
-            get_index_mappings("books", "month"),
-            BOOKS_MONTH_INDEX_MAPPINGS,
-        )
-        self.assertIs(
-            get_index_mappings("books", "year"),
-            BOOKS_YEAR_INDEX_MAPPINGS,
-        )
-        self.assertIn("counter", BOOKS_MONTH_INDEX_MAPPINGS["properties"])
-        self.assertIn("access", BOOKS_YEAR_INDEX_MAPPINGS["properties"])
-        self.assertIn("applied_jobs", BOOKS_MONTH_INDEX_MAPPINGS["properties"])
-        for mappings in (
-            MONTH_INDEX_MAPPINGS,
-            YEAR_INDEX_MAPPINGS,
-            BOOKS_MONTH_INDEX_MAPPINGS,
-            BOOKS_YEAR_INDEX_MAPPINGS,
-        ):
-            for removed_field in (
-                "document_type",
-                "scielo_document_type",
-                "pid",
-                "pid_v2",
-                "pid_v3",
-                "pid_generic",
-                "title_pid_generic",
-                "counter_data_type",
-                "access_month",
-                "access_year",
-            ):
-                self.assertNotIn(removed_field, mappings["properties"])
-            document_mapping = mappings["properties"]["document"]
-            source_mapping = mappings["properties"]["source"]
-            self.assertEqual(document_mapping["properties"]["id"]["type"], "keyword")
-            self.assertEqual(document_mapping["properties"]["title"]["type"], "text")
-            self.assertFalse(document_mapping["properties"]["title"]["index"])
-            self.assertEqual(source_mapping["properties"]["id"]["type"], "keyword")
-            self.assertEqual(source_mapping["properties"]["title"]["type"], "text")
-            self.assertFalse(source_mapping["properties"]["title"]["index"])
-            self.assertEqual(
-                source_mapping["properties"]["publisher_name"]["type"], "text"
-            )
-            self.assertFalse(source_mapping["properties"]["publisher_name"]["index"])
-
-    @override_settings(OPENSEARCH_BULK_CHUNK_SIZE=2000)
-    @patch("metrics.opensearch.client.helpers.bulk")
-    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
-    def test_increment_documents_for_daily_job_uses_applied_jobs(
-        self,
-        mock_get_client,
-        mock_bulk,
-    ):
-        mock_get_client.return_value = Mock()
-        client = OpenSearchUsageClient(url="https://example.org:9200")
-
-        mock_bulk.return_value = (1, 0)
-        documents = iter(
-            [
-                (
-                    "doc-1",
-                    {
-                        "collection": "books",
-                        "document": {"id": "BOOK:WD"},
-                        "access": {"month": "2025-06"},
-                        "total_requests": 3,
-                        "total_investigations": 4,
-                        "unique_requests": 2,
-                        "unique_investigations": 3,
-                    },
-                )
-            ]
-        )
-
-        succeeded = client.increment_document_items_for_daily_job(
-            index_name="usage_monthly_books_202506",
-            document_items=documents,
-            job_id="books|2025-06-03|abc123",
-        )
-
-        actions = list(mock_bulk.call_args.args[1])
-        self.assertEqual(len(actions), 1)
-        action = actions[0]
-        self.assertEqual(action["_op_type"], "update")
-        self.assertEqual(
-            action["script"]["params"]["job_id"], "books|2025-06-03|abc123"
-        )
-        self.assertEqual(action["upsert"], {"applied_jobs": []})
-        self.assertEqual(succeeded, 1)
-        self.assertEqual(mock_bulk.call_args.kwargs["chunk_size"], 2000)
-
-    @override_settings(OPENSEARCH_BULK_CHUNK_SIZE=0)
-    def test_bulk_chunk_size_must_be_positive(self):
-        with self.assertRaisesRegex(ValueError, "greater than zero"):
-            OpenSearchUsageClient(url="https://example.org:9200")

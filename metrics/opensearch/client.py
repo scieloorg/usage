@@ -3,10 +3,15 @@ import logging
 from django.conf import settings
 from opensearchpy import NotFoundError, OpenSearch, helpers
 
-from metrics.opensearch.mappings import get_index_mappings
-from metrics.opensearch.names import generate_month_index_name, generate_year_index_name
+from metrics.opensearch.mappings import get_index_mappings, get_index_settings
+from metrics.opensearch.names import (
+    generate_analytics_index_name,
+    generate_month_index_name,
+    generate_physical_index_name,
+)
 from metrics.opensearch.painless import (
-    build_idempotent_job_increment_action,
+    build_idempotent_annual_day_increment_action,
+    build_idempotent_day_increment_action,
     merge_metric_document,
 )
 
@@ -71,20 +76,32 @@ class OpenSearchUsageClient:
             logging.error("Error pinging OpenSearch client: %s", exc)
             return False
 
-    def create_index(self, index_name, mappings, ping_client=False):
+    def create_index(
+        self,
+        index_name,
+        mappings,
+        ping_client=False,
+        primary_shards=1,
+    ):
         if ping_client and not self.ping():
             return
 
         response = self.client.indices.create(
             index=index_name,
             body={
-                "settings": {"index": {"number_of_replicas": 0}},
+                "settings": get_index_settings(primary_shards),
                 "mappings": mappings,
             },
         )
         logging.info("Index %s created: %s", index_name, response)
 
-    def create_index_if_not_exists(self, index_name, mappings, ping_client=False):
+    def create_index_if_not_exists(
+        self,
+        index_name,
+        mappings,
+        ping_client=False,
+        primary_shards=1,
+    ):
         if ping_client and not self.ping():
             return
 
@@ -92,8 +109,35 @@ class OpenSearchUsageClient:
             self.create_index(
                 index_name=index_name,
                 mappings=mappings,
+                primary_shards=primary_shards,
                 ping_client=False,
             )
+
+    def create_alias_if_not_exists(
+        self,
+        alias_name,
+        mappings,
+        primary_shards=1,
+        ping_client=False,
+    ):
+        if ping_client and not self.ping():
+            return
+        if self.client.indices.exists_alias(name=alias_name):
+            return
+
+        physical_name = generate_physical_index_name(alias_name)
+        if not self.client.indices.exists(index=physical_name):
+            self.client.indices.create(
+                index=physical_name,
+                body={
+                    "settings": get_index_settings(primary_shards),
+                    "mappings": mappings,
+                    "aliases": {alias_name: {}},
+                },
+            )
+            return
+
+        self.client.indices.put_alias(index=physical_name, name=alias_name)
 
     def ensure_usage_indexes(self, collection, access_date, index_prefix=None):
         index_prefix = index_prefix or getattr(
@@ -101,19 +145,23 @@ class OpenSearchUsageClient:
             "OPENSEARCH_INDEX_NAME",
             "usage",
         )
-        year_index = generate_year_index_name(index_prefix, collection, access_date)
         month_index = generate_month_index_name(index_prefix, collection, access_date)
-
-        self.create_index_if_not_exists(
-            year_index,
-            get_index_mappings(collection, "year"),
+        analytics_index = generate_analytics_index_name(
+            index_prefix,
+            collection,
+            access_date,
         )
-        self.create_index_if_not_exists(
+
+        self.create_alias_if_not_exists(
             month_index,
-            get_index_mappings(collection, "month"),
+            get_index_mappings("counter"),
+        )
+        self.create_alias_if_not_exists(
+            analytics_index,
+            get_index_mappings("analytics"),
         )
 
-        return {"year": year_index, "month": month_index}
+        return {"counter": month_index, "analytics": analytics_index}
 
     def index_documents(self, index_name, documents, ping_client=False):
         if ping_client and not self.ping():
@@ -130,24 +178,44 @@ class OpenSearchUsageClient:
             ),
         )
 
-    def increment_document_items_for_daily_job(
+    def index_document_items(self, index_name, document_items, ping_client=False):
+        if ping_client and not self.ping():
+            return 0
+
+        succeeded, _failed = helpers.bulk(
+            self.client,
+            (
+                {"_index": index_name, "_id": doc_id, "_source": document}
+                for doc_id, document in document_items
+            ),
+            chunk_size=self.bulk_chunk_size,
+        )
+        return succeeded
+
+    def increment_document_items_for_day(
         self,
         index_name,
         document_items,
-        job_id,
+        access_day,
+        annual=False,
         ping_client=False,
     ):
         if ping_client and not self.ping():
             return
 
+        action_builder = (
+            build_idempotent_annual_day_increment_action
+            if annual
+            else build_idempotent_day_increment_action
+        )
         succeeded, _failed = helpers.bulk(
             self.client,
             (
-                build_idempotent_job_increment_action(
+                action_builder(
                     index_name=index_name,
                     doc_id=doc_id,
                     document=document,
-                    job_id=job_id,
+                    access_day=access_day,
                 )
                 for doc_id, document in document_items
             ),
