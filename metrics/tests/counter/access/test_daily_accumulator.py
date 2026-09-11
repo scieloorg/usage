@@ -43,10 +43,6 @@ def test_consuming_materialization_releases_all_internal_structures():
 
     assert [value["pid_v3"] for value in values] == ["first", "second"]
     assert len(accumulator) == 0
-    assert accumulator._documents == []
-    assert accumulator._document_ids == {}
-    assert accumulator._sources == []
-    assert accumulator._source_ids == {}
     assert accumulator._sessions == {}
     assert accumulator._strings == []
     assert accumulator._string_ids == {}
@@ -61,10 +57,10 @@ def test_consuming_materialization_releases_structures_after_consumer_error():
     values.close()
 
     assert len(accumulator) == 0
-    assert accumulator._documents == []
+    assert accumulator._strings == []
 
 
-def test_partitioned_year_conversion_releases_accumulator_after_consumer_error():
+def test_partitioned_analytics_conversion_releases_accumulator_after_consumer_error():
     from metrics.counter.indexing import converter
 
     accumulator = DailyAccessAccumulator()
@@ -72,7 +68,7 @@ def test_partitioned_year_conversion_releases_accumulator_after_consumer_error()
     _accumulate(accumulator, "second", "127.0.0.2")
     documents = converter.iter_partitioned_documents(
         accumulator,
-        "year",
+        "analytics",
         partition_count=2,
     )
 
@@ -80,4 +76,4 @@ def test_partitioned_year_conversion_releases_accumulator_after_consumer_error()
     documents.close()
 
     assert len(accumulator) == 0
-    assert accumulator._documents == []
+    assert accumulator._strings == []

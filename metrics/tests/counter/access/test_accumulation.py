@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import date, datetime
 
 from scielo_usage_counter.values import (
     CONTENT_TYPE_FULL_TEXT,
@@ -57,15 +57,27 @@ class TestAccumulation(unittest.TestCase):
         result = next(results.iter_materialized_values())
         self.assertEqual(result["source"]["source_type"], "book")
         self.assertEqual(result["source"]["source_id"], "q7gtd")
-        self.assertEqual(result["source"]["main_title"], "Book Title")
         self.assertEqual(result["access_date"], "2024-01-15")
-        self.assertEqual(result["access_month"], "202401")
-        self.assertEqual(result["access_year"], "2024")
+        self.assertNotIn("access_month", result)
+        self.assertNotIn("access_year", result)
         self.assertEqual(result["access_country_code"], "BR")
         self.assertEqual(result["content_language"], "en")
         self.assertEqual(result["title_pid_generic"], "BOOK:Q7GTD")
-        self.assertEqual(result["document"], {"title": "Book Title"})
+        self.assertNotIn("document", result)
         self.assertIn("user_session_id", result)
+
+    def test_reporting_date_overrides_timestamp_date(self):
+        results = DailyAccessAccumulator()
+        accumulation.accumulate(
+            results,
+            self._book_counter_access(),
+            self._line(local_datetime=datetime(2025, 12, 31, 23, 59, 59)),
+            reporting_date=date(2026, 1, 1),
+        )
+
+        result = next(results.iter_materialized_values())
+
+        self.assertEqual(result["access_date"], "2026-01-01")
 
     def test_rejects_invalid_local_datetime(self):
         results = DailyAccessAccumulator()
@@ -223,10 +235,10 @@ class TestAccumulation(unittest.TestCase):
             accumulation.accumulate(compact, self._book_counter_access(), event)
 
         values = list(compact.iter_materialized_values())
-        month = dict(index_docs.iter_partitioned_values(values, "month"))
-        year = dict(index_docs.iter_partitioned_values(values, "year"))
-        self.assertEqual(len(month), 2)
-        self.assertEqual(len(year), 2)
+        counter = dict(index_docs.iter_partitioned_values(values, "counter"))
+        analytics = dict(index_docs.iter_partitioned_values(values, "analytics"))
+        self.assertEqual(len(counter), 2)
+        self.assertEqual(len(analytics), 2)
 
     def test_compact_accumulator_promotes_only_repeated_timestamps(self):
         compact = DailyAccessAccumulator()
@@ -257,7 +269,7 @@ class TestAccumulation(unittest.TestCase):
             {"/id/q7gtd/full-text": {5: 1, 20: 1}},
         )
 
-    def test_compact_accumulator_reuses_missing_metadata_slots(self):
+    def test_compact_accumulator_does_not_retain_display_metadata(self):
         compact = DailyAccessAccumulator()
         counter_access = self._book_counter_access(
             source_type=None,
@@ -279,24 +291,12 @@ class TestAccumulation(unittest.TestCase):
         )
 
         self.assertEqual(len(compact), 2)
-        self.assertEqual(compact._documents, [None, {}])
-        self.assertEqual(len(compact._sources), 2)
         for record in compact.iter_materialized_values():
-            self.assertEqual(record["document"], {})
+            self.assertNotIn("document", record)
             self.assertEqual(
                 record["source"],
                 {
                     "source_type": None,
                     "source_id": None,
-                    "scielo_issn": None,
-                    "main_title": None,
-                    "identifiers": None,
-                    "access_type": None,
-                    "city": None,
-                    "country": None,
-                    "subject_area_capes": [],
-                    "subject_area_wos": [],
-                    "acronym": None,
-                    "publisher_name": ["SciELO Books"],
                 },
             )
