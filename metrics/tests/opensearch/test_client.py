@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase, override_settings
+from opensearchpy import RequestError
 
 from metrics.opensearch.client import OpenSearchUsageClient
 from metrics.opensearch.mappings import (
@@ -42,6 +43,183 @@ class OpenSearchUsageClientTests(SimpleTestCase):
                 "aliases": {"usage_monthly_scl_2026": {}},
             },
         )
+
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_yearly_partition_uses_validated_access_year(self, get_client):
+        raw_client = Mock()
+        raw_client.indices.exists_alias.return_value = False
+        raw_client.indices.exists.return_value = False
+        get_client.return_value = raw_client
+        client = OpenSearchUsageClient(url="https://example.org:9200")
+
+        write_index = client.prepare_usage_index(
+            alias_name="usage_monthly_scl",
+            mappings=MONTH_INDEX_MAPPINGS,
+            partition_strategy="yearly",
+            access_date="2025-12-31",
+        )
+
+        assert write_index == "usage_monthly_scl_2025"
+        raw_client.indices.create.assert_called_once_with(
+            index="usage_monthly_scl_2025-000001",
+            body={
+                "settings": get_index_settings(1),
+                "mappings": MONTH_INDEX_MAPPINGS,
+                "aliases": {
+                    "usage_monthly_scl_2025": {"is_write_index": True},
+                    "usage_monthly_scl": {},
+                },
+            },
+        )
+
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_yearly_rollover_keeps_global_read_alias(self, get_client):
+        raw_client = Mock()
+        raw_client.indices.rollover.return_value = {
+            "rolled_over": False,
+        }
+        get_client.return_value = raw_client
+        client = OpenSearchUsageClient(url="https://example.org:9200")
+
+        client.rollover_usage_index(
+            "usage_monthly_scl_2026",
+            MONTH_INDEX_MAPPINGS,
+            read_alias="usage_monthly_scl",
+        )
+
+        raw_client.indices.rollover.assert_called_once_with(
+            alias="usage_monthly_scl_2026",
+            body={
+                "conditions": {"max_size": "50gb"},
+                "settings": get_index_settings(1),
+                "mappings": MONTH_INDEX_MAPPINGS,
+                "aliases": {"usage_monthly_scl": {}},
+            },
+        )
+
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_continuous_partition_creates_a_write_alias(self, get_client):
+        raw_client = Mock()
+        raw_client.indices.exists_alias.return_value = False
+        raw_client.indices.exists.return_value = False
+        get_client.return_value = raw_client
+        client = OpenSearchUsageClient(url="https://example.org:9200")
+
+        write_index = client.prepare_usage_index(
+            alias_name="usage_monthly_books",
+            mappings=MONTH_INDEX_MAPPINGS,
+            partition_strategy="rollover",
+            access_date="2026-01-01",
+        )
+
+        assert write_index == "usage_monthly_books"
+        raw_client.indices.create.assert_called_once_with(
+            index="usage_monthly_books-000001",
+            body={
+                "settings": get_index_settings(1),
+                "mappings": MONTH_INDEX_MAPPINGS,
+                "aliases": {
+                    "usage_monthly_books": {"is_write_index": True},
+                },
+            },
+        )
+
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_concurrent_initial_index_creation_is_idempotent(self, get_client):
+        raw_client = Mock()
+        raw_client.indices.exists_alias.return_value = False
+        raw_client.indices.exists.side_effect = [False, True]
+        raw_client.indices.create.side_effect = RequestError(
+            400,
+            "resource_already_exists_exception",
+            {},
+        )
+        get_client.return_value = raw_client
+        client = OpenSearchUsageClient(url="https://example.org:9200")
+
+        write_index = client.prepare_usage_index(
+            alias_name="usage_monthly_books",
+            mappings=MONTH_INDEX_MAPPINGS,
+            partition_strategy="rollover",
+            access_date="2026-01-01",
+        )
+
+        assert write_index == "usage_monthly_books"
+
+    @override_settings(OPENSEARCH_ROLLOVER_MAX_SIZE="50gb")
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_rollover_preserves_mappings_and_settings(self, get_client):
+        raw_client = Mock()
+        get_client.return_value = raw_client
+        client = OpenSearchUsageClient(url="https://example.org:9200")
+
+        client.rollover_usage_index(
+            "usage_monthly_books",
+            MONTH_INDEX_MAPPINGS,
+        )
+
+        raw_client.indices.rollover.assert_called_once_with(
+            alias="usage_monthly_books",
+            body={
+                "conditions": {"max_size": "50gb"},
+                "settings": get_index_settings(1),
+                "mappings": MONTH_INDEX_MAPPINGS,
+            },
+        )
+
+    @override_settings(OPENSEARCH_BULK_CHUNK_SIZE=2)
+    @patch("metrics.opensearch.client.helpers.bulk")
+    @patch.object(OpenSearchUsageClient, "get_opensearch_client")
+    def test_continuous_updates_follow_existing_backing_index(
+        self,
+        get_client,
+        bulk,
+    ):
+        raw_client = Mock()
+        raw_client.indices.get_alias.return_value = {
+            "usage_monthly_books-000001": {
+                "aliases": {
+                    "usage_monthly_books": {"is_write_index": False},
+                }
+            },
+            "usage_monthly_books-000002": {
+                "aliases": {
+                    "usage_monthly_books": {"is_write_index": True},
+                }
+            },
+        }
+        raw_client.search.return_value = {
+            "hits": {
+                "hits": [
+                    {
+                        "_id": "existing",
+                        "_index": "usage_monthly_books-000001",
+                    }
+                ]
+            }
+        }
+        get_client.return_value = raw_client
+        bulk.return_value = (2, 0)
+        client = OpenSearchUsageClient(url="https://example.org:9200")
+
+        succeeded = client.increment_document_items_for_day(
+            index_name="usage_monthly_books",
+            document_items=iter(
+                [
+                    ("existing", {"total_requests": 1}),
+                    ("new", {"total_requests": 1}),
+                ]
+            ),
+            access_day="2026-01-01",
+            resolve_existing_indexes=True,
+        )
+
+        actions = list(bulk.call_args.args[1])
+        assert succeeded == 2
+        assert [action["_index"] for action in actions] == [
+            "usage_monthly_books-000001",
+            "usage_monthly_books-000002",
+        ]
 
     def test_mappings_are_explicit_and_separate_metadata_from_facts(self):
         assert "source_key" in MONTH_INDEX_MAPPINGS["properties"]
