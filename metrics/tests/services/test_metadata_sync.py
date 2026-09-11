@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from collection.models import Collection
 from document.models import Document
@@ -64,6 +64,7 @@ class MetadataDocumentsTests(TestCase):
         )
         self.assertFalse(entry.payload["active"])
 
+    @override_settings(OPENSEARCH_INDEX_NAME="custom_usage")
     @patch("metrics.services.metadata_sync.OpenSearchUsageClient")
     def test_sync_advances_cursor_and_clears_exported_outbox(self, client_class):
         client = Mock()
@@ -83,3 +84,7 @@ class MetadataDocumentsTests(TestCase):
             ).exists()
         )
         client.create_alias_if_not_exists.assert_called_once()
+        self.assertEqual(
+            client.create_alias_if_not_exists.call_args.args[0],
+            "custom_usage_sources",
+        )

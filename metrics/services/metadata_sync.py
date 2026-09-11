@@ -1,6 +1,7 @@
 import logging
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -42,7 +43,10 @@ def sync_metadata(entity=None, batch_size=DEFAULT_BATCH_SIZE):
 def _sync_entity(client, entity, batch_size):
     model, serializer, related = _entity_config(entity)
     state = _acquire_lease(entity)
-    alias = generate_metadata_alias(f"{entity}s")
+    alias = generate_metadata_alias(
+        settings.OPENSEARCH_INDEX_NAME,
+        f"{entity}s",
+    )
     client.create_alias_if_not_exists(alias, get_index_mappings(f"{entity}s"))
     exported = 0
 
