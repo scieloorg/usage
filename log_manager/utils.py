@@ -4,6 +4,8 @@ from collections import deque
 
 from scielo_log_validator import exceptions, validator
 
+EMPTY_CONTENT_HASH = hashlib.md5(b"").hexdigest()
+
 
 def hash_file(path, num_lines=500):
     """
