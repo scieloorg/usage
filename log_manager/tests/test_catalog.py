@@ -9,7 +9,7 @@ from django.test import TestCase
 from collection.models import Collection
 from log_manager import choices, file_errors, utils
 from log_manager.models import LogFile
-from log_manager.services import catalog
+from log_manager.services import catalog, validation
 
 
 class CatalogLogFilesTests(TestCase):
@@ -61,6 +61,64 @@ class CatalogLogFilesTests(TestCase):
         self.assertEqual(log_file.status, choices.LOG_FILE_STATUS_ERROR)
         self.assertEqual(log_file.stat_result, {})
         self.assertEqual(log_file.validation["file_error"]["kind"], "io")
+
+    def test_empty_files_are_cataloged_separately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first_path = Path(directory) / "2026-09-03_scielo.pe.log.gz"
+            second_path = Path(directory) / "2026-09-04_scielo.pe.log.gz"
+            for path in (first_path, second_path):
+                with gzip.open(path, "wb"):
+                    pass
+
+            self._catalog_directory(directory)
+            self._catalog_directory(directory)
+
+            log_files = list(LogFile.objects.order_by("path"))
+            for log_file in log_files:
+                validation.validate_log_file_and_update_status(log_file.hash)
+            log_files = list(LogFile.objects.order_by("path"))
+
+        self.assertEqual(len(log_files), 2)
+        self.assertEqual(
+            [log_file.hash for log_file in log_files],
+            [
+                file_errors.build_catalog_empty_hash("per", str(first_path)),
+                file_errors.build_catalog_empty_hash("per", str(second_path)),
+            ],
+        )
+        self.assertEqual(
+            {log_file.status for log_file in log_files},
+            {choices.LOG_FILE_STATUS_INVALIDATED},
+        )
+        self.assertEqual(
+            {log_file.validation["probably_date"] for log_file in log_files},
+            {None},
+        )
+
+    def test_valid_replacement_recovers_empty_file_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "2026-09-04_scielo.pe.log.gz"
+            with gzip.open(path, "wb"):
+                pass
+            self._catalog_directory(directory)
+
+            log_file = LogFile.objects.get()
+            log_file_id = log_file.pk
+            log_file.status = choices.LOG_FILE_STATUS_INVALIDATED
+            log_file.validation = {"probably_date": None}
+            log_file.save(update_fields=["status", "validation"])
+
+            with gzip.open(path, "wb") as output:
+                output.write(b"new content\n")
+            expected_hash = utils.hash_file(path)
+            self._catalog_directory(directory)
+
+            log_file = LogFile.objects.get()
+
+        self.assertEqual(log_file.pk, log_file_id)
+        self.assertEqual(log_file.hash, expected_hash)
+        self.assertEqual(log_file.status, choices.LOG_FILE_STATUS_CREATED)
+        self.assertEqual(log_file.validation, {})
 
     def test_valid_replacement_recovers_the_error_record(self):
         with tempfile.TemporaryDirectory() as directory:
