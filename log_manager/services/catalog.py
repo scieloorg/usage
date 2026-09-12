@@ -100,6 +100,13 @@ def _catalog_log_files_in_directory(
                 )
                 continue
 
+            # Path identity lets validation track empty files individually.
+            if file_hash == utils.EMPTY_CONTENT_HASH:
+                file_hash = file_errors.build_catalog_empty_hash(
+                    collection.acron3,
+                    file_path,
+                )
+
             _catalog_readable_file(
                 collection=collection,
                 path=file_path,
@@ -122,16 +129,7 @@ def _get_file_read_error_paths(collection, directory_path):
 def _record_file_read_error(collection, path, stat_result, exc):
     error_hash = file_errors.build_catalog_error_hash(collection.acron3, path)
     with transaction.atomic():
-        log_file = (
-            models.LogFile.objects.select_for_update()
-            .filter(
-                collection=collection,
-                path=path,
-                status=choices.LOG_FILE_STATUS_ERROR,
-                validation__file_error__code=file_errors.FILE_READ_ERROR_CODE,
-            )
-            .first()
-        )
+        log_file = _get_path_placeholder(collection, path)
         if log_file is None:
             log_file = models.LogFile.create_or_update(
                 collection=collection,
@@ -141,6 +139,7 @@ def _record_file_read_error(collection, path, stat_result, exc):
                 status=choices.LOG_FILE_STATUS_ERROR,
             )
 
+        log_file.hash = error_hash
         log_file.path = path
         log_file.stat_result = stat_result
         log_file.status = choices.LOG_FILE_STATUS_ERROR
@@ -156,29 +155,20 @@ def _record_file_read_error(collection, path, stat_result, exc):
 
 def _catalog_readable_file(collection, path, stat_result, file_hash):
     with transaction.atomic():
-        path_error = (
-            models.LogFile.objects.select_for_update()
-            .filter(
-                collection=collection,
-                path=path,
-                status=choices.LOG_FILE_STATUS_ERROR,
-                validation__file_error__code=file_errors.FILE_READ_ERROR_CODE,
-            )
-            .first()
-        )
+        path_placeholder = _get_path_placeholder(collection, path)
         canonical = (
             models.LogFile.objects.select_for_update().filter(hash=file_hash).first()
         )
 
-        if canonical and path_error and canonical.pk != path_error.pk:
-            path_error.delete()
+        if canonical and path_placeholder and canonical.pk != path_placeholder.pk:
+            path_placeholder.delete()
             canonical.updated = timezone.now()
             canonical.save(update_fields=["updated"])
             return canonical
 
-        log_file = canonical or path_error
+        log_file = canonical or path_placeholder
         if log_file:
-            if file_errors.get_file_read_error(log_file.validation):
+            if path_placeholder and path_placeholder.hash != file_hash:
                 _recover_readable_log_file(log_file, file_hash, path, stat_result)
             else:
                 log_file.updated = timezone.now()
@@ -191,6 +181,22 @@ def _catalog_readable_file(collection, path, stat_result, file_hash):
             stat_result=stat_result,
             hash=file_hash,
         )
+
+
+def _get_path_placeholder(collection, path):
+    placeholder_hashes = (
+        file_errors.build_catalog_error_hash(collection.acron3, path),
+        file_errors.build_catalog_empty_hash(collection.acron3, path),
+    )
+    return (
+        models.LogFile.objects.select_for_update()
+        .filter(
+            collection=collection,
+            path=path,
+            hash__in=placeholder_hashes,
+        )
+        .first()
+    )
 
 
 def _recover_readable_log_file(log_file, file_hash, path, stat_result):
