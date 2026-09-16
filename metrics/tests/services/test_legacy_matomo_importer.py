@@ -50,6 +50,22 @@ class LegacyMatomoImporterTests(LegacyManifestTestCase):
             day_masks[august_last_offset // 63] & (1 << (august_last_offset % 63))
         )
 
+    def test_analytics_action_preserves_masks_larger_than_32_bits(self):
+        action = build_analytics_increment_action(
+            "usage_yearly_analytics_scl_2025",
+            "key",
+            METRICS,
+            "migration-with-hash",
+            ["2025-09-01", "2025-09-30"],
+        )
+
+        day_masks = action["script"]["params"]["day_masks"]
+        script = action["script"]["source"]
+
+        self.assertGreater(max(day_masks), (1 << 31) - 1)
+        self.assertIn("((Number) params.day_masks[index]).longValue()", script)
+        self.assertNotIn("applied_day_masks[index] |=", script)
+
     @override_settings(OPENSEARCH_INDEX_NAME="usage")
     def test_preflight_builds_yearly_targets_without_writes(self):
         collection = SimpleNamespace(

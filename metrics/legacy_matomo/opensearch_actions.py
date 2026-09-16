@@ -59,7 +59,10 @@ if (ctx._source.applied_day_masks == null) {
   ctx._source.applied_day_masks = params.empty_day_masks;
 }
 for (int index = 0; index < params.day_masks.size(); index++) {
-  if ((ctx._source.applied_day_masks[index] & params.day_masks[index]) != 0) {
+  // JSON zeroes may deserialize as Integer; force long before using high bits.
+  long currentMask = ((Number) ctx._source.applied_day_masks[index]).longValue();
+  long incomingMask = ((Number) params.day_masks[index]).longValue();
+  if ((currentMask & incomingMask) != 0) {
     throw new IllegalStateException('Historical migration overlaps an applied analytics day');
   }
 }
@@ -78,7 +81,9 @@ for (field in params.metric_fields) {
   ctx._source[field] = currentValue + increment;
 }
 for (int index = 0; index < params.day_masks.size(); index++) {
-  ctx._source.applied_day_masks[index] |= params.day_masks[index];
+  long currentMask = ((Number) ctx._source.applied_day_masks[index]).longValue();
+  long incomingMask = ((Number) params.day_masks[index]).longValue();
+  ctx._source.applied_day_masks[index] = currentMask | incomingMask;
 }
 ctx._source.applied_migrations.add(params.migration_id);
 """
