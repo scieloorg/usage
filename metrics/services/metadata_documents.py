@@ -34,6 +34,8 @@ def build_document_document(document, active=True):
         or document.pid_generic
         or document.document_id
     )
+    if document.document_type in {"book", "chapter"} and document.pid_generic:
+        canonical_id = document.pid_generic.upper()
     key = document_key(
         collection,
         document.document_type,
@@ -52,6 +54,8 @@ def build_document_document(document, active=True):
         parent_id = (
             parent.pid_v3 or parent.pid_v2 or parent.pid_generic or parent.document_id
         )
+        if parent.document_type in {"book", "chapter"} and parent.pid_generic:
+            parent_id = parent.pid_generic.upper()
         parent_identifier = document_key(
             collection,
             parent.document_type,
@@ -66,6 +70,7 @@ def build_document_document(document, active=True):
         "parent_document_key": parent_identifier,
         "title": document.title,
         "publication_year": _integer_or_none(document.publication_year),
+        "publication_date": document.publication_date,
         "default_lang": document.default_lang,
         "text_langs": document.text_langs or [],
         "identifiers": _document_identifiers(document),
