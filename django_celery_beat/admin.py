@@ -18,7 +18,7 @@ from .models import (
     PeriodicTasks,
     SolarSchedule,
 )
-from .utils import is_database_scheduler
+from .schedulers import is_database_scheduler
 
 
 class TaskSelectWidget(Select):

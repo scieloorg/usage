@@ -12,6 +12,7 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import close_old_connections, transaction
 from django.db.utils import DatabaseError, InterfaceError
+from kombu.utils import symbol_by_name
 from kombu.utils.encoding import safe_repr, safe_str
 from kombu.utils.json import dumps, loads
 
@@ -37,6 +38,15 @@ Cannot add entry %r to database schedule: %r. Contents: %r
 
 logger = get_logger(__name__)
 debug, info, warning = logger.debug, logger.info, logger.warning
+
+
+def is_database_scheduler(scheduler):
+    if not scheduler:
+        return False
+
+    return scheduler == "django" or issubclass(
+        symbol_by_name(scheduler), DatabaseScheduler
+    )
 
 
 class ModelEntry(ScheduleEntry):
