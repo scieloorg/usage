@@ -1,6 +1,6 @@
 from struct import Struct
 
-_ACCESS_KEY = Struct("!10I")
+_ACCESS_KEY = Struct("!11I")
 _SESSION_KEY = Struct("!5I")
 
 
@@ -23,6 +23,7 @@ class _CompactAccessRecord:
         "pid_v3",
         "publication_year",
         "session",
+        "segment_pid_generics",
         "source_id",
         "source_type",
         "source_key",
@@ -37,6 +38,10 @@ class _CompactAccessRecord:
         self.pid_v3 = accumulator._intern(data.get("pid_v3"))
         self.pid_generic = accumulator._intern(data.get("pid_generic"))
         self.title_pid_generic = accumulator._intern(data.get("title_pid_generic"))
+        self.segment_pid_generics = tuple(
+            accumulator._intern(pid_generic)
+            for pid_generic in data.get("segment_pid_generics") or []
+        )
         self.media_format = accumulator._intern(data.get("media_format"))
         self.content_language = accumulator._intern(data.get("content_language"))
         self.content_type = accumulator._intern(data.get("content_type"))
@@ -77,6 +82,9 @@ class _CompactAccessRecord:
             "pid_v3": accumulator._resolve(self.pid_v3),
             "pid_generic": accumulator._resolve(self.pid_generic),
             "title_pid_generic": accumulator._resolve(self.title_pid_generic),
+            "segment_pid_generics": [
+                accumulator._resolve(pid_id) for pid_id in self.segment_pid_generics
+            ],
             "user_session_id": self.session,
             "click_timestamps_by_url": self._timestamps_as_dict(accumulator),
             "media_format": accumulator._resolve(self.media_format),
@@ -129,6 +137,7 @@ class DailyAccessAccumulator:
             self._intern(data.get("pid_v2")),
             self._intern(data.get("pid_v3")),
             self._intern(data.get("pid_generic")),
+            self._intern(tuple(data.get("segment_pid_generics") or ())),
             session,
             self._intern(data.get("access_country_code")),
             self._intern(data.get("content_language")),

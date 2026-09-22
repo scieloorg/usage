@@ -1,4 +1,4 @@
-from scielo_usage_counter.values import CONTENT_TYPE_FULL_TEXT
+from scielo_usage_counter.values import CONTENT_TYPE_ABSTRACT, CONTENT_TYPE_FULL_TEXT
 
 from metrics.counter.indexing import converter
 
@@ -32,6 +32,7 @@ def test_counter_facts_are_monthly_and_reference_metadata_keys():
     document_id, document = next(iter(documents.items()))
     assert document_id.startswith("k1_")
     assert document["month"] == "2026-08"
+    assert document["publication_year"] == 2025
     assert document["data_type"] == "Article"
     assert document["parent_data_type"] == "Journal"
     assert document["total_requests"] == 1
@@ -99,6 +100,86 @@ def test_book_and_chapter_keep_item_and_title_scopes():
         "Book",
         "Book_Segment",
     }
+    assert all(item["total_requests"] == 1 for item in documents.values())
+    assert all(item["publication_year"] == 2025 for item in documents.values())
+
+
+def test_book_investigation_counts_item_and_title_scopes():
+    book = {
+        **_article(),
+        "collection": "books",
+        "source_key": "book-1",
+        "document_type": "book",
+        "pid_v3": None,
+        "pid_generic": "BOOK:BOOK-1",
+        "title_pid_generic": "BOOK:BOOK-1",
+        "content_type": CONTENT_TYPE_ABSTRACT,
+        "source": {"source_type": "book", "source_id": "book-1"},
+    }
+
+    documents = dict(converter.iter_partitioned_values([book], "counter"))
+
+    assert len(documents) == 2
+    assert {item["metric_scope"] for item in documents.values()} == {"item", "title"}
+    assert all(item["total_investigations"] == 1 for item in documents.values())
+    assert all(item["unique_investigations"] == 1 for item in documents.values())
+
+
+def test_whole_book_request_counts_each_identified_chapter_once():
+    book = {
+        **_article(),
+        "collection": "books",
+        "source_key": "book-1",
+        "document_type": "book",
+        "pid_v3": None,
+        "pid_generic": "BOOK:BOOK-1",
+        "title_pid_generic": "BOOK:BOOK-1",
+        "segment_pid_generics": [
+            "BOOK:BOOK-1/CHAPTER:01",
+            "BOOK:BOOK-1/CHAPTER:02",
+            "BOOK:BOOK-1/CHAPTER:03",
+        ],
+        "source": {"source_type": "book", "source_id": "book-1"},
+    }
+    chapter = {
+        **book,
+        "document_type": "chapter",
+        "pid_generic": "BOOK:BOOK-1/CHAPTER:01",
+        "segment_pid_generics": [],
+    }
+
+    for dataset in ("counter", "analytics"):
+        documents = dict(converter.iter_partitioned_values([book, chapter], dataset))
+        items = [item for item in documents.values() if item["metric_scope"] == "item"]
+        titles = [
+            item for item in documents.values() if item["metric_scope"] == "title"
+        ]
+
+        assert len(items) == 3
+        assert len(titles) == 1
+        assert sum(item["total_requests"] for item in items) == 4
+        assert sum(item["unique_requests"] for item in items) == 3
+        assert titles[0]["total_requests"] == 2
+        assert titles[0]["unique_requests"] == 1
+
+
+def test_whole_book_without_identifiable_chapters_counts_one_item():
+    book = {
+        **_article(),
+        "collection": "books",
+        "source_key": "book-1",
+        "document_type": "book",
+        "pid_v3": None,
+        "pid_generic": "BOOK:BOOK-1",
+        "title_pid_generic": "BOOK:BOOK-1",
+        "segment_pid_generics": [],
+        "source": {"source_type": "book", "source_id": "book-1"},
+    }
+
+    documents = dict(converter.iter_partitioned_values([book], "counter"))
+
+    assert len(documents) == 2
+    assert {item["metric_scope"] for item in documents.values()} == {"item", "title"}
     assert all(item["total_requests"] == 1 for item in documents.values())
 
 

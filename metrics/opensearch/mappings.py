@@ -20,6 +20,7 @@ _BASE_METRIC_PROPERTIES = {
     "source_key": {"type": "keyword"},
     "document_key": {"type": "keyword"},
     "month": {"type": "date", "format": "yyyy-MM"},
+    "publication_year": {"type": "integer"},
     "applied_days": {
         "type": "keyword",
         "index": False,
@@ -66,6 +67,16 @@ ANALYTICS_INDEX_MAPPINGS = {
     },
 }
 
+MONTH_STATUS_INDEX_MAPPINGS = {
+    "dynamic": False,
+    "properties": {
+        "collection": {"type": "keyword"},
+        "month": {"type": "keyword"},
+        "day_mask": {"type": "long"},
+        "complete": {"type": "boolean"},
+    },
+}
+
 SOURCE_INDEX_MAPPINGS = {
     "dynamic": False,
     "properties": {
@@ -98,6 +109,7 @@ DOCUMENT_INDEX_MAPPINGS = {
         "parent_document_key": {"type": "keyword"},
         "title": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
         "publication_year": {"type": "integer"},
+        "publication_date": {"type": "keyword"},
         "default_lang": {"type": "keyword"},
         "text_langs": {"type": "keyword"},
         "identifiers": {"type": "flat_object"},

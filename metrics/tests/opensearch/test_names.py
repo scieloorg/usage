@@ -3,6 +3,7 @@ from metrics.opensearch.names import (
     generate_initial_index_name,
     generate_metadata_alias,
     generate_month_index_name,
+    generate_month_status_index_name,
     generate_rollover_index_name,
     generate_yearly_write_alias,
 )
@@ -10,6 +11,7 @@ from metrics.opensearch.names import (
 
 def test_metric_aliases_are_stable_per_collection():
     assert generate_month_index_name("usage", "scl") == "usage_monthly_scl"
+    assert generate_month_status_index_name("usage") == "usage_month_status"
     assert generate_analytics_index_name("usage", "scl") == (
         "usage_yearly_analytics_scl"
     )

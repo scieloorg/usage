@@ -6,6 +6,8 @@ from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 
+from config.sentry import scrub_api_key
+
 from .base import *  # noqa
 from .base import env
 
@@ -86,7 +88,9 @@ EMAIL_HOST = env.str("DJANGO_EMAIL_HOST", default="mailrelay.scielo.org")
 EMAIL_PORT = env.int("DJANGO_EMAIL_PORT", default=25)
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-host-user
-EMAIL_HOST_USER = env.str("DJANGO_EMAIL_HOST_USER", default="suporte.aplicacao@scielo.org")
+EMAIL_HOST_USER = env.str(
+    "DJANGO_EMAIL_HOST_USER", default="suporte.aplicacao@scielo.org"
+)
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#std-setting-EMAIL_HOST_PASSWORD
 EMAIL_HOST_PASSWORD = env.str("DJANGO_EMAIL_HOST_PASSWORD", default="")
@@ -197,6 +201,8 @@ sentry_sdk.init(
     integrations=integrations,
     environment=env("SENTRY_ENVIRONMENT", default="production"),
     traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
+    before_send=scrub_api_key,
+    before_send_transaction=scrub_api_key,
 )
 
 # Redis

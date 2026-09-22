@@ -34,16 +34,3 @@ def now():
         return now_localtime(timezone.now())
     else:
         return timezone.now()
-
-
-def is_database_scheduler(scheduler):
-    """Return true if Celery is configured to use the db scheduler."""
-    if not scheduler:
-        return False
-    from kombu.utils import symbol_by_name
-
-    from .schedulers import DatabaseScheduler
-
-    return scheduler == "django" or issubclass(
-        symbol_by_name(scheduler), DatabaseScheduler
-    )

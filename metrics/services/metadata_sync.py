@@ -21,7 +21,7 @@ DEFAULT_BATCH_SIZE = 1000
 LEASE_MINUTES = 30
 
 
-def sync_metadata(entity=None, batch_size=DEFAULT_BATCH_SIZE):
+def sync_metadata(entity=None, batch_size=DEFAULT_BATCH_SIZE, full=False):
     entities = (
         [entity]
         if entity
@@ -36,13 +36,24 @@ def sync_metadata(entity=None, batch_size=DEFAULT_BATCH_SIZE):
         raise RuntimeError("OpenSearch client is not available.")
 
     for current_entity in entities:
-        result[current_entity] = _sync_entity(client, current_entity, batch_size)
+        result[current_entity] = _sync_entity(
+            client,
+            current_entity,
+            batch_size,
+            full,
+        )
+
     return result
 
 
-def _sync_entity(client, entity, batch_size):
+def _sync_entity(client, entity, batch_size, full):
     model, serializer, related = _entity_config(entity)
     state = _acquire_lease(entity)
+
+    if full:
+        state.cursor_updated = None
+        state.cursor_pk = 0
+
     alias = generate_metadata_alias(
         settings.OPENSEARCH_INDEX_NAME,
         f"{entity}s",
@@ -55,6 +66,7 @@ def _sync_entity(client, entity, batch_size):
             batch = list(_cursor_queryset(model, state, related)[:batch_size])
             if not batch:
                 break
+
             exported += client.index_document_items(
                 alias,
                 (serializer(item) for item in batch),
@@ -66,6 +78,7 @@ def _sync_entity(client, entity, batch_size):
 
         exported += _flush_outbox(client, entity, alias, batch_size)
         state.completed_at = timezone.now()
+
         return exported
     finally:
         state.lease_until = None
@@ -102,6 +115,7 @@ def _cursor_queryset(model, state, related):
     queryset = model.objects.select_related(*related).order_by("updated", "pk")
     if state.cursor_updated is None:
         return queryset
+
     return queryset.filter(
         Q(updated__gt=state.cursor_updated)
         | Q(updated=state.cursor_updated, pk__gt=state.cursor_pk)
@@ -116,9 +130,11 @@ def _acquire_lease(entity):
         )
         if state.lease_until and state.lease_until > now:
             raise RuntimeError(f"Metadata sync already running for {entity}.")
+
         state.lease_until = now + timedelta(minutes=LEASE_MINUTES)
         state.heartbeat_at = now
         state.save(update_fields=["lease_until", "heartbeat_at"])
+
     return state
 
 

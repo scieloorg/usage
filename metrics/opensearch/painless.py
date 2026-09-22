@@ -22,6 +22,13 @@ for (entry in params.document.entrySet()) {
   if (!params.metric_fields.contains(entry.getKey())
       && !'applied_days'.equals(entry.getKey())
       && !'daily_metrics'.equals(entry.getKey())) {
+    if ('publication_year'.equals(entry.getKey())
+        && ctx._source.containsKey(entry.getKey())
+        && ctx._source[entry.getKey()] != null
+        && ctx._source[entry.getKey()] != 1
+        && entry.getValue() == 1) {
+      continue;
+    }
     if (!ctx._source.containsKey(entry.getKey()) || ctx._source[entry.getKey()] != entry.getValue()) {
       ctx._source[entry.getKey()] = entry.getValue();
     }
@@ -144,13 +151,15 @@ def merge_metric_document(existing, current, operation="add"):
         return current
 
     merged = dict(existing)
-    merged.update(
-        {
-            key: value
-            for key, value in current.items()
-            if key not in METRIC_FIELDS and key != "daily_metrics"
-        }
-    )
+    metadata = {
+        key: value
+        for key, value in current.items()
+        if key not in METRIC_FIELDS and key != "daily_metrics"
+    }
+    if existing.get("publication_year") not in {None, 1}:
+        if metadata.get("publication_year") == 1:
+            metadata.pop("publication_year")
+    merged.update(metadata)
 
     signal = -1 if operation == "subtract" else 1
     for field in METRIC_FIELDS:

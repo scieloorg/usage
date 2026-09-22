@@ -74,6 +74,7 @@ def _build_record(
         "pid_v3": pid_v3,
         "pid_generic": pid_generic,
         "title_pid_generic": counter_access.get("title_pid_generic") or pid_generic,
+        "segment_pid_generics": counter_access.get("segment_pid_generics") or [],
         "media_format": media_format,
         "content_language": content_language,
         "content_type": content_type,

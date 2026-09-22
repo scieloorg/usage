@@ -11,9 +11,31 @@ from metrics.opensearch.mappings import (
     SOURCE_INDEX_MAPPINGS,
     get_index_settings,
 )
+from metrics.opensearch.painless import merge_metric_document
 
 
 class OpenSearchUsageClientTests(SimpleTestCase):
+    @patch("metrics.opensearch.client.OpenSearch")
+    def test_basic_auth_string_is_split_into_credentials(self, opensearch):
+        OpenSearchUsageClient(
+            url="https://example.org:9200",
+            basic_auth="reader:secret",
+        )
+
+        self.assertEqual(
+            opensearch.call_args.kwargs["http_auth"],
+            ("reader", "secret"),
+        )
+
+    def test_unknown_yop_does_not_replace_known_yop(self):
+        existing = {"publication_year": 2024, "total_requests": 1}
+        current = {"publication_year": 1, "total_requests": 2}
+
+        merged = merge_metric_document(existing, current)
+
+        assert merged["publication_year"] == 2024
+        assert merged["total_requests"] == 3
+
     def test_rejects_non_positive_primary_shard_count(self):
         with self.assertRaisesMessage(
             ValueError,

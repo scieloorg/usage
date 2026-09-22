@@ -24,6 +24,7 @@ django-redis==5.4.0  # https://github.com/jazzband/django-redis4
 # Django REST
 djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.1  # https://django-rest-framework-simplejwt.readthedocs.io/en/latest/
+drf-spectacular==0.30.0
 
 # Wagtail
 # ------------------------------------------------------------------------------
@@ -41,10 +42,6 @@ wagtailmenus==4.0.6
 # Wagtail Localize
 # ------------------------------------------------------------------------------
 wagtail-localize==1.13
-
-#Wagtail Admin
-# ------------------------------------------------------------------------------
-wagtail-modeladmin==2.2.0
 
 # Django celery
 # ------------------------------------------------------------------------------
@@ -102,3 +99,5 @@ articlemetaapi==1.26.7
 # OpenSearch
 # ------------------------------------------------------------------------------
 opensearch-py==3.1.0
+openpyxl==3.1.5
+python-stdnum==2.2

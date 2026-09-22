@@ -89,7 +89,7 @@ class TestAccumulation(unittest.TestCase):
             )
         self.assertEqual(len(results), 0)
 
-    def test_does_not_expand_book_into_segments(self):
+    def test_preserves_book_segments_for_conversion(self):
         results = DailyAccessAccumulator()
         counter_access = self._book_counter_access(
             source_id="c2248",
@@ -109,6 +109,43 @@ class TestAccumulation(unittest.TestCase):
         self.assertEqual(len(results), 1)
         result = list(results.iter_materialized_values())[0]
         self.assertEqual(result["pid_generic"], "BOOK:C2248")
+        self.assertEqual(
+            result["segment_pid_generics"],
+            [
+                "BOOK:C2248/CHAPTER:00",
+                "BOOK:C2248/CHAPTER:01",
+                "BOOK:C2248/CHAPTER:02",
+            ],
+        )
+
+    def test_separates_accesses_when_book_segments_change(self):
+        results = DailyAccessAccumulator()
+        book = self._book_counter_access(
+            segment_pid_generics=["BOOK:Q7GTD/CHAPTER:01"],
+        )
+
+        accumulation.accumulate(results, book, self._line())
+        accumulation.accumulate(
+            results,
+            {
+                **book,
+                "segment_pid_generics": [
+                    "BOOK:Q7GTD/CHAPTER:01",
+                    "BOOK:Q7GTD/CHAPTER:02",
+                ],
+            },
+            self._line(local_datetime=datetime(2024, 1, 15, 10, 1, 5)),
+        )
+
+        result = list(results.iter_materialized_values())
+        self.assertEqual(len(result), 2)
+        self.assertEqual(
+            [item["segment_pid_generics"] for item in result],
+            [
+                ["BOOK:Q7GTD/CHAPTER:01"],
+                ["BOOK:Q7GTD/CHAPTER:01", "BOOK:Q7GTD/CHAPTER:02"],
+            ],
+        )
 
     def test_double_click_filter_uses_url_bucket_for_same_item(self):
         results = DailyAccessAccumulator()

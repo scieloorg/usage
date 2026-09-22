@@ -97,6 +97,7 @@ class DocumentPipeline:
             "source_key": source_identifier,
             "document_key": document_identifier,
             "month": self._access_month(value),
+            "publication_year": self._publication_year(value),
             **counter,
             "total_requests": 0,
             "total_investigations": 0,
@@ -150,6 +151,17 @@ class DocumentPipeline:
 
     def _resolve_parent_data_type(self, value):
         return None
+
+    @staticmethod
+    def _publication_year(value):
+        try:
+            year = int(value.get("publication_year"))
+        except (TypeError, ValueError):
+            return 1
+
+        if 1 <= year <= 9999:
+            return year
+        return 1
 
     def _build_counter_section(self, value):
         return _strip_empty_values(

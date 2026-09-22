@@ -2,13 +2,13 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
+from scielo_usage_counter import log_handler
 from scielo_usage_counter.translator.books import URLTranslatorBooksSite
 from scielo_usage_counter.url_translator import URLTranslationManager
 
 from metrics.counter.access import accumulation, extraction, validation
 from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
 from metrics.tests.helpers import convert_accumulator
-from scielo_usage_counter import log_handler
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -135,6 +135,56 @@ class TestBooksLogToMetrics(unittest.TestCase):
 
         self.assertTrue(has_item)
         self.assertTrue(has_title)
+
+    def test_whole_book_pdf_counts_chapters_from_metadata(self):
+        book_id = "xjcw9"
+        manager = URLTranslationManager(
+            documents_metadata=iter(
+                [
+                    {
+                        "document_id": f"book:{book_id}/chapter:{chapter_id}",
+                        "document_type": "chapter",
+                        "pid_generic": f"book:{book_id}/chapter:{chapter_id}",
+                        "source_id": book_id,
+                        "source_type": "book",
+                        "title": f"Chapter {chapter_id}",
+                    }
+                    for chapter_id in ("01", "02")
+                ]
+            ),
+            sources_metadata=iter(
+                [{"source_id": book_id, "source_type": "book", "title": "Test Book"}]
+            ),
+            translator=URLTranslatorBooksSite,
+        )
+        translated = manager.translate(f"/id/{book_id}/pdf/test-book.pdf")
+        counter_access = extraction.extract("books", translated)
+
+        self.assertEqual(len(counter_access["segment_pid_generics"]), 2)
+
+        results = DailyAccessAccumulator()
+        accumulation.accumulate(
+            results,
+            counter_access,
+            {
+                "client_name": "browser",
+                "client_version": "1.0",
+                "ip_address": "186.215.90.179",
+                "country_code": "BR",
+                "local_datetime": datetime(2025, 8, 1, 10, 0, 29),
+            },
+        )
+
+        metrics = convert_accumulator(results)
+        for dataset in ("counter", "analytics"):
+            documents = metrics[dataset].values()
+            items = [item for item in documents if item["metric_scope"] == "item"]
+            titles = [item for item in documents if item["metric_scope"] == "title"]
+
+            self.assertEqual(len(items), 2)
+            self.assertEqual(len(titles), 1)
+            self.assertEqual(sum(item["unique_requests"] for item in items), 2)
+            self.assertEqual(titles[0]["unique_requests"], 1)
 
     def test_all_metric_fields_present_in_converted_document(self):
         results = DailyAccessAccumulator()

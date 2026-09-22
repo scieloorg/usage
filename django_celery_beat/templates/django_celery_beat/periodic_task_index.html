@@ -1,0 +1,11 @@
+{% extends "wagtailsnippets/snippets/index.html" %}
+{% load i18n %}
+
+{% block listing %}
+    {% if wrong_scheduler %}
+        <div class="w-m-6 w-p-4 w-bg-critical-50 w-text-critical-200">
+            {% trans "Celery Beat is not configured to use the database scheduler." %}
+        </div>
+    {% endif %}
+    {{ block.super }}
+{% endblock %}

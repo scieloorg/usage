@@ -13,13 +13,27 @@ class BookPipeline(DocumentPipeline):
                 metric_scope="title",
                 pid_generic=title_pid_generic,
             )
+
         return self._generate_document_id(value, projection=projection)
 
     def accumulate(self, data, unique_state, value, projection=None):
         if not isinstance(value, dict):
             return
 
-        if _should_create_item_document(value):
+        segment_pid_generics = value.get("segment_pid_generics") or []
+        if (
+            value.get("document_type") == "book"
+            and is_request(value.get("content_type"))
+            and segment_pid_generics
+        ):
+            for pid_generic in segment_pid_generics:
+                segment = {
+                    **value,
+                    "pid_generic": pid_generic,
+                    "document_type": "chapter",
+                }
+                self._accumulate_item(data, unique_state, segment, projection)
+        elif value.get("pid_generic"):
             self._accumulate_item(data, unique_state, value, projection)
 
         title_pid_generic = _extract_title_pid_generic(value)
@@ -42,12 +56,14 @@ class BookPipeline(DocumentPipeline):
                 metric_scope="item",
             ),
         )
+
         self._apply_totals(
             document=item_document,
             click_timestamps=value.get("click_timestamps"),
             click_timestamps_by_url=value.get("click_timestamps_by_url"),
             content_type=value.get("content_type"),
         )
+
         self._apply_uniques(
             document=item_document,
             unique_state=unique_state,
@@ -75,12 +91,14 @@ class BookPipeline(DocumentPipeline):
                 pid_generic=title_pid_generic,
             ),
         )
+
         self._apply_totals(
             document=title_document,
             click_timestamps=value.get("click_timestamps"),
             click_timestamps_by_url=value.get("click_timestamps_by_url"),
             content_type=value.get("content_type"),
         )
+
         self._apply_uniques(
             document=title_document,
             unique_state=unique_state,
@@ -136,6 +154,7 @@ class BookPipeline(DocumentPipeline):
                 metric_scope=metric_scope,
             ),
             "month": self._access_month(value),
+            "publication_year": self._publication_year(value),
             **counter,
             "total_requests": 0,
             "total_investigations": 0,
@@ -144,17 +163,8 @@ class BookPipeline(DocumentPipeline):
         }
 
         base_document["daily_metrics"] = self._build_daily_metrics(value)
+
         return _strip_empty_values(base_document)
-
-
-def _should_create_item_document(value):
-    if not value.get("pid_generic"):
-        return False
-    if value.get("document_type") == "book" and not is_request(
-        value.get("content_type")
-    ):
-        return False
-    return True
 
 
 def _extract_title_pid_generic(value):

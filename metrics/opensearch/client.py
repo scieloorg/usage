@@ -51,27 +51,28 @@ class OpenSearchUsageClient:
         api_key = api_key or getattr(settings, "OPENSEARCH_API_KEY", None)
         if verify_certs is None:
             verify_certs = getattr(settings, "OPENSEARCH_VERIFY_CERTS", False)
+
         http_compress = getattr(settings, "OPENSEARCH_HTTP_COMPRESS", True)
+        options = {
+            "verify_certs": verify_certs,
+            "http_compress": http_compress,
+        }
 
         if basic_auth:
-            return OpenSearch(
-                url,
-                http_auth=tuple(basic_auth),
-                verify_certs=verify_certs,
-                http_compress=http_compress,
-            )
-        if api_key:
-            return OpenSearch(
-                url,
-                api_key=api_key,
-                verify_certs=verify_certs,
-                http_compress=http_compress,
-            )
-        return OpenSearch(
-            url,
-            verify_certs=verify_certs,
-            http_compress=http_compress,
-        )
+            if isinstance(basic_auth, str):
+                username, separator, password = basic_auth.partition(":")
+                if not separator:
+                    raise ValueError(
+                        "OPENSEARCH_BASIC_AUTH must use the username:password format."
+                    )
+
+                basic_auth = (username, password)
+
+            options["http_auth"] = tuple(basic_auth)
+        elif api_key:
+            options["api_key"] = api_key
+
+        return OpenSearch(url, **options)
 
     def ping(self):
         try:
@@ -126,6 +127,7 @@ class OpenSearchUsageClient:
     ):
         if ping_client and not self.ping():
             return
+
         if self.client.indices.exists_alias(name=alias_name):
             return
 

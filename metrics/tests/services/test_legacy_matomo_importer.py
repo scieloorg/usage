@@ -1,3 +1,4 @@
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -171,3 +172,37 @@ class LegacyMatomoImporterTests(LegacyManifestTestCase):
             ],
         )
         self.assertEqual(progress, [("counter", "import", 2)])
+
+    @override_settings(OPENSEARCH_INDEX_NAME="usage")
+    @patch("metrics.legacy_matomo.importer.mark_days_exported")
+    @patch("metrics.legacy_matomo.importer.import_dataset")
+    def test_import_marks_source_and_empty_days_after_refresh(
+        self,
+        import_dataset,
+        mark_days,
+    ):
+        self.manifest["source_days"] = ["2025-08-01", "2025-08-31"]
+        self.manifest["empty_days"] = ["2025-08-02", "2025-08-02"]
+        collection = SimpleNamespace(
+            acron3="scl",
+            log_manager_config=SimpleNamespace(
+                opensearch_partition_strategy="yearly",
+                opensearch_primary_shards=1,
+            ),
+        )
+        search_client = Mock()
+        import_dataset.side_effect = [10, 20]
+
+        result = importer.import_manifest(search_client, collection, self.manifest)
+
+        self.assertEqual(result, {"counter": 10, "analytics": 20})
+        search_client.client.indices.refresh.assert_called_once_with(
+            index="usage_monthly_scl,usage_yearly_analytics_scl",
+            ignore_unavailable=True,
+        )
+        mark_days.assert_called_once_with(
+            search_client,
+            "scl",
+            date(2025, 8, 1),
+            (1 << 0) | (1 << 1) | (1 << 30),
+        )

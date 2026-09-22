@@ -66,6 +66,12 @@ class LegacyMatomoValidationTests(LegacyManifestTestCase):
         with self.assertRaisesMessage(ValueError, "no source days"):
             validation.validate_manifest(self.manifest)
 
+    def test_rejects_duplicate_empty_days(self):
+        self.manifest["empty_days"] = ["2025-08-02", "2025-08-02"]
+
+        with self.assertRaisesMessage(ValueError, "empty days must be unique"):
+            validation.validate_manifest(self.manifest)
+
     def test_rejects_duplicate_payload_ids(self):
         path = Path(self.manifest["counter"]["path"])
         with gzip.open(path, "rb") as source:

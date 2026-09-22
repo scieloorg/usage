@@ -1,13 +1,17 @@
-from celery import current_app
 from django.conf import settings
-from django.contrib import messages
 from django.db.models import Case, Value, When
 from django.template.defaultfilters import pluralize
-from django.urls import include, path
+from django.urls import include, path, reverse
 from django.utils.translation import gettext_lazy as _
-from kombu.utils.json import loads
 from wagtail import hooks
-from wagtail_modeladmin.options import ModelAdmin, ModelAdminGroup, modeladmin_register
+from wagtail.admin.widgets import Button
+from wagtail.snippets.bulk_actions.snippet_bulk_action import SnippetBulkAction
+from wagtail.snippets.models import register_snippet
+from wagtail.snippets.views.snippets import (
+    IndexView,
+    SnippetViewSet,
+    SnippetViewSetGroup,
+)
 
 from config.menu import get_menu_order
 from django_celery_beat.models import (
@@ -18,19 +22,26 @@ from django_celery_beat.models import (
     PeriodicTasks,
     SolarSchedule,
 )
-from django_celery_beat.utils import is_database_scheduler
+from django_celery_beat.schedulers import is_database_scheduler
+from django_celery_beat.views import execute_task
 
-from .button_helper import PeriodicTaskHelper
+
+class PeriodicTaskIndexView(IndexView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        scheduler = getattr(settings, "CELERY_BEAT_SCHEDULER", None)
+        context["wrong_scheduler"] = not is_database_scheduler(scheduler)
+
+        return context
 
 
-class PeriodicTaskAdmin(ModelAdmin):
-    """Admin-interface for periodic tasks."""
-
-    button_helper_class = PeriodicTaskHelper
+class PeriodicTaskSnippetViewSet(SnippetViewSet):
     model = PeriodicTask
-    menu_icon = "cog"
-    celery_app = current_app
-    date_hierarchy = "start_time"
+    icon = "cog"
+    menu_label = _("Periodic tasks")
+    menu_order = 100
+    index_view_class = PeriodicTaskIndexView
+    index_template_name = "django_celery_beat/periodic_task_index.html"
     list_display = (
         "__str__",
         "enabled",
@@ -39,166 +50,159 @@ class PeriodicTaskAdmin(ModelAdmin):
         "last_run_at",
         "one_off",
     )
-    list_filter = [
-        "enabled",
-        "one_off",
-        "task",
-    ]
-    actions = ("enable_tasks", "disable_tasks", "toggle_tasks", "run_tasks")
+    list_filter = ("enabled", "one_off", "task")
     search_fields = ("name",)
 
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        scheduler = getattr(settings, "CELERYBEAT_SCHEDULER", None)
-        extra_context["wrong_scheduler"] = not is_database_scheduler(scheduler)
-        return super(PeriodicTaskAdmin, self).changelist_view(request, extra_context)
-
     def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.select_related("interval", "crontab", "solar", "clocked")
-
-    def _message_user_about_update(self, request, rows_updated, verb):
-        """Send message about action to user.
-        `verb` should shortly describe what have changed (e.g. 'enabled').
-        """
-        self.message_user(
-            request,
-            _("{0} task{1} {2} successfully {3}").format(
-                rows_updated,
-                pluralize(rows_updated),
-                pluralize(rows_updated, _("was,were")),
-                verb,
-            ),
+        return self.model.objects.select_related(
+            "interval", "crontab", "solar", "clocked"
         )
 
-    def enable_tasks(self, request, queryset):
-        rows_updated = queryset.update(enabled=True)
+
+class CrontabScheduleSnippetViewSet(SnippetViewSet):
+    model = CrontabSchedule
+    icon = "date"
+    menu_label = _("Crontab schedules")
+    menu_order = 200
+
+
+class IntervalScheduleSnippetViewSet(SnippetViewSet):
+    model = IntervalSchedule
+    icon = "date"
+    menu_label = _("Interval schedules")
+    menu_order = 300
+
+
+class ClockedScheduleSnippetViewSet(SnippetViewSet):
+    model = ClockedSchedule
+    icon = "time"
+    menu_label = _("Clocked schedules")
+    menu_order = 400
+    list_display = ("clocked_time",)
+    form_fields = ("clocked_time",)
+
+
+class SolarScheduleSnippetViewSet(SnippetViewSet):
+    model = SolarSchedule
+    icon = "date"
+    menu_label = _("Solar schedules")
+    menu_order = 500
+
+
+class TasksSnippetViewSetGroup(SnippetViewSetGroup):
+    menu_name = "tasks"
+    menu_label = _("Tasks")
+    menu_icon = "cogs"
+    menu_order = get_menu_order("tasks")
+    items = (
+        PeriodicTaskSnippetViewSet,
+        CrontabScheduleSnippetViewSet,
+        IntervalScheduleSnippetViewSet,
+        ClockedScheduleSnippetViewSet,
+        SolarScheduleSnippetViewSet,
+    )
+
+
+register_snippet(TasksSnippetViewSetGroup)
+
+
+class PeriodicTaskBulkAction(SnippetBulkAction):
+    template_name = "wagtailadmin/bulk_actions/confirmation/base.html"
+    models = [PeriodicTask]
+
+    def check_perm(self, obj):
+        return self.request.user.has_perm("django_celery_beat.change_periodictask")
+
+    def get_success_message(self, num_parent_objects, num_child_objects):
+        return _("{0} task{1} {2} successfully {3}").format(
+            num_parent_objects,
+            pluralize(num_parent_objects),
+            pluralize(num_parent_objects, _("was,were")),
+            self.success_verb,
+        )
+
+
+@hooks.register("register_bulk_action")
+class EnableTasksBulkAction(PeriodicTaskBulkAction):
+    display_name = _("Enable")
+    aria_label = _("Enable selected tasks")
+    action_type = "enable_periodic_tasks"
+    success_verb = _("enabled")
+
+    @classmethod
+    def execute_action(cls, objects, **kwargs):
+        rows_updated = objects.update(enabled=True)
         PeriodicTasks.update_changed()
-        self._message_user_about_update(request, rows_updated, "enabled")
 
-    enable_tasks.short_description = _("Enable selected tasks")
+        return rows_updated, 0
 
-    def disable_tasks(self, request, queryset):
-        rows_updated = queryset.update(enabled=False, last_run_at=None)
+
+@hooks.register("register_bulk_action")
+class DisableTasksBulkAction(PeriodicTaskBulkAction):
+    display_name = _("Disable")
+    aria_label = _("Disable selected tasks")
+    action_type = "disable_periodic_tasks"
+    success_verb = _("disabled")
+
+    @classmethod
+    def execute_action(cls, objects, **kwargs):
+        rows_updated = objects.update(enabled=False, last_run_at=None)
         PeriodicTasks.update_changed()
-        self._message_user_about_update(request, rows_updated, "disabled")
 
-    disable_tasks.short_description = _("Disable selected tasks")
+        return rows_updated, 0
 
-    def _toggle_tasks_activity(self, queryset):
-        return queryset.update(
+
+@hooks.register("register_bulk_action")
+class ToggleTasksBulkAction(PeriodicTaskBulkAction):
+    display_name = _("Toggle")
+    aria_label = _("Toggle selected tasks")
+    action_type = "toggle_periodic_tasks"
+    success_verb = _("toggled")
+
+    @classmethod
+    def execute_action(cls, objects, **kwargs):
+        rows_updated = objects.update(
             enabled=Case(
                 When(enabled=True, then=Value(False)),
                 default=Value(True),
             )
         )
-
-    def toggle_tasks(self, request, queryset):
-        rows_updated = self._toggle_tasks_activity(queryset)
         PeriodicTasks.update_changed()
-        self._message_user_about_update(request, rows_updated, "toggled")
 
-    toggle_tasks.short_description = _("Toggle activity of selected tasks")
-
-    def run_tasks(self, request, queryset):
-        self.celery_app.loader.import_default_modules()
-        tasks = [
-            (
-                self.celery_app.tasks.get(task.task),
-                loads(task.args),
-                loads(task.kwargs),
-                task.queue,
-                task.name,
-            )
-            for task in queryset
-        ]
-
-        if any(t[0] is None for t in tasks):
-            for i, t in enumerate(tasks):
-                if t[0] is None:
-                    break
-
-            # variable "i" will be set because list "tasks" is not empty
-            not_found_task_name = queryset[i].task
-
-            self.message_user(
-                request,
-                _('task "{0}" not found'.format(not_found_task_name)),
-                level=messages.ERROR,
-            )
-            return
-
-        task_ids = [
-            task.apply_async(
-                args=args,
-                kwargs=kwargs,
-                queue=queue,
-                periodic_task_name=periodic_task_name,
-            )
-            if queue and len(queue)
-            else task.apply_async(
-                args=args, kwargs=kwargs, periodic_task_name=periodic_task_name
-            )
-            for task, args, kwargs, queue, periodic_task_name in tasks
-        ]
-        tasks_run = len(task_ids)
-        self.message_user(
-            request,
-            _("{0} task{1} {2} successfully run").format(
-                tasks_run,
-                pluralize(tasks_run),
-                pluralize(tasks_run, _("was,were")),
-            ),
-        )
-
-    run_tasks.short_description = _("Run selected tasks")
+        return rows_updated, 0
 
 
-class ClockedScheduleAdmin(ModelAdmin):
-    """Admin-interface for clocked schedules."""
+@hooks.register("register_bulk_action")
+class RunTasksBulkAction(PeriodicTaskBulkAction):
+    display_name = _("Run")
+    aria_label = _("Run selected tasks")
+    action_type = "run_periodic_tasks"
+    success_verb = _("run")
 
-    menu_icon = "time"
-    model = ClockedSchedule
+    @classmethod
+    def execute_action(cls, objects, **kwargs):
+        action = kwargs["self"]
+        tasks_run = 0
+        for task in objects:
+            if execute_task(task, action.request.user):
+                tasks_run += 1
 
-    fields = ("clocked_time",)
-    list_display = ("clocked_time",)
-
-
-class IntervalScheduleAdmin(ModelAdmin):
-    """Admin-interface for clocked schedules."""
-
-    menu_icon = "date"
-    model = IntervalSchedule
-
-
-class CrontabScheduleAdmin(ModelAdmin):
-    """Admin-interface for clocked schedules."""
-
-    menu_icon = "date"
-    model = CrontabSchedule
+        return tasks_run, 0
 
 
-class SolarScheduleAdmin(ModelAdmin):
-    """Admin-interface for clocked schedules."""
+@hooks.register("register_snippet_listing_buttons")
+def register_periodic_task_run_button(snippet, user, next_url=None):
+    if not isinstance(snippet, PeriodicTask) or not user.has_perm(
+        "django_celery_beat.change_periodictask"
+    ):
+        return
 
-    menu_icon = "date"
-    model = SolarSchedule
-
-
-class TasksModelsAdminGroup(ModelAdminGroup):
-    menu_label = _("Tasks")
-    menu_icon = "cogs"
-    menu_order = get_menu_order("tasks")
-    items = (
-        PeriodicTaskAdmin,
-        CrontabScheduleAdmin,
-        IntervalScheduleAdmin,
-        ClockedScheduleAdmin,
-        SolarScheduleAdmin,
+    yield Button(
+        label=_("Run"),
+        url=reverse("django_celery_beat:task_run") + f"?task_id={snippet.pk}",
+        icon_name="play",
+        priority=10,
     )
-
-
-modeladmin_register(TasksModelsAdminGroup)
 
 
 @hooks.register("register_admin_urls")
