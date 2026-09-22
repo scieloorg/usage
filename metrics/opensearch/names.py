@@ -28,6 +28,12 @@ def generate_month_index_name(index_prefix, collection):
     return f"{index_prefix}_monthly_{collection}"
 
 
+def generate_month_status_index_name(index_prefix):
+    if not index_prefix or not isinstance(index_prefix, str):
+        raise ValueError("Index prefix must be a non-empty string.")
+    return f"{index_prefix}_month_status"
+
+
 def generate_analytics_index_name(index_prefix, collection):
     _validate_index_inputs(index_prefix, collection)
     return f"{index_prefix}_yearly_analytics_{collection}"

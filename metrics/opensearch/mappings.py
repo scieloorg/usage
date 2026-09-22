@@ -67,6 +67,16 @@ ANALYTICS_INDEX_MAPPINGS = {
     },
 }
 
+MONTH_STATUS_INDEX_MAPPINGS = {
+    "dynamic": False,
+    "properties": {
+        "collection": {"type": "keyword"},
+        "month": {"type": "keyword"},
+        "day_mask": {"type": "long"},
+        "complete": {"type": "boolean"},
+    },
+}
+
 SOURCE_INDEX_MAPPINGS = {
     "dynamic": False,
     "properties": {
