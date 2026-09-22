@@ -5,210 +5,168 @@
 ![Django](https://img.shields.io/badge/django-5.2-green)
 ![Wagtail](https://img.shields.io/badge/wagtail-7.3-teal)
 
-Application for processing SciELO access logs, extracting COUNTER R5.1 metrics, and exporting monthly/yearly usage documents to OpenSearch.
+Aplicação para catalogar e validar logs de acesso às coleções SciELO, calcular
+métricas COUNTER R5.1 e disponibilizá-las no OpenSearch. Também reúne metadados
+de documentos e fontes, além de relatórios operacionais dos logs.
 
-## Quick Start
+## Componentes e fluxo
 
-Local development runs with Docker Compose using `local.yml`.
+O Django/Wagtail administra coleções, diretórios de logs, metadados, jobs e
+relatórios. PostgreSQL guarda esses registros; Redis é o broker das tarefas
+Celery. O processamento segue estas etapas:
+
+1. **Search:** encontra arquivos nos diretórios ativos de cada coleção e os
+   registra no catálogo.
+2. **Validation:** verifica o conteúdo e determina a data provável do acesso.
+   Arquivos legíveis reprovados ficam `INV`; falhas de leitura ficam `ERR`.
+3. **Parsing:** reúne os arquivos elegíveis por coleção e dia em um
+   `DailyMetricJob`, calcula as métricas e grava um payload diário recuperável.
+4. **Export:** atualiza os índices COUNTER mensais e analíticos anuais no
+   OpenSearch. Repetições do mesmo dia são tratadas de forma idempotente.
+
+Os coletores de ArticleMeta, OPAC, SciELO Books, Preprints e Dataverse
+alimentam os modelos `Source` e `Document` no PostgreSQL. Uma tarefa separada
+sincroniza esses metadados com os índices `usage_sources` e `usage_documents`.
+Os índices de métricas usam os aliases `usage_monthly_<coleção>` e
+`usage_yearly_analytics_<coleção>` (prefixo configurável). A estratégia física
+de particionamento e o número de shards são definidos por coleção no admin.
+
+## Desenvolvimento local
+
+O projeto usa Docker Compose (`local.yml`), Python 3.11, Django 5.2 e Wagtail
+7.3. Prepare as variáveis locais exigidas pelo Compose e ajuste o volume de logs
+de `local.yml` para um diretório existente no seu computador. O Compose local
+inicia Django, PostgreSQL, Redis e Mailhog; **OpenSearch é externo** e precisa
+estar acessível para executar a exportação.
 
 ```bash
 make build
+make up
 make django_migrate
 make django_createsuperuser
-make up
 ```
 
 Admin: http://localhost:8009/admin
 
-Main local services:
-
-| Service | Port |
+| Serviço | Porta local |
 |---|---:|
 | Django/Wagtail | 8009 |
 | PostgreSQL | 5439 |
 | Redis | 6399 |
 | Mailhog | 8029 |
 
-## Full Pipeline Setup
+Antes de processar logs, carregue as coleções e suas configurações pelo admin
+ou pelas tarefas de seed. Confira os diretórios ativos, as permissões de
+leitura, os recursos de robôs/GeoIP e os metadados necessários à coleção.
+O seed contém diretórios para diferentes fontes; ajuste os caminhos para o
+ambiente antes de iniciar o Search.
 
-After the app is running, open a Django shell:
+Para acionar uma execução específica, abra o shell:
 
 ```bash
 make django_shell
 ```
-
-Seed the base data and resources:
-
-```python
-from collection.tasks import task_load_collections
-from log_manager_config.tasks import task_load_log_manager_collection_settings
-from resources.tasks import task_load_geoip, task_load_robots
-
-log_config = [
-    {
-        "acronym": "scl",
-        "directory_name": "SciELO Brasil",
-        "path": "/app/logs/scielo.br",
-        "quantity": 1,
-        "e-mail": "tecnologia@scielo.org",
-        "translator_class": "opac",
-    }
-]
-
-task_load_collections.delay()
-task_load_log_manager_collection_settings.delay(data=log_config)
-task_load_robots.delay()
-task_load_geoip.delay()
-```
-
-Load sources and documents before processing logs. For a first run, restrict document synchronization to a smaller date range:
-
-```python
-from document.tasks import (
-    task_load_dataset_metadata_into_documents,
-    task_load_documents_from_article_meta,
-    task_load_documents_from_opac,
-    task_load_preprints_into_documents,
-    task_sync_documents_from_scielo_books,
-)
-from source.tasks import (
-    task_load_sources_from_article_meta,
-    task_load_sources_from_scielo_books,
-)
-
-task_load_sources_from_article_meta.delay(collections=["scl"])
-task_load_sources_from_scielo_books.delay(limit=1000)
-
-date_range = {"from_date": "2025-01-01", "until_date": "2025-12-31"}
-task_load_documents_from_article_meta.delay(**date_range)
-task_load_documents_from_opac.delay(collection="scl", **date_range)
-task_load_preprints_into_documents.delay(**date_range)
-task_load_dataset_metadata_into_documents.delay(**date_range)
-task_sync_documents_from_scielo_books.delay()
-```
-
-Before starting the log pipeline, confirm in the admin that each collection has an active Log Manager configuration pointing to a readable log directory mounted in the container.
-
-For the example above, place a log file under the configured directory:
-
-```bash
-mkdir -p <mounted-logs-dir>/scielo.br
-cp metrics/tests/fixtures/usage.log <mounted-logs-dir>/scielo.br/usage-2021-05-21.log
-```
-
-Run the full Search -> Validate -> Parse -> Export chain for a date range:
 
 ```python
 from log_manager.tasks import task_search_log_files
 
 task_search_log_files.delay(
     collections=["scl"],
-    from_date="2021-05-21",
-    until_date="2021-05-21",
+    from_date="2026-01-01",
+    until_date="2026-01-01",
     trigger_validation=True,
     parse_queue_name="parse_xlarge",
 )
 ```
 
-Monitor execution with:
+`from_date`/`until_date` delimitam a busca; a data usada nas métricas vem da
+validação do conteúdo. Para operar por etapas, execute Search sem
+`trigger_validation` e agende Validation e Parsing separadamente. A task
+`[Metadata] Sync OpenSearch metadata` atualiza os índices de fontes e
+documentos após a coleta de metadados.
+
+Para acompanhar a execução local:
 
 ```bash
 make logs
 ```
 
-## Commands
+## Comandos úteis
 
 ```bash
-make help                    # list available targets
-make app_version             # show VERSION
-make build                   # build local images
-make build_no_cache          # build local images without cache
-make up                      # start local services
-make logs                    # follow service logs
-make stop                    # stop local services
-make restart                 # restart local services
-make ps                      # list running services
-make django_bash             # open bash in the django container
-make django_shell            # open Django shell
-make django_createsuperuser  # create an admin user
-make django_migrate          # apply migrations
-make django_makemigrations   # create migrations
-make django_makemessages     # update translation messages
-make django_compilemessages  # compile translation messages
-make wagtail_update_translation_field
-make wagtail_sync
-make test                    # run pytest
-make django_test             # run pytest
-make django_fast             # run pytest --failfast
-make lint                    # run flake8
-make format_check            # run black/isort checks
-make precommit               # run pre-commit hooks
+make help           # lista os alvos disponíveis
+make app_version    # mostra VERSION
+make ps             # mostra os contêineres
+make django_shell   # abre o shell do Django
+make django_migrate # aplica migrações
+make test           # executa pytest
+make lint           # executa flake8
+make format_check   # confere Black e isort
 ```
 
-Use `compose=production.yml` or another Compose file when needed:
+Os alvos aceitam `compose=<arquivo>`; o padrão é `local.yml`. Não publique
+arquivos de configuração de ambiente que contenham credenciais.
 
-```bash
-make ps compose=production.yml
-```
+## Configuração das tarefas
 
-Parsing behavior can be adjusted through comma-separated environment variables:
+As opções de parsing aceitam listas separadas por vírgulas:
 
-| Variable | Default |
-|---|---|
-| `DEFAULT_PARSE_QUEUE` | `parse_small` |
-| `PARSING_METADATA_CACHE_COLLECTIONS` | All active log collections |
-| `PARSING_METADATA_CACHE_RELEASE_COLLECTIONS` | `scl` |
-| `YEAR_PARTITIONED_COLLECTIONS` | `chl,col,mex,scl` |
+| Variável | Padrão | Finalidade |
+|---|---|---|
+| `DEFAULT_PARSE_QUEUE` | `parse_small` | Fila usada quando nenhuma fila de parsing é informada. |
+| `PARSING_METADATA_CACHE_COLLECTIONS` | Coleções definidas em `config/settings/base.py` | Habilita cache de metadados durante o parsing. |
+| `PARSING_METADATA_CACHE_RELEASE_COLLECTIONS` | `scl` | Libera o cache ao concluir o job. |
 
-The worker image starts one Celery process per container. Its entrypoint accepts
+Cada contêiner de worker inicia um processo Celery. O entrypoint aceita
 `CELERY_WORKER_QUEUES`, `CELERY_WORKER_CONCURRENCY`,
-`CELERY_WORKER_PREFETCH_MULTIPLIER`, `CELERY_WORKER_NAME`, and
-`CELERY_WORKER_LOG_LEVEL`. An empty queue setting consumes Celery's default queue.
+`CELERY_WORKER_PREFETCH_MULTIPLIER`, `CELERY_WORKER_NAME` e
+`CELERY_WORKER_LOG_LEVEL`. A fila `load` atende Search, Validation e coleta de
+metadados; filas `parse_tiny`, `parse_small`, `parse_medium`, `parse_large` e
+`parse_xlarge` atendem os jobs diários. A configuração da fila não substitui
+o agrupamento dos arquivos por coleção e dia em um único `DailyMetricJob`.
 
-Run one test path:
+Ao cadastrar uma tarefa periódica no `django-celery-beat`, `queue` determina
+onde a própria task será executada. O argumento `parse_queue_name`, nas tasks
+de Search/Validation, determina a fila dos jobs de parsing subsequentes. São
+configurações diferentes. Mantenha tarefas periódicas desativadas durante
+backfills que possam concorrer com a mesma coleção e data.
+
+| Variável | Padrão | Uso |
+|---|---:|---|
+| `CELERY_DAILY_JOB_SOFT_TIME_LIMIT_SECONDS` | 79200 (22h) | Limite suave do job diário. |
+| `CELERY_DAILY_JOB_TIME_LIMIT_SECONDS` | 86400 (24h) | Limite rígido do job diário. |
+| `CELERY_REDIS_VISIBILITY_TIMEOUT_SECONDS` | 3600 (1h) | Prazo de reentrega de mensagens não confirmadas. |
+
+Os dois limites do job precisam ser positivos e o suave deve ser menor que o
+rígido. Para jobs longos em HML, configure o visibility timeout em 93600 (26h)
+em **todos** os processos que compartilham o broker (Django, beat e workers).
+Um prazo maior também atrasa a reentrega após perda abrupta de um worker.
+
+## Rotina e verificação
+
+As tarefas periódicas são registros do `django-celery-beat` configurados no
+admin, não um cronograma fixo no repositório. Conforme a coleção, programe a
+coleta de fontes/documentos, Search/Validation/Parsing, sincronização de
+metadados com OpenSearch e atualização dos relatórios. Há tasks próprias para
+retomar jobs de exportação e logs com parsing obsoleto; use-as após conferir
+que não há workers ainda executando os mesmos jobs.
+
+O catálogo distingue `CRE` (encontrado), `QUE` (validado), `PAR` (em parsing),
+`PRO` (processado), `INV` (conteúdo inválido), `ERR` (erro) e `IGN` (ignorado
+deliberadamente). O `DailyMetricJob` registra o andamento por coleção e data.
+Os relatórios no admin resumem os estados dos logs.
+
+Para importar métricas históricas de outro sistema, existe o comando
+`import_legacy_matomo`, com validação prévia (`--preflight`) e execução
+explícita (`--execute`). Essa importação é separada da rotina diária de logs.
+
+Para executar os testes dentro do Compose:
 
 ```bash
-docker compose -f local.yml run --rm django pytest metrics/tests/test_opensearch.py
+docker compose -f local.yml run --rm django pytest
 ```
 
-## Pipeline
+## Versão
 
-The log pipeline is coordinated by Celery tasks:
-
-1. Search configured directories for new `.log` and `.gz` files.
-2. Validate log samples and detect usage date.
-3. Parse requests with `scielo_usage_counter`.
-4. Aggregate COUNTER R5.1 metrics.
-5. Export idempotent monthly/yearly documents to OpenSearch.
-
-Metadata synchronization keeps sources and documents updated from ArticleMeta, OPAC, SciELO Books, SciELO Preprints, and SciELO Data.
-
-## Periodic Tasks
-
-Configure the default schedule manually in Wagtail/Admin through `django-celery-beat`
-`PeriodicTask` records. Exact cron times may vary by installation, but the default
-operational setup should include the entries below. Every task that triggers
-parsing can receive an explicit `parse_queue_name`. If omitted, the downstream
-worker uses `DEFAULT_PARSE_QUEUE` (`parse_small` by default). The periodic task
-itself runs on `load`, while `parse_queue_name` selects the parsing worker.
-
-| Task | Suggested schedule | Notes |
-|---|---|---|
-| Individual `[Metadata] Sync ...` tasks | Daily, early morning | Stagger the required ArticleMeta, OPAC, Books, Preprints, and Dataverse collectors on the `load` queue. |
-| `[Log Pipeline] 1. Search Logs (Manual)` | Daily, after metadata sync | Create one entry per collection group. Use `load` as the task queue and set `parse_queue_name` for parsing. |
-| `[Metrics] Resume Log Exports` | Every 15-30 minutes | Retries errored or stale daily metric export jobs. Accepts `queue_name`; otherwise uses `DEFAULT_PARSE_QUEUE`. |
-| `[Metrics] Resume Stale Parsing Logs` | Every 30-60 minutes | Marks stale `PAR` logs for retry. Accepts `queue_name`; otherwise uses `DEFAULT_PARSE_QUEUE`. |
-| `[Metrics] Cleanup Daily Payloads` | Daily or weekly | Removes old exported daily payload files. |
-| `[Reports] Populate All Reports` | Daily, after log processing | Refreshes weekly, monthly, and yearly log report tables. |
-
-Optional operational tasks:
-
-| Task | Suggested schedule | Notes |
-|---|---|---|
-| `[Reports] Generate Log Report Summary (Manual)` | Manual or scheduled as needed | Sends summary emails using configured collection contacts. |
-| `[Resources] Load Robots Data` | Weekly | Refreshes robots list used during parsing. |
-| `[Resources] Load Geolocation Data` | Monthly | Refreshes GeoIP data used during parsing. |
-
-## Version
-
-Project release version is stored in `VERSION`.
+A versão da aplicação fica em `VERSION`. Atualizar o arquivo não publica uma
+imagem nem altera uma instalação existente.

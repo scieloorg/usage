@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.utils.translation import gettext as _
 
 from config import celery_app
@@ -5,7 +6,12 @@ from core.utils.request_utils import _get_user
 from metrics.services.daily_metric_exports import build_and_export_daily_metric_job
 
 
-@celery_app.task(bind=True, name=_("[Metrics] Process Daily Job"), timelimit=-1)
+@celery_app.task(
+    bind=True,
+    name=_("[Metrics] Process Daily Job"),
+    soft_time_limit=settings.CELERY_DAILY_JOB_SOFT_TIME_LIMIT_SECONDS,
+    time_limit=settings.CELERY_DAILY_JOB_TIME_LIMIT_SECONDS,
+)
 def task_build_and_export_daily_metric_job(
     self,
     job_id,

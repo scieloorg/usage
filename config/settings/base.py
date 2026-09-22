@@ -7,6 +7,10 @@ from pathlib import Path
 
 import environ
 
+REDIS_VISIBILITY_TIMEOUT_DEFAULT_SECONDS = 60 * 60
+DAILY_METRIC_JOB_DEFAULT_SOFT_TIME_LIMIT_SECONDS = 22 * 60 * 60
+DAILY_METRIC_JOB_DEFAULT_TIME_LIMIT_SECONDS = 24 * 60 * 60
+
 DEFAULT_PARSING_METADATA_CACHE_COLLECTIONS = (
     "arg",
     "bol",
@@ -342,6 +346,28 @@ if USE_TZ:
     CELERY_TIMEZONE = TIME_ZONE
 # http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-broker_url
 CELERY_BROKER_URL = env("CELERY_BROKER_URL")
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "visibility_timeout": env.int(
+        "CELERY_REDIS_VISIBILITY_TIMEOUT_SECONDS",
+        default=REDIS_VISIBILITY_TIMEOUT_DEFAULT_SECONDS,
+    ),
+}
+CELERY_DAILY_JOB_SOFT_TIME_LIMIT_SECONDS = env.int(
+    "CELERY_DAILY_JOB_SOFT_TIME_LIMIT_SECONDS",
+    default=DAILY_METRIC_JOB_DEFAULT_SOFT_TIME_LIMIT_SECONDS,
+)
+CELERY_DAILY_JOB_TIME_LIMIT_SECONDS = env.int(
+    "CELERY_DAILY_JOB_TIME_LIMIT_SECONDS",
+    default=DAILY_METRIC_JOB_DEFAULT_TIME_LIMIT_SECONDS,
+)
+if (
+    not 0
+    < CELERY_DAILY_JOB_SOFT_TIME_LIMIT_SECONDS
+    < CELERY_DAILY_JOB_TIME_LIMIT_SECONDS
+):
+    raise ValueError(
+        "Daily job soft time limit must be positive and less than hard time limit."
+    )
 # http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-result_backend
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 # http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-accept_content
