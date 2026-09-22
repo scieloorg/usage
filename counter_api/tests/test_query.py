@@ -43,7 +43,7 @@ class ReportQueryTests(TestCase):
         with self.assertRaises(CounterAPIError):
             list(query.fetch(Mock(acron3="scl"), [date(2024, 1, 1)]))
 
-    def test_platform_query_does_not_group_by_items(self):
+    def test_platform_query_groups_by_data_type_not_items(self):
         query = ReportQuery(Mock(client=Mock()))
 
         body = query._query_body([date(2024, 1, 1)], None, "pr")
@@ -52,6 +52,7 @@ class ReportQueryTests(TestCase):
 
         self.assertNotIn("source_key", fields)
         self.assertNotIn("document_key", fields)
+        self.assertIn("data_type", fields)
         self.assertIn("month", fields)
 
     def test_query_applies_access_filters_before_aggregation(self):

@@ -22,7 +22,12 @@ ITEM_GROUP_FIELDS = (
     "access_method",
     "publication_year",
 )
-PLATFORM_GROUP_FIELDS = ("metric_scope", "access_type", "access_method")
+PLATFORM_GROUP_FIELDS = (
+    "metric_scope",
+    "data_type",
+    "access_type",
+    "access_method",
+)
 TITLE_GROUP_FIELDS = (
     "source_key",
     "metric_scope",
