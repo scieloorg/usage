@@ -2,8 +2,15 @@ import logging
 import resource
 from time import monotonic
 
+from django.conf import settings
+
 from metrics.models import DailyMetricJob
 from metrics.opensearch.client import OpenSearchUsageClient
+from metrics.opensearch.month_status import mark_days_exported
+from metrics.opensearch.names import (
+    generate_analytics_index_name,
+    generate_month_index_name,
+)
 from metrics.services.export import (
     daily_metric_payload_exists,
     export_daily_metric_payload,
@@ -74,6 +81,23 @@ def _export_payload(job):
         search_client=search_client,
         job=job,
     )
+    monthly = generate_month_index_name(
+        settings.OPENSEARCH_INDEX_NAME, job.collection.acron3
+    )
+    analytics = generate_analytics_index_name(
+        settings.OPENSEARCH_INDEX_NAME, job.collection.acron3
+    )
+    search_client.client.indices.refresh(
+        index=f"{monthly},{analytics}",
+        ignore_unavailable=True,
+    )
+    mark_days_exported(
+        search_client,
+        job.collection.acron3,
+        job.access_date,
+        1 << (job.access_date.day - 1),
+    )
+
     logging.info(
         "Daily metric job %s OpenSearch export completed in %.3f seconds; "
         "peak RSS %.1f MiB.",

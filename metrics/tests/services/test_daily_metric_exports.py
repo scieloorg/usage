@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase, override_settings
 
 from metrics.services import daily_payloads
-from metrics.services.daily_metric_exports import _ensure_payload
+from metrics.services.daily_metric_exports import _ensure_payload, _export_payload
 from metrics.services.export import export_daily_metric_payload
 
 
@@ -195,6 +195,35 @@ class DailyMetricExportTests(SimpleTestCase):
                 for call in search_client.rollover_usage_index.call_args_list
             ],
             ["usage_monthly_scl", "usage_yearly_analytics_scl"],
+        )
+
+    @patch("metrics.services.daily_metric_exports.mark_days_exported")
+    @patch("metrics.services.daily_metric_exports.export_daily_metric_payload")
+    @patch("metrics.services.daily_metric_exports.OpenSearchUsageClient")
+    def test_marks_day_after_facts_are_visible(
+        self,
+        client_class,
+        export_payload,
+        mark_exported,
+    ):
+        search_client = client_class.return_value
+        search_client.ping.return_value = True
+
+        _export_payload(self.job)
+
+        export_payload.assert_called_once_with(
+            search_client=search_client,
+            job=self.job,
+        )
+        search_client.client.indices.refresh.assert_called_once_with(
+            index="usage_monthly_scl,usage_yearly_analytics_scl",
+            ignore_unavailable=True,
+        )
+        mark_exported.assert_called_once_with(
+            search_client,
+            "scl",
+            date(2026, 8, 25),
+            1 << 24,
         )
 
     @patch("metrics.services.daily_metric_exports.fetch_required_resources")
