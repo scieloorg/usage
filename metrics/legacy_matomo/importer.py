@@ -1,5 +1,6 @@
 import gzip
 import json
+from datetime import date
 from functools import partial
 from itertools import islice
 
@@ -13,6 +14,7 @@ from metrics.legacy_matomo.opensearch_actions import (
     build_counter_increment_action,
 )
 from metrics.legacy_matomo.routing import build_usage_index_target
+from metrics.opensearch.month_status import mark_days_exported
 from metrics.opensearch.names import generate_yearly_write_alias
 
 DOCUMENT_INDEX_LOOKUP_BATCH_SIZE = 1000
@@ -267,8 +269,10 @@ def import_manifest(
     stop_controller=None,
 ):
     config = _collection_config(collection)
-    return {
-        dataset: import_dataset(
+    imported = {}
+
+    for dataset in ("counter", "analytics"):
+        imported[dataset] = import_dataset(
             search_client,
             collection,
             config,
@@ -278,5 +282,24 @@ def import_manifest(
             progress_interval=progress_interval,
             stop_controller=stop_controller,
         )
+
+    targets = [
+        _dataset_target(collection, config, manifest, dataset)
         for dataset in ("counter", "analytics")
-    }
+    ]
+    search_client.client.indices.refresh(
+        index=",".join(target["read_alias"] for target in targets),
+        ignore_unavailable=True,
+    )
+
+    month_date = date.fromisoformat(f"{manifest['month']}-01")
+    days = manifest["source_days"] + manifest.get("empty_days", [])
+    day_mask = sum(1 << (date.fromisoformat(day).day - 1) for day in days)
+    mark_days_exported(
+        search_client,
+        collection.acron3,
+        month_date,
+        day_mask,
+    )
+
+    return imported
