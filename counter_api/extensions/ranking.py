@@ -8,6 +8,7 @@ from counter_api.exceptions import insufficient_information
 from counter_api.extensions.contracts import RANKING_ENTITIES, RANKING_GROUPS
 from counter_api.extensions.query import (
     metric_composite_body,
+    require_complete_period,
     usage_scope,
     validate_segmented_period,
 )
@@ -42,6 +43,8 @@ class RankingQuery:
             metric_type,
             segmented,
         ) = self._parameters(platform, begin, end, params)
+        require_complete_period(platform, begin, end)
+
         parent_key = self._parent_key(platform, parent_type, parent_id)
         key_batches = self._key_batches(platform, params, deadline)
         groups = self._ranked_groups(

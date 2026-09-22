@@ -11,6 +11,7 @@ from counter_api.extensions.contracts import (
 )
 from counter_api.extensions.query import (
     metric_composite_body,
+    require_complete_period,
     usage_scope,
     validate_segmented_period,
 )
@@ -36,6 +37,8 @@ class DistributionQuery:
             end,
             params,
         )
+        require_complete_period(platform, begin, end)
+
         key_field, entity_key = self._entity_filter(
             platform,
             entity_type,

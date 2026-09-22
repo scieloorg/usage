@@ -1,8 +1,13 @@
 from django.conf import settings
 
+from counter_api.availability import split_period
 from counter_api.constants import METRICS
 from counter_api.dates import iter_months
-from counter_api.exceptions import insufficient_information, invalid_dates
+from counter_api.exceptions import (
+    insufficient_information,
+    invalid_dates,
+    service_unavailable,
+)
 from counter_api.extensions.contracts import SEGMENT_DIMENSIONS
 from metrics.opensearch.names import (
     generate_analytics_index_name,
@@ -22,6 +27,14 @@ def metric_composite_body(filters, sources, metric_type, page_size):
             }
         },
     }
+
+
+def require_complete_period(platform, begin, end):
+    _, pending, unavailable = split_period(platform, begin, end)
+    missing = [*unavailable, *pending]
+    if missing:
+        months = "|".join(month.strftime("%Y-%m") for month in sorted(missing))
+        raise service_unavailable(f"Usage data incomplete for {months}")
 
 
 def validate_segmented_period(begin, end, dimensions, metric_type):

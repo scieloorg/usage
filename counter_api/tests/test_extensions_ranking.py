@@ -1,13 +1,42 @@
 from datetime import date
 from types import SimpleNamespace
 from unittest import TestCase
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from counter_api.exceptions import CounterAPIError
 from counter_api.extensions.ranking import RankingQuery
 
 
 class RankingQueryTests(TestCase):
+    def setUp(self):
+        period = patch(
+            "counter_api.extensions.query.split_period", return_value=([], [], [])
+        )
+        self.period = period.start()
+        self.addCleanup(period.stop)
+
+    def test_incomplete_annual_period_does_not_query_metrics(self):
+        client = Mock()
+        query = RankingQuery(Mock(client=client))
+        platform = SimpleNamespace(acron3="scl", collection_type="journals")
+        self.period.return_value = ([], [date(2025, 2, 1)], [])
+
+        with self.assertRaises(CounterAPIError) as error:
+            query.run(
+                platform,
+                date(2025, 1, 1),
+                date(2025, 12, 31),
+                {
+                    "entity_type": "journals",
+                    "parent_type": "collection",
+                    "parent_id": "scl",
+                    "group_by": "country",
+                },
+            )
+
+        self.assertEqual(error.exception.status_code, 503)
+        client.search.assert_not_called()
+
     def test_ranking_reads_all_pages_and_breaks_ties_by_item_key(self):
         client = Mock()
         client.search.side_effect = [

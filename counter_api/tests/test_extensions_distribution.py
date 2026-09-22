@@ -1,12 +1,37 @@
 from datetime import date
 from types import SimpleNamespace
 from unittest import TestCase
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
+from counter_api.exceptions import CounterAPIError
 from counter_api.extensions.distribution import DistributionQuery
 
 
 class DistributionQueryTests(TestCase):
+    def setUp(self):
+        period = patch(
+            "counter_api.extensions.query.split_period", return_value=([], [], [])
+        )
+        self.period = period.start()
+        self.addCleanup(period.stop)
+
+    def test_incomplete_month_does_not_query_metrics(self):
+        client = Mock()
+        query = DistributionQuery(Mock(client=client))
+        platform = SimpleNamespace(acron3="scl", collection_type="journals")
+        self.period.return_value = ([], [date(2025, 2, 1)], [])
+
+        with self.assertRaises(CounterAPIError) as error:
+            query.run(
+                platform,
+                date(2025, 2, 1),
+                date(2025, 2, 28),
+                {"entity_type": "collection", "entity_id": "scl", "dimension": "yop"},
+            )
+
+        self.assertEqual(error.exception.status_code, 503)
+        client.search.assert_not_called()
+
     def test_subject_areas_overlap_without_inflating_total(self):
         client = Mock()
         client.search.return_value = {
