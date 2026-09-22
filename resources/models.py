@@ -84,7 +84,7 @@ class RobotUserAgent(models.Model):
     def source_labels(self):
         labels = []
         if self.source_counter:
-            labels.append("Atmire/COUNTER")
+            labels.append("COUNTER")
         if self.source_scielo:
             labels.append("SciELO")
         return ", ".join(labels) or "-"
