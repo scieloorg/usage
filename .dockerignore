@@ -10,5 +10,6 @@
 .travis.yml
 .continue
 .envs/.local/.django
+core/media
 temp
 venv
