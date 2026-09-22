@@ -2,6 +2,7 @@ from django.conf import settings
 from django.conf.urls.i18n import i18n_patterns
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.urls import include, path, re_path
 from django.views import defaults as default_views
 from wagtail import urls as wagtail_urls
@@ -10,6 +11,7 @@ from wagtail.documents import urls as wagtaildocs_urls
 from wagtailautocomplete.urls.admin import urlpatterns as autocomplete_admin_urls
 
 urlpatterns = [
+    path("r51/", include("counter_api.urls")),
     path("admin/autocomplete/", include(autocomplete_admin_urls)),
     path(settings.DJANGO_ADMIN_URL, admin.site.urls),
     # Wagtail Admin
@@ -30,8 +32,6 @@ urlpatterns += i18n_patterns(
 
 if settings.DEBUG:
     # Wagtail settings: Serve static and media files from development server
-    from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-
     urlpatterns += staticfiles_urlpatterns()
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     # This allows the error pages to be debugged during development, just visit
@@ -55,6 +55,4 @@ if settings.DEBUG:
         path("500/", default_views.server_error),
     ]
     if "debug_toolbar" in settings.INSTALLED_APPS:
-        import debug_toolbar
-
-        urlpatterns = [path("__debug__/", include(debug_toolbar.urls))] + urlpatterns
+        urlpatterns = [path("__debug__/", include("debug_toolbar.urls"))] + urlpatterns
