@@ -1,6 +1,7 @@
 """
 Base settings to build other settings files upon.
 """
+
 from datetime import timedelta
 from pathlib import Path
 
@@ -133,6 +134,7 @@ THIRD_PARTY_APPS = [
     "wagtailcaptcha",
     "wagtailmenus",
     "rest_framework",
+    "drf_spectacular",
 ]
 
 LOCAL_APPS = [
@@ -145,6 +147,7 @@ LOCAL_APPS = [
     "log_manager",
     "log_manager_config",
     "metrics",
+    "counter_api",
     "reports",
     "resources",
     "source",
@@ -429,9 +432,36 @@ RECAPTCHA_PRIVATE_KEY = env.str("RECAPTCHA_PRIVATE_KEY", default="")
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": env.int("DRF_PAGE_SIZE", default=10),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "SciELO COUNTER API",
+    "DESCRIPTION": (
+        "COUNTER Project Release 5.1 API with SciELO extensions. "
+        "Report availability follows completed months in OpenSearch."
+    ),
+    "VERSION": "5.1",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SERVE_AUTHENTICATION": [],
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
+    "SWAGGER_UI_SETTINGS": {
+        "deepLinking": True,
+        "displayOperationId": True,
+        "persistAuthorization": False,
+    },
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "CounterAPIKey": {
+                "type": "apiKey",
+                "in": "query",
+                "name": "api_key",
+            }
+        }
+    },
 }
 
 # JWT
@@ -475,9 +505,21 @@ OPENSEARCH_ROLLOVER_MAX_SIZE = env(
 COUNTER_ROBOTS_URL = env(
     "COUNTER_ROBOTS_URL",
     default=(
-        "https://raw.githubusercontent.com/atmire/COUNTER-Robots/master/"
-        "COUNTER_Robots_list.json"
+        "https://raw.githubusercontent.com/Project-Counter/counter-bots/"
+        "counter-bots/counter_bots.json"
     ),
+)
+COUNTER_REGISTRY_URL = env("COUNTER_REGISTRY_URL", default="")
+COUNTER_CUSTOMER_ID = env("COUNTER_CUSTOMER_ID", default="0000000000000000")
+COUNTER_INSTITUTION_NAME = env("COUNTER_INSTITUTION_NAME", default="The World")
+COUNTER_CREATED_BY = env("COUNTER_CREATED_BY", default="SciELO")
+COUNTER_QUERY_BUDGET_SECONDS = env.int(
+    "COUNTER_QUERY_BUDGET_SECONDS",
+    default=25,
+)
+COUNTER_MAX_REPORT_ENTRIES = env.int(
+    "COUNTER_MAX_REPORT_ENTRIES",
+    default=100000,
 )
 MMDB_URL_TEMPLATE = env(
     "MMDB_URL_TEMPLATE",
