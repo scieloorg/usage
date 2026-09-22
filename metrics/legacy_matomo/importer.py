@@ -294,7 +294,10 @@ def import_manifest(
 
     month_date = date.fromisoformat(f"{manifest['month']}-01")
     days = manifest["source_days"] + manifest.get("empty_days", [])
-    day_mask = sum(1 << (date.fromisoformat(day).day - 1) for day in days)
+    day_mask = 0
+    for day in days:
+        day_mask |= 1 << (date.fromisoformat(day).day - 1)
+
     mark_days_exported(
         search_client,
         collection.acron3,

@@ -253,6 +253,8 @@ def validate_manifest(
             raise ValueError("Source day outside migration month: %s." % value)
 
     empty_days = manifest.get("empty_days", [])
+    if len(empty_days) != len(set(empty_days)):
+        raise ValueError("Migration empty days must be unique.")
     if set(source_days) & set(empty_days):
         raise ValueError("Source days and empty days overlap.")
     for value in empty_days:

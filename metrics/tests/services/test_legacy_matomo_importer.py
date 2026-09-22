@@ -182,7 +182,7 @@ class LegacyMatomoImporterTests(LegacyManifestTestCase):
         mark_days,
     ):
         self.manifest["source_days"] = ["2025-08-01", "2025-08-31"]
-        self.manifest["empty_days"] = ["2025-08-02"]
+        self.manifest["empty_days"] = ["2025-08-02", "2025-08-02"]
         collection = SimpleNamespace(
             acron3="scl",
             log_manager_config=SimpleNamespace(
