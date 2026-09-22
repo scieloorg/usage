@@ -5,11 +5,61 @@ from django.test import TestCase
 from openpyxl import load_workbook
 
 from counter_api.reports import build_report
-from counter_api.tabular import build_workbook
+from counter_api.tabular import build_tsv, build_workbook
 from counter_api.tests.schema import validate_report
 
 
 class ReportSemanticsTests(TestCase):
+    def test_json_totals_and_tabular_month_exclusion_preserve_usage(self):
+        platform = Mock(acron3="scl", collection_type="journals")
+        records = [
+            (
+                {
+                    "key": {
+                        "month": month,
+                        "metric_scope": "item",
+                        "data_type": "Article",
+                        "access_type": "Open",
+                        "access_method": "Regular",
+                    },
+                    "total_requests": {"value": count},
+                    "total_investigations": {"value": count},
+                    "unique_requests": {"value": count},
+                    "unique_investigations": {"value": count},
+                },
+                {},
+                {},
+            )
+            for month, count in (("2024-01", 2), ("2024-02", 3))
+        ]
+        begin = date(2024, 1, 1)
+        end = date(2024, 2, 29)
+
+        json_report = build_report(
+            "pr", platform, begin, end, records, {"Granularity": "Totals"}
+        )
+        tabular_report = build_report(
+            "pr", platform, begin, end, records, {"Exclude_Monthly_Details": True}
+        )
+        performance = json_report["Report_Items"][0]["Attribute_Performance"][0][
+            "Performance"
+        ]
+        output = build_tsv(tabular_report)
+        rows = output.read().decode("utf-8-sig").splitlines()
+        output.close()
+
+        self.assertEqual(performance["Total_Item_Requests"], {"2024-01": 5})
+        self.assertEqual(
+            json_report["Report_Header"]["Report_Attributes"], {"Granularity": "Totals"}
+        )
+        self.assertIn("Exclude_Monthly_Details=True", rows[7])
+        self.assertEqual(
+            rows[14].split("\t"),
+            ["Platform", "Data_Type", "Metric_Type", "Reporting_Period_Total"],
+        )
+        self.assertEqual(rows[15].split("\t")[-1], "5")
+        validate_report(json_report, "pr")
+
     def test_empty_item_report_has_no_empty_group(self):
         platform = Mock(
             acron3="books",

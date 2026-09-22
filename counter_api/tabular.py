@@ -123,6 +123,9 @@ def _report_rows(report):
     )
 
     months = _months(header["Report_Filters"])
+    if (header.get("Report_Attributes") or {}).get("Exclude_Monthly_Details"):
+        months = []
+
     columns = _columns(header, months)
     yield [
         f"{MONTH_LABELS[int(column[5:]) - 1]}-{column[:4]}"

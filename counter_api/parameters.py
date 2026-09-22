@@ -15,6 +15,7 @@ ATTRIBUTES = {
     "exclude_monthly_details": "Exclude_Monthly_Details",
     "include_parent_details": "Include_Parent_Details",
 }
+GRANULARITIES = {"Month", "Totals"}
 ATTRIBUTE_NAMES = {"Data_Type", "YOP", "Access_Type", "Access_Method"}
 DATA_TYPES = {
     "Article",
@@ -45,6 +46,7 @@ def parse_parameters(query_params, report_id=None):
     exceptions = []
     unsupported = []
     standard_view = report_id in STANDARD_VIEWS
+    output_format = query_params.get("format") or "json"
 
     attributes_to_show = query_params.get("attributes_to_show")
     if attributes_to_show and standard_view:
@@ -101,11 +103,29 @@ def parse_parameters(query_params, report_id=None):
     elif item_id:
         unsupported.append("item_id")
 
+    granularity = query_params.get("granularity")
+    if granularity is not None:
+        if standard_view or output_format != "json":
+            unsupported.append("granularity")
+        elif granularity not in GRANULARITIES:
+            exceptions.append(
+                {
+                    "Code": 3062,
+                    "Message": "Invalid ReportAttribute Value",
+                    "Data": "granularity",
+                }
+            )
+        elif granularity == "Totals":
+            params["Granularity"] = granularity
+
     for external, internal in ATTRIBUTES.items():
         value = query_params.get(external)
         if value is None:
             continue
         if standard_view:
+            unsupported.append(external)
+            continue
+        if internal == "Exclude_Monthly_Details" and output_format == "json":
             unsupported.append(external)
             continue
         if value.lower() not in {"true", "false"}:
@@ -131,7 +151,6 @@ def parse_parameters(query_params, report_id=None):
 
         params[internal] = enabled
 
-    output_format = query_params.get("format")
     if output_format and output_format not in {"json", "xlsx", "tsv"}:
         exceptions.append(
             {
@@ -148,6 +167,7 @@ def parse_parameters(query_params, report_id=None):
         "begin_date",
         "end_date",
         "format",
+        "granularity",
         "item_id",
         "attributes_to_show",
         *FILTERS,

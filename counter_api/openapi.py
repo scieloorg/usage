@@ -178,6 +178,15 @@ EXCLUDE_MONTHLY_PARAMETER = OpenApiParameter(
     type=OpenApiTypes.BOOL,
     location=OpenApiParameter.QUERY,
     required=False,
+    description="For TSV and XLSX, omit monthly columns and retain the total.",
+)
+GRANULARITY_PARAMETER = OpenApiParameter(
+    name="granularity",
+    type=OpenApiTypes.STR,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    enum=["Month", "Totals"],
+    description="For JSON, return monthly counts or reporting-period totals.",
 )
 INCLUDE_PARENT_PARAMETER = OpenApiParameter(
     name="include_parent_details",
@@ -207,6 +216,7 @@ REPORT_PARAMETERS = [
     YOP_PARAMETER,
     ITEM_ID_PARAMETER,
     EXCLUDE_MONTHLY_PARAMETER,
+    GRANULARITY_PARAMETER,
     INCLUDE_PARENT_PARAMETER,
 ]
 

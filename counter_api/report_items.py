@@ -78,7 +78,7 @@ def _serialize_entries(report_id, entries, begin, params, deadline):
         performance = attributes.setdefault(entry["metric_type"], {})
         monthly = entry["performance"]
 
-        if params.get("Exclude_Monthly_Details"):
+        if params.get("Granularity") == "Totals":
             performance[begin.strftime("%Y-%m")] = sum(monthly.values())
         else:
             performance.update(monthly)

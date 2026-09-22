@@ -103,8 +103,10 @@ def _report_attributes(params):
 
     if params.get("Attributes_To_Show"):
         attributes["Attributes_To_Show"] = params["Attributes_To_Show"]
-    if params.get("Exclude_Monthly_Details"):
+    if params.get("Granularity") == "Totals":
         attributes["Granularity"] = "Totals"
+    if params.get("Exclude_Monthly_Details"):
+        attributes["Exclude_Monthly_Details"] = "True"
     if params.get("Include_Parent_Details"):
         attributes["Include_Parent_Details"] = "True"
 

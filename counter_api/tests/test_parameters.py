@@ -74,3 +74,17 @@ class ReportParameterTests(SimpleTestCase):
             params["parameter_exceptions"][0]["Data"],
             "0000|9999-0001",
         )
+
+    def test_granularity_and_tabular_month_exclusion_use_their_own_formats(self):
+        json_params = parse_parameters({"granularity": "Totals"}, "tr")
+        tabular_params = parse_parameters(
+            {"format": "tsv", "exclude_monthly_details": "true"},
+            "tr",
+        )
+        invalid_params = parse_parameters({"granularity": "Year"}, "tr")
+
+        self.assertEqual(json_params["Granularity"], "Totals")
+        self.assertEqual(tabular_params["Exclude_Monthly_Details"], True)
+        self.assertNotIn("Exclude_Monthly_Details", json_params)
+        self.assertNotIn("Granularity", tabular_params)
+        self.assertEqual(invalid_params["parameter_exceptions"][0]["Code"], 3062)
