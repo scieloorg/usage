@@ -38,6 +38,17 @@ from counter_api.openapi import (
 from counter_api.platforms import get_platform
 
 
+def _download_response(payload, kind, platform, output_format):
+    content = build_export(payload, kind, output_format)
+    content_type = "text/csv" if output_format == "csv" else EXCEL_CONTENT_TYPE
+    response = FileResponse(content, content_type=content_type)
+    response[
+        "Content-Disposition"
+    ] = f'attachment; filename="{kind}_{platform.acron3}.{output_format}"'
+
+    return response
+
+
 class RankingView(CounterAPIView):
     @extend_schema(
         tags=["SciELO extensions"],
@@ -83,15 +94,12 @@ class RankingView(CounterAPIView):
             payload = RankingQuery().run(platform, begin, end, request.query_params)
 
             if output_format != "json":
-                content = build_export(payload, "ranking", output_format)
-                content_type = (
-                    "text/csv" if output_format == "csv" else EXCEL_CONTENT_TYPE
+                return _download_response(
+                    payload,
+                    "ranking",
+                    platform,
+                    output_format,
                 )
-                response = FileResponse(content, content_type=content_type)
-                response[
-                    "Content-Disposition"
-                ] = f'attachment; filename="ranking_{platform.acron3}.{output_format}"'
-                return response
         except CounterAPIError as error:
             return Response(error.as_dict(), status=error.status_code)
         except Exception:
@@ -188,15 +196,12 @@ class DistributionView(CounterAPIView):
             )
 
             if output_format != "json":
-                content = build_export(payload, "distribution", output_format)
-                content_type = (
-                    "text/csv" if output_format == "csv" else EXCEL_CONTENT_TYPE
+                return _download_response(
+                    payload,
+                    "distribution",
+                    platform,
+                    output_format,
                 )
-                response = FileResponse(content, content_type=content_type)
-                response[
-                    "Content-Disposition"
-                ] = f'attachment; filename="distribution_{platform.acron3}.{output_format}"'
-                return response
         except CounterAPIError as error:
             return Response(error.as_dict(), status=error.status_code)
         except Exception:

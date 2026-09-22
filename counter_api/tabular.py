@@ -111,7 +111,11 @@ def _report_rows(report):
         ),
         ("Report_Attributes", _pairs(header.get("Report_Attributes") or {})),
         ("Exceptions", _exceptions(header.get("Exceptions") or [])),
-        ("Reporting_Period", _reporting_period(header["Report_Filters"])),
+        (
+            "Reporting_Period",
+            f"Begin_Date={header['Report_Filters']['Begin_Date']}; "
+            f"End_Date={header['Report_Filters']['End_Date']}",
+        ),
         ("Created", header["Created"]),
         ("Created_By", header["Created_By"]),
         ("Registry_Record", header.get("Registry_Record", "")),
@@ -294,7 +298,3 @@ def _exceptions(values):
             exception += f" ({value['Data']})"
         result.append(exception)
     return "; ".join(result)
-
-
-def _reporting_period(filters):
-    return f"Begin_Date={filters['Begin_Date']}; " f"End_Date={filters['End_Date']}"

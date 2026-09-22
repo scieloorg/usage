@@ -6,7 +6,11 @@ from django.conf import settings
 from counter_api.constants import METADATA_BATCH_SIZE, METRICS
 from counter_api.exceptions import insufficient_information
 from counter_api.extensions.contracts import RANKING_ENTITIES, RANKING_GROUPS
-from counter_api.extensions.query import usage_scope, validate_segmented_period
+from counter_api.extensions.query import (
+    metric_composite_body,
+    usage_scope,
+    validate_segmented_period,
+)
 from counter_api.metadata import fetch_metadata
 from counter_api.query import ReportQuery
 from counter_api.search import composite_pages, search
@@ -316,17 +320,12 @@ class RankingQuery:
             {field: {"terms": {"field": field, "missing_bucket": True}}}
             for field in dimensions
         ]
-        body = {
-            "size": 0,
-            "track_total_hits": False,
-            "query": {"bool": {"filter": filters}},
-            "aggs": {
-                "rows": {
-                    "composite": {"size": RANKING_PAGE_SIZE, "sources": sources},
-                    "aggs": {"count": {"sum": {"field": METRICS[metric_type]}}},
-                }
-            },
-        }
+        body = metric_composite_body(
+            filters,
+            sources,
+            metric_type,
+            RANKING_PAGE_SIZE,
+        )
 
         return index_name, body
 

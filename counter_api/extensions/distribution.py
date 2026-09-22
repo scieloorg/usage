@@ -9,7 +9,11 @@ from counter_api.extensions.contracts import (
     DISTRIBUTION_DIMENSIONS,
     DISTRIBUTION_ENTITIES,
 )
-from counter_api.extensions.query import usage_scope, validate_segmented_period
+from counter_api.extensions.query import (
+    metric_composite_body,
+    usage_scope,
+    validate_segmented_period,
+)
 from counter_api.metadata import fetch_metadata
 from counter_api.query import ReportQuery
 from counter_api.search import composite_pages
@@ -161,17 +165,7 @@ class DistributionQuery:
                     }
                 }
             )
-        body = {
-            "size": 0,
-            "track_total_hits": False,
-            "query": {"bool": {"filter": filters}},
-            "aggs": {
-                "rows": {
-                    "composite": {"size": PAGE_SIZE, "sources": sources},
-                    "aggs": {"count": {"sum": {"field": METRICS[metric_type]}}},
-                }
-            },
-        }
+        body = metric_composite_body(filters, sources, metric_type, PAGE_SIZE)
 
         return index_name, body
 

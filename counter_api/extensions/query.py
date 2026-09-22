@@ -1,5 +1,6 @@
 from django.conf import settings
 
+from counter_api.constants import METRICS
 from counter_api.dates import iter_months
 from counter_api.exceptions import insufficient_information, invalid_dates
 from counter_api.extensions.contracts import SEGMENT_DIMENSIONS
@@ -7,6 +8,20 @@ from metrics.opensearch.names import (
     generate_analytics_index_name,
     generate_month_index_name,
 )
+
+
+def metric_composite_body(filters, sources, metric_type, page_size):
+    return {
+        "size": 0,
+        "track_total_hits": False,
+        "query": {"bool": {"filter": filters}},
+        "aggs": {
+            "rows": {
+                "composite": {"size": page_size, "sources": sources},
+                "aggs": {"count": {"sum": {"field": METRICS[metric_type]}}},
+            }
+        },
+    }
 
 
 def validate_segmented_period(begin, end, dimensions, metric_type):
