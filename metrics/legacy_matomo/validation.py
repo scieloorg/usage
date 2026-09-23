@@ -230,6 +230,7 @@ def validate_manifest(
     progress_callback=None,
     progress_interval=DEFAULT_PROGRESS_INTERVAL,
     stop_controller=None,
+    allow_partial=False,
 ):
     if progress_interval <= 0:
         raise ValueError("Progress interval must be greater than zero.")
@@ -238,6 +239,9 @@ def validate_manifest(
     if manifest.get("migration") != MIGRATION_NAME:
         raise ValueError("Unsupported migration manifest.")
     validate_migration_scope(manifest)
+    missing_days = manifest.get("missing_days", [])
+    if missing_days and not allow_partial:
+        raise ValueError("Partial migration manifest has missing source days.")
 
     collection = manifest["target"]["collection"]
     month = manifest["month"]
@@ -261,6 +265,19 @@ def validate_manifest(
         date.fromisoformat(value)
         if value[:7] != month:
             raise ValueError("Empty day outside migration month: %s." % value)
+
+    if missing_days != sorted(set(missing_days)):
+        raise ValueError("Migration missing days must be unique and sorted.")
+    if set(missing_days) & (set(source_days) | set(empty_days)):
+        raise ValueError("Migration missing days overlap available days.")
+    for value in missing_days:
+        date.fromisoformat(value)
+        if value[:7] != month:
+            raise ValueError("Missing day outside migration month: %s." % value)
+
+    missing_day_totals = manifest.get("missing_day_totals", {})
+    if set(missing_day_totals) != set(missing_days):
+        raise ValueError("Migration missing day totals differ from missing days.")
 
     if manifest["counter"].get("month") != month:
         raise ValueError("Counter summary month differs from manifest.")
@@ -291,10 +308,11 @@ def validate_manifest(
         raise ValueError("Counter and analytics totals do not reconcile.")
 
     return {
-        "status": "valid",
+        "status": "partial" if missing_days else "valid",
         "collection": collection,
         "month": month,
         "source_days": len(source_days),
+        "missing_days": missing_days,
         "counter": counter,
         "analytics": analytics,
     }
