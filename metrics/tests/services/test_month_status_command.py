@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from collection.models import Collection
 from metrics.models import DailyMetricJob
@@ -98,4 +98,57 @@ class BackfillMonthStatusCommandTests(TestCase):
             "scl",
             date(2025, 2, 1),
             (1 << 0) | (1 << 1) | (1 << 27),
+        )
+
+
+class PartialMigrationMonthStatusTests(SimpleTestCase):
+    @patch(
+        "metrics.management.commands.backfill_counter_month_status."
+        "replace_month_status"
+    )
+    @patch(
+        "metrics.management.commands.backfill_counter_month_status."
+        "OpenSearchUsageClient"
+    )
+    def test_replaces_partial_month_coverage_from_import_report(
+        self, client_class, replace_status
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            report_path = root / "report.json"
+            manifest = {
+                "month": "2025-02",
+                "source_days": ["2025-02-01"],
+                "empty_days": ["2025-02-02"],
+                "missing_days": ["2025-02-03"],
+                "target": {"collection": "scl"},
+            }
+            report = {
+                "status": "completed",
+                "manifest": str(manifest_path),
+                "collection": "scl",
+                "month": "2025-02",
+                "validation": {
+                    "status": "partial",
+                    "counter": {"documents": 10},
+                    "analytics": {"documents": 20},
+                },
+                "imported": {"counter": 10, "analytics": 20},
+            }
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            report_path.write_text(json.dumps(report), encoding="utf-8")
+
+            call_command(
+                "backfill_counter_month_status",
+                report=[str(report_path)],
+                apply=True,
+                stdout=StringIO(),
+            )
+
+        replace_status.assert_called_once_with(
+            client_class.return_value,
+            "scl",
+            date(2025, 2, 1),
+            (1 << 0) | (1 << 1),
         )
