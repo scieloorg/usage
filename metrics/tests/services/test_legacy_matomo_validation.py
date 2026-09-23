@@ -60,6 +60,28 @@ class LegacyMatomoValidationTests(LegacyManifestTestCase):
 
         self.assertIn(self.manifest["counter"]["uncompressed_sha256"], migration_id)
 
+    def test_rejects_partial_manifest_with_missing_days(self):
+        self.manifest["missing_days"] = ["2025-08-02"]
+
+        with self.assertRaisesMessage(ValueError, "missing source days"):
+            validation.validate_manifest(self.manifest)
+
+    def test_accepts_partial_manifest_when_explicit(self):
+        self.manifest["missing_days"] = ["2025-08-02"]
+        self.manifest["missing_day_totals"] = {"2025-08-02": {"nbr": {}}}
+
+        result = validation.validate_manifest(self.manifest, allow_partial=True)
+
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["missing_days"], ["2025-08-02"])
+
+    def test_rejects_missing_day_that_overlaps_source_day(self):
+        self.manifest["missing_days"] = ["2025-08-01"]
+        self.manifest["missing_day_totals"] = {"2025-08-01": {"nbr": {}}}
+
+        with self.assertRaisesMessage(ValueError, "overlap available days"):
+            validation.validate_manifest(self.manifest, allow_partial=True)
+
     def test_rejects_manifest_without_source_days(self):
         self.manifest["source_days"] = []
 

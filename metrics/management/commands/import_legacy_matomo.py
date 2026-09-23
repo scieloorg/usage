@@ -29,6 +29,7 @@ class Command(BaseCommand):
         parser.add_argument("--report")
         parser.add_argument("--temporary-directory")
         parser.add_argument("--progress-every", type=int, default=100000)
+        parser.add_argument("--allow-partial", action="store_true")
 
     def _progress(self, dataset, stage, documents):
         self.stdout.write("[%s] %s: %d documents" % (stage, dataset, documents))
@@ -72,6 +73,7 @@ class Command(BaseCommand):
                 progress_callback=self._progress,
                 progress_interval=options["progress_every"],
                 stop_controller=stop_controller,
+                allow_partial=options["allow_partial"],
             )
             report["validation"] = validation
 

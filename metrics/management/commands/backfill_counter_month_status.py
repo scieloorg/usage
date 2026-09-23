@@ -96,7 +96,7 @@ class Command(BaseCommand):
 
             if report.get("status") != "completed":
                 raise CommandError(f"migration report is not completed: {path}")
-            if report.get("validation", {}).get("status") != "valid":
+            if report.get("validation", {}).get("status") not in {"valid", "partial"}:
                 raise CommandError(f"migration report is not valid: {path}")
 
             for dataset in ("counter", "analytics"):
