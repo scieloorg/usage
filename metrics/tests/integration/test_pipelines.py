@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime
 
+from scielo_usage_counter.url_translator import URLTranslationManager
 from scielo_usage_counter.values import (
     CONTENT_TYPE_ABSTRACT,
     CONTENT_TYPE_FULL_TEXT,
@@ -9,6 +10,7 @@ from scielo_usage_counter.values import (
 
 from metrics.counter.access import accumulation, extraction
 from metrics.counter.access.daily_accumulator import DailyAccessAccumulator
+from metrics.opensearch.keys import document_key
 from metrics.tests.helpers import convert_accumulator
 
 
@@ -124,3 +126,50 @@ class TestOPACPipeline(unittest.TestCase):
         self.assertTrue(doc["source_key"].startswith("k1_"))
         self.assertTrue(doc["document_key"].startswith("k1_"))
         self.assertEqual(doc["total_requests"], 1)
+
+    def test_classic_and_opac_urls_share_article_and_session(self):
+        pid_v2 = "S0103-63512021000100001"
+        pid_v3 = "dqLRqnpmnncSmnzMCB8bzPG"
+        translator = URLTranslationManager(
+            sources_metadata=[{"acronym": "neco", "scielo_issn": "0103-6351"}],
+            documents_metadata=[
+                {
+                    "pid_v2": pid_v2,
+                    "pid_v3": pid_v3,
+                    "default_lang": "pt",
+                    "text_langs": ["pt"],
+                    "scielo_issn": "0103-6351",
+                    "publication_year": "2021",
+                }
+            ],
+        )
+        results = DailyAccessAccumulator()
+        urls = (
+            f"/scielo.php?script=sci_arttext&pid={pid_v2}",
+            f"/j/neco/a/{pid_v2}/?format=html",
+            f"/j/neco/a/{pid_v3}/?format=html",
+        )
+
+        for minute, url in enumerate(urls):
+            line = {
+                "url": url,
+                "client_name": "Chrome",
+                "client_version": "120.0",
+                "ip_address": "189.10.20.30",
+                "country_code": "BR",
+                "local_datetime": datetime(2026, 7, 15, 8, 15 + minute, 0),
+            }
+            access = extraction.extract("scl", translator.translate(url))
+            accumulation.accumulate(results, access, line)
+
+        metrics = convert_accumulator(results)
+        self.assertEqual(len(metrics["counter"]), 1)
+        self.assertEqual(len(metrics["analytics"]), 1)
+
+        article = next(iter(metrics["counter"].values()))
+        self.assertEqual(
+            article["document_key"],
+            document_key("scl", "article", pid_v3),
+        )
+        self.assertEqual(article["total_requests"], 3)
+        self.assertEqual(article["unique_requests"], 1)
