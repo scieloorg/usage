@@ -1,5 +1,9 @@
 import logging
+import os
+from fnmatch import fnmatchcase
+from glob import iglob
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -140,6 +144,16 @@ class CollectionLogDirectory(Orderable, CommonControlField):
         blank=True,
         null=True,
     )
+    subdirectory_pattern = models.CharField(
+        verbose_name=_("Subdirectory Pattern"),
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_(
+            "Optional pattern relative to Path, such as */*/preprints-scielo-org. "
+            "Leave blank to scan the entire directory."
+        ),
+    )
     active = models.BooleanField(
         verbose_name=_("Active"),
         default=True,
@@ -153,6 +167,53 @@ class CollectionLogDirectory(Orderable, CommonControlField):
 
     def __str__(self):
         return f"{self.config.collection} - {self.path} - {self.directory_name}"
+
+    def clean(self):
+        super().clean()
+        pattern = self.subdirectory_pattern
+
+        if os.path.isabs(pattern) or ".." in pattern.split(os.sep):
+            raise ValidationError(
+                {
+                    "subdirectory_pattern": _(
+                        "Use a relative pattern without parent directories."
+                    )
+                }
+            )
+
+    def get_log_directories(self):
+        if not self.subdirectory_pattern:
+            yield self.path
+            return
+
+        for path in iglob(os.path.join(self.path, self.subdirectory_pattern)):
+            if os.path.isdir(path):
+                yield path
+
+    def matches_log_path(self, path):
+        directory_path = os.path.abspath(self.path)
+        file_path = os.path.abspath(path)
+        if os.path.commonpath([directory_path, file_path]) != directory_path:
+            return False
+
+        pattern = os.path.normpath(self.subdirectory_pattern)
+        if pattern == ".":
+            return True
+
+        relative_path = os.path.relpath(os.path.dirname(file_path), directory_path)
+        parts = relative_path.split(os.sep)
+        patterns = pattern.split(os.sep)
+        if len(parts) < len(patterns):
+            return False
+
+        for part, pattern in zip(parts, patterns):
+            if part.startswith(".") and not pattern.startswith("."):
+                return False
+
+            if not fnmatchcase(part, pattern):
+                return False
+
+        return True
 
     @classmethod
     def load(cls, data, user):
@@ -174,6 +235,7 @@ class CollectionLogDirectory(Orderable, CommonControlField):
                 path=item.get("path"),
                 active=item.get("directory_active", item.get("active", True)),
                 translator_class=item.get("translator_class", "classic"),
+                subdirectory_pattern=item.get("subdirectory_pattern", ""),
             )
 
     @classmethod
@@ -185,6 +247,7 @@ class CollectionLogDirectory(Orderable, CommonControlField):
         path,
         active,
         translator_class="classic",
+        subdirectory_pattern="",
     ):
         try:
             obj = cls.objects.get(config=config, path=path)
@@ -200,7 +263,9 @@ class CollectionLogDirectory(Orderable, CommonControlField):
         obj.path = path
         obj.active = active
         obj.translator_class = translator_class or "classic"
+        obj.subdirectory_pattern = subdirectory_pattern
 
+        obj.clean()
         obj.save()
         logging.info(f"{config.collection.acron3} - {directory_name} - {path}")
         return obj
