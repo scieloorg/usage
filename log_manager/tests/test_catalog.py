@@ -4,27 +4,79 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from collection.models import Collection
 from log_manager import choices, file_errors, utils
 from log_manager.models import LogFile
 from log_manager.services import catalog, validation
+from log_manager_config.models import CollectionLogDirectory, LogManagerCollectionConfig
 
 
 class CatalogLogFilesTests(TestCase):
     def setUp(self):
         self.collection = Collection.objects.create(acron3="per", acron2="pe")
 
-    def _catalog_directory(self, directory, visible_dates=None):
-        catalog._catalog_log_files_in_directory(
-            collection=self.collection,
-            directory_path=directory,
-            visible_dates=visible_dates
-            if visible_dates is not None
-            else [date.today()],
-            supported_extensions=[".gz"],
-        )
+    @override_settings(SUPPORTED_LOGFILE_EXTENSIONS=[".gz"])
+    def test_pattern_catalogs_all_logs_and_discovers_new_months(self):
+        config = LogManagerCollectionConfig.objects.create(collection=self.collection)
+
+        with tempfile.TemporaryDirectory() as directory:
+            CollectionLogDirectory.objects.create(
+                config=config,
+                path=directory,
+                subdirectory_pattern="*/*/preprints-scielo-org",
+            )
+            first_month = (
+                Path(directory) / "Y2026" / "September" / "preprints-scielo-org"
+            )
+            other_site = first_month.parent / "another-site"
+            first_month.mkdir(parents=True)
+            other_site.mkdir()
+            paths = [first_month / "access.log.gz", first_month / "error.log.gz"]
+            for path in paths + [other_site / "access.log.gz"]:
+                with gzip.open(path, "wt") as output:
+                    output.write(str(path))
+
+            catalog.catalog_log_files_from_configured_directories(
+                collections=["per"], from_date=date.today(), until_date=date.today()
+            )
+            self.assertEqual(
+                set(LogFile.objects.values_list("path", flat=True)),
+                set(map(str, paths)),
+            )
+
+            next_month = Path(directory) / "Y2026" / "October" / "preprints-scielo-org"
+            next_month.mkdir(parents=True)
+            paths.append(next_month / "access.log.gz")
+            with gzip.open(paths[-1], "wt") as output:
+                output.write("new month")
+
+            catalog.catalog_log_files_from_configured_directories(
+                collections=["per"], from_date=date.today(), until_date=date.today()
+            )
+
+            self.assertEqual(
+                set(LogFile.objects.values_list("path", flat=True)),
+                set(map(str, paths)),
+            )
+
+    @override_settings(SUPPORTED_LOGFILE_EXTENSIONS=[".gz"])
+    def test_blank_pattern_preserves_recursive_cataloging(self):
+        config = LogManagerCollectionConfig.objects.create(collection=self.collection)
+
+        with tempfile.TemporaryDirectory() as directory:
+            CollectionLogDirectory.objects.create(config=config, path=directory)
+            path = Path(directory) / "nested" / "access.log.gz"
+            path.parent.mkdir()
+            with gzip.open(path, "wt") as output:
+                output.write("nested log")
+
+            catalog.catalog_log_files_from_configured_directories(
+                collections=["per"], from_date=date.today(), until_date=date.today()
+            )
+
+            self.assertEqual(LogFile.objects.get().path, str(path))
 
     def test_corrupted_gzip_is_recorded_once_as_error(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -176,3 +228,13 @@ class CatalogLogFilesTests(TestCase):
 
         self.assertEqual(LogFile.objects.count(), 1)
         self.assertEqual(LogFile.objects.get().hash, expected_hash)
+
+    def _catalog_directory(self, directory, visible_dates=None):
+        catalog._catalog_log_files_in_directory(
+            collection=self.collection,
+            directory_path=directory,
+            visible_dates=visible_dates
+            if visible_dates is not None
+            else [date.today()],
+            supported_extensions=[".gz"],
+        )
