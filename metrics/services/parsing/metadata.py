@@ -61,7 +61,7 @@ def _get_log_file_translator_class(log_file):
     for directory in CollectionLogDirectory.objects.filter(
         config__collection=log_file.collection,
     ):
-        if directory.path in log_file.path and directory.translator_class:
+        if directory.translator_class and directory.matches_log_path(log_file.path):
             return _get_translator_class(directory.translator_class)
 
     return None
