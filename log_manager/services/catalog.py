@@ -39,12 +39,13 @@ def catalog_log_files_from_configured_directories(
             )
 
         for directory in directories:
-            _catalog_log_files_in_directory(
-                collection=collection,
-                directory_path=directory.path,
-                visible_dates=visible_dates,
-                supported_extensions=supported_extensions,
-            )
+            for path in directory.get_log_directories():
+                _catalog_log_files_in_directory(
+                    collection=collection,
+                    directory_path=path,
+                    visible_dates=visible_dates,
+                    supported_extensions=supported_extensions,
+                )
 
 
 def _catalog_log_files_in_directory(

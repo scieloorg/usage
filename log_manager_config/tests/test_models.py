@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from collection.models import Collection
@@ -105,6 +106,7 @@ class CollectionLogDirectoryTests(TestCase):
                     "directory_name": "legacy logs",
                     "path": "/data/logs/legacy",
                     "directory_active": False,
+                    "subdirectory_pattern": "*/*/preprints-scielo-org",
                 }
             ],
             self.user,
@@ -113,3 +115,16 @@ class CollectionLogDirectoryTests(TestCase):
         directory = CollectionLogDirectory.objects.get(path="/data/logs/legacy")
 
         self.assertFalse(directory.active)
+        self.assertEqual(directory.subdirectory_pattern, "*/*/preprints-scielo-org")
+
+    def test_rejects_patterns_outside_root(self):
+        for pattern in ("/other/logs", "../logs", "*/../logs"):
+            with self.subTest(pattern=pattern):
+                directory = CollectionLogDirectory(
+                    config=self.config,
+                    path="/data/logs",
+                    subdirectory_pattern=pattern,
+                )
+
+                with self.assertRaises(ValidationError):
+                    directory.clean()

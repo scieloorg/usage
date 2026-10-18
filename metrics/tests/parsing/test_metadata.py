@@ -6,6 +6,7 @@ from django.test import TestCase, override_settings
 from collection.models import Collection
 from log_manager_config.models import CollectionLogDirectory, LogManagerCollectionConfig
 from metrics.services.parsing.metadata import (
+    _get_log_file_translator_class,
     _get_translator_class,
     build_url_translation_manager,
 )
@@ -56,6 +57,46 @@ class ParsingMetadataTests(TestCase):
             path="/app/logs/books",
             translator_class="books",
         )
+
+    def test_translator_respects_subdirectory_pattern(self):
+        config = self.collection.log_manager_config
+
+        directory = CollectionLogDirectory.objects.create(
+            config=config,
+            path="/unmounted/submission-node01",
+            subdirectory_pattern="*/*/preprints-scielo-org",
+            translator_class="preprints",
+        )
+        log_file = SimpleNamespace(collection=self.collection)
+
+        for suffix in (
+            "Y2026/October/preprints-scielo-org/access.log.gz",
+            "Y2026/October/preprints-scielo-org/nested/error.log.gz",
+        ):
+            with self.subTest(suffix=suffix):
+                log_file.path = f"/unmounted/submission-node01/{suffix}"
+                translator = _get_log_file_translator_class(log_file)
+
+                self.assertEqual(translator.__name__, "URLTranslatorPreprintsSite")
+
+        for path in (
+            "/unmounted/submission-node01/Y2026/October/other-site/access.log.gz",
+            "/unmounted/submission-node01/Y2026/preprints-scielo-org/access.log.gz",
+            "/unmounted/submission-node01/.hidden/October/preprints-scielo-org/access.log.gz",
+            "/unmounted/submission-node010/Y2026/October/preprints-scielo-org/access.log.gz",
+        ):
+            with self.subTest(path=path):
+                log_file.path = path
+
+                self.assertIsNone(_get_log_file_translator_class(log_file))
+
+        directory.subdirectory_pattern = "."
+        directory.save(update_fields=["subdirectory_pattern"])
+        log_file.path = "/unmounted/submission-node01/nested/access.log.gz"
+
+        translator = _get_log_file_translator_class(log_file)
+
+        self.assertEqual(translator.__name__, "URLTranslatorPreprintsSite")
 
     @override_settings(PARSING_METADATA_CACHE_COLLECTIONS=[])
     @patch("metrics.services.parsing.metadata.url_translator.URLTranslationManager")
