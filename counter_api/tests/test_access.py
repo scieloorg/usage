@@ -3,12 +3,78 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from django.urls import reverse
+from django.utils import timezone
 from redis import Redis
 
+from counter_api.models import APIKey
 from counter_api.rate_limit import WINDOW_SCRIPT
+
+DATA_PATHS = (
+    "/r51/members",
+    "/r51/platforms",
+    "/r51/reports",
+    "/r51/reports/tr",
+    "/r51/extensions/capabilities",
+    "/r51/extensions/ranking",
+    "/r51/extensions/distribution",
+)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("mode", ["public", "key_required"])
+def test_invalid_keys_rejected_on_every_data_route(client, settings, mode):
+    settings.COUNTER_API_ACCESS_MODE = mode
+    revoked, revoked_value = APIKey.issue("revoked")
+    revoked.active = False
+    revoked.save()
+    _, expired = APIKey.issue("expired", timezone.now() - timedelta(seconds=1))
+    for path in DATA_PATHS:
+        for value in ("", "invalid", revoked_value, expired):
+            response = client.get(path, {"api_key": value})
+            assert response.status_code == 401
+            assert response.json() == {"Code": 2020, "Message": "APIKey Invalid"}
+        response = client.get(path, {"api_key": ["invalid", "other"]})
+        assert response.status_code == 401
+    assert not APIKey.objects.exclude(last_used_at=None).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("mode", ["public", "key_required"])
+def test_mode_gate_and_admin_remain_separate(client, settings, mode):
+    settings.COUNTER_API_ACCESS_MODE = mode
+    key, value = APIKey.issue("client")
+    for path in DATA_PATHS:
+        response = client.get(path)
+        assert (response.status_code == 401) == (mode == "key_required")
+    assert client.get("/r51/platforms", {"api_key": value}).status_code == 200
+    key.refresh_from_db()
+    assert key.last_used_at is not None
+    for name in ("admin:index", "wagtailadmin_home"):
+        for params in ({}, {"api_key": value}):
+            response = client.get(reverse(name), params)
+            assert response.status_code == 302
+            assert "/login/" in response.url
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("mode", ["public", "key_required"])
+def test_status_is_always_public_unmetered_and_ignores_keys(
+    client, settings, mode
+):
+    settings.COUNTER_API_ACCESS_MODE = mode
+    with patch("counter_api.access.APIKey.authenticate") as authenticate:
+        for params in ({}, {"api_key": ""}, {"api_key": "invalid"}):
+            assert client.get("/r51/status", params).status_code == 200
+        authenticate.assert_not_called()
+    assert client.get("/r51/").status_code == 200
+    assert client.get("/r51/schema/").status_code == 200
+    assert client.post("/r51/platforms").status_code == 405
 
 
 def test_invalid_mode_fails_startup():

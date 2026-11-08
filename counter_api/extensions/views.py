@@ -5,7 +5,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.response import Response
 
-from counter_api.access import CounterAPIView, get_authentication_error
+from counter_api.access import CounterAPIView
 from counter_api.availability import available_months
 from counter_api.constants import METRICS
 from counter_api.dates import parse_period
@@ -80,10 +80,6 @@ class RankingView(CounterAPIView):
         },
     )
     def get(self, request):
-        authentication_error = get_authentication_error(request)
-        if authentication_error:
-            return authentication_error
-
         try:
             output_format = request.query_params.get("format", "json")
             if output_format not in DOWNLOAD_FORMATS:
@@ -120,10 +116,6 @@ class CapabilitiesView(CounterAPIView):
         responses={200: CapabilitiesSerializer, 400: ExceptionSerializer},
     )
     def get(self, request):
-        authentication_error = get_authentication_error(request)
-        if authentication_error:
-            return authentication_error
-
         try:
             platform = get_platform(request.query_params.get("platform"))
             months = available_months(platform)
@@ -180,10 +172,6 @@ class DistributionView(CounterAPIView):
         },
     )
     def get(self, request):
-        authentication_error = get_authentication_error(request)
-        if authentication_error:
-            return authentication_error
-
         try:
             output_format = request.query_params.get("format", "json")
             if output_format not in DOWNLOAD_FORMATS:

@@ -5,7 +5,7 @@ from django.http import FileResponse
 from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 
-from counter_api.access import CounterAPIView, get_authentication_error
+from counter_api.access import CounterAPIView
 from counter_api.availability import available_months
 from counter_api.constants import PROPRIETARY_NAMESPACE, RELEASE, REPORTS
 from counter_api.dates import parse_period
@@ -30,6 +30,7 @@ from counter_api.tabular import build_tsv, build_workbook
 
 
 class StatusView(CounterAPIView):
+    access_exempt = True
     @extend_schema(
         tags=["Service"],
         auth=[],
@@ -64,10 +65,6 @@ class MembersView(CounterAPIView):
         },
     )
     def get(self, request):
-        authentication_error = get_authentication_error(request)
-        if authentication_error:
-            return authentication_error
-
         try:
             validate_customer(request.query_params)
         except CounterAPIError as error:
@@ -100,10 +97,6 @@ class PlatformsView(CounterAPIView):
         },
     )
     def get(self, request):
-        authentication_error = get_authentication_error(request)
-        if authentication_error:
-            return authentication_error
-
         return Response(list_platforms())
 
 
@@ -123,10 +116,6 @@ class ReportsView(CounterAPIView):
         },
     )
     def get(self, request):
-        authentication_error = get_authentication_error(request)
-        if authentication_error:
-            return authentication_error
-
         try:
             validate_customer(request.query_params)
             platform = get_platform(request.query_params.get("platform"))
@@ -177,10 +166,6 @@ class ReportView(CounterAPIView):
         responses=REPORT_RESPONSES,
     )
     def get(self, request, report_id):
-        authentication_error = get_authentication_error(request)
-        if authentication_error:
-            return authentication_error
-
         try:
             validate_customer(request.query_params)
             platform = get_platform(request.query_params.get("platform"))
