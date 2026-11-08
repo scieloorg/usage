@@ -5,6 +5,7 @@ from opensearchpy import NotFoundError
 
 from counter_api.dates import iter_months
 from counter_api.exceptions import insufficient_information, service_unavailable
+from counter_api.painless import CONFIRMED_DAYS_SUM_SCRIPT
 from counter_api.search import search
 from metrics.opensearch.names import generate_month_status_index_name
 
@@ -108,4 +109,33 @@ def coverage_fields(coverage):
             if coverage["status"] != "complete"
             else []
         ),
+    }
+
+
+def metric_sum(metric, coverage):
+    partial = (
+        {
+            item["month"]: [f"{day:02d}" for day in item["confirmed_days"]]
+            for item in coverage["months"]
+            if item["status"] == "partial"
+        }
+        if coverage
+        else {}
+    )
+    if not partial:
+        return {"field": metric}
+
+    return {
+        "script": {
+            "source": CONFIRMED_DAYS_SUM_SCRIPT,
+            "params": {
+                "metric": metric,
+                "complete": [
+                    item["month"]
+                    for item in coverage["months"]
+                    if item["status"] == "complete"
+                ],
+                "days": partial,
+            },
+        }
     }
