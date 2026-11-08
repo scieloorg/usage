@@ -48,6 +48,15 @@ def _download_response(payload, kind, platform, output_format):
     return response
 
 
+COVERAGE_PARAMETER = OpenApiParameter(
+    "coverage_policy",
+    OpenApiTypes.STR,
+    enum=["strict", "allow_partial"],
+    default="allow_partial",
+    description="Allow confirmed days of partial months. Incomplete country/language periods remain unsupported.",
+)
+
+
 class RankingView(CounterAPIView):
     @extend_schema(
         tags=["SciELO extensions"],
@@ -62,6 +71,7 @@ class RankingView(CounterAPIView):
             OpenApiParameter("parent_id", OpenApiTypes.STR, required=True),
             OpenApiParameter("entity_type", OpenApiTypes.STR, required=True),
             OpenApiParameter("metric_type", OpenApiTypes.STR, required=False),
+            COVERAGE_PARAMETER,
             OpenApiParameter("group_by", OpenApiTypes.STR, required=False),
             OpenApiParameter("country", OpenApiTypes.STR, required=False),
             OpenApiParameter("language", OpenApiTypes.STR, required=False),
@@ -159,6 +169,7 @@ class DistributionView(CounterAPIView):
             OpenApiParameter("entity_type", OpenApiTypes.STR, required=True),
             OpenApiParameter("entity_id", OpenApiTypes.STR, required=True),
             OpenApiParameter("dimension", OpenApiTypes.STR, required=True),
+            COVERAGE_PARAMETER,
             OpenApiParameter("metric_type", OpenApiTypes.STR, required=False),
             OpenApiParameter("format", OpenApiTypes.STR, required=False),
         ],

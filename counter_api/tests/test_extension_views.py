@@ -41,6 +41,51 @@ class ExtensionViewTests(TestCase):
         )
         self.assertNotIn("coverage", response.json())
 
+    @patch("counter_api.extensions.distribution.ReportQuery")
+    def test_default_http_request_includes_partial_coverage(self, report_query):
+        search = report_query.return_value.client.search
+        search.side_effect = [
+            {
+                "hits": {
+                    "hits": [
+                        {
+                            "_source": {
+                                "collection": "scl",
+                                "month": "2023-03",
+                                "day_mask": (1 << 31) - 1 - (1 << 15),
+                                "complete": False,
+                            }
+                        }
+                    ]
+                }
+            },
+            {"aggregations": {"rows": {"buckets": []}}},
+        ]
+
+        response = self.client.get(
+            "/r51/extensions/distribution",
+            {
+                "platform": "scl",
+                "begin_date": "2023-03",
+                "end_date": "2023-03",
+                "entity_type": "collection",
+                "entity_id": "scl",
+                "dimension": "yop",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["coverage"]["status"], "partial")
+        self.assertEqual(payload["coverage"]["months"][0]["missing_days"], [16])
+        self.assertTrue(payload["warnings"])
+        self.assertEqual(search.call_count, 2)
+        script = search.call_args.kwargs["body"]["aggs"]["rows"]["aggs"]["count"][
+            "sum"
+        ]["script"]
+        self.assertNotIn("16", script["params"]["days"]["2023-03"])
+        self.assertEqual(len(script["params"]["days"]["2023-03"]), 30)
+
     @patch("counter_api.extensions.views.DistributionQuery")
     @patch("counter_api.extensions.views.RankingQuery")
     def test_public_extensions_preserve_values_in_all_formats(
