@@ -107,6 +107,44 @@ make format_check   # confere Black e isort
 Os alvos aceitam `compose=<arquivo>`; o padrão é `local.yml`. Não publique
 arquivos de configuração de ambiente que contenham credenciais.
 
+## API COUNTER e política de acesso
+
+As rotas GET sob `/r51/` oferecem descoberta, relatórios COUNTER R5.1 e
+extensões, incluindo downloads. `COUNTER_API_ACCESS_MODE` seleciona:
+
+- **`public` (padrão):** sem `api_key`, quota anônima; com chave válida, quota da chave.
+- **`key_required`:** toda leitura de dados exige `api_key` válido.
+
+Chave ausente quando obrigatória, vazia, inválida, revogada, expirada ou repetida
+retorna HTTP 401 / COUNTER 2020, sem fallback anônimo.
+`/r51/status` é sempre público, ignora chaves e não consome quota.
+Swagger (`/r51/`) e schema (`/r51/schema/`) são públicos e descrevem o modo ativo.
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `COUNTER_API_ACCESS_MODE` | `public` | `public` ou `key_required`. |
+| `COUNTER_API_ANONYMOUS_QUOTA` | `30` | Requisições por IP/janela. |
+| `COUNTER_API_KEY_QUOTA` | `300` | Requisições por chave/janela. |
+| `COUNTER_API_RATE_WINDOW_SECONDS` | `60` | Janela fixa em segundos, iniciada na primeira requisição. |
+| `REDIS_URL` | Obrigatória | Redis compartilhado por todos os workers da API. |
+
+Use quotas e janela positivas. A quota é compartilhada entre rotas e formatos;
+se esgotada, retorna 429/1020 com `Retry-After` em segundos. Falhas de Redis
+retornam 503/1000 sem executar a consulta, sem fallback local.
+Anônimos usam `REMOTE_ADDR`, não `X-Forwarded-For` ou `Forwarded`: proxy/NAT pode
+compartilhar quota. Configure o IP somente via proxy confiável que remova headers
+externos; instâncias independentes devem usar bancos Redis separados.
+
+Emita uma chave para o consumidor:
+```bash
+python manage.py issue_counter_api_key 'OCABr backend'
+```
+Guarde a chave no backend, nunca no browser; envie `api_key` via HTTPS e não
+registre query strings em logs, APM ou erros. A chave só é exibida uma vez.
+
+O acesso anônimo diverge da seção 8.2 do COUNTER R5.1; nenhum modo implica
+certificação COUNTER.
+
 ## Configuração das tarefas
 
 As opções de parsing aceitam listas separadas por vírgulas:

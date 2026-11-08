@@ -339,6 +339,10 @@ LOGGING = {
     "root": {"level": "INFO", "handlers": ["console"]},
 }
 
+# Redis
+# ------------------------------------------------------------------------------
+REDIS_URL = env.str("REDIS_URL")
+
 # Celery
 # ------------------------------------------------------------------------------
 if USE_TZ:
@@ -468,9 +472,18 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "SciELO COUNTER API",
     "DESCRIPTION": (
         "COUNTER Project Release 5.1 API with SciELO extensions. "
+        "Access mode is configured as public (optional api_key for a higher quota) "
+        "or key_required. Supplied invalid, empty, expired or revoked keys are "
+        "rejected, except on status, which is always public and unmetered. "
+        "Anonymous access diverges from COUNTER R5.1 section 8.2; this API "
+        "description does not assert COUNTER certification. "
         "Report availability follows completed months in OpenSearch."
     ),
     "VERSION": "5.1",
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "counter_api.openapi.apply_access_policy",
+    ],
     "SERVE_INCLUDE_SCHEMA": False,
     "SERVE_AUTHENTICATION": [],
     "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
@@ -478,15 +491,6 @@ SPECTACULAR_SETTINGS = {
         "deepLinking": True,
         "displayOperationId": True,
         "persistAuthorization": False,
-    },
-    "APPEND_COMPONENTS": {
-        "securitySchemes": {
-            "CounterAPIKey": {
-                "type": "apiKey",
-                "in": "query",
-                "name": "api_key",
-            }
-        }
     },
 }
 
@@ -539,6 +543,15 @@ COUNTER_REGISTRY_URL = env("COUNTER_REGISTRY_URL", default="")
 COUNTER_CUSTOMER_ID = env("COUNTER_CUSTOMER_ID", default="0000000000000000")
 COUNTER_INSTITUTION_NAME = env("COUNTER_INSTITUTION_NAME", default="The World")
 COUNTER_CREATED_BY = env("COUNTER_CREATED_BY", default="SciELO")
+
+COUNTER_API_ACCESS_MODE = env.str("COUNTER_API_ACCESS_MODE", default="public")
+COUNTER_API_ANONYMOUS_QUOTA = env.int("COUNTER_API_ANONYMOUS_QUOTA", default=30)
+COUNTER_API_KEY_QUOTA = env.int("COUNTER_API_KEY_QUOTA", default=300)
+COUNTER_API_RATE_WINDOW_SECONDS = env.int("COUNTER_API_RATE_WINDOW_SECONDS", default=60)
+
+if COUNTER_API_ACCESS_MODE not in {"public", "key_required"}:
+    raise ValueError("COUNTER_API_ACCESS_MODE must be public or key_required")
+
 COUNTER_QUERY_BUDGET_SECONDS = env.int(
     "COUNTER_QUERY_BUDGET_SECONDS",
     default=25,

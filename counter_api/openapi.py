@@ -6,7 +6,6 @@ from rest_framework import serializers
 from counter_api.constants import REPORTS
 
 EXCEL_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-COUNTER_AUTH = [{"CounterAPIKey": []}]
 
 
 class ExceptionSerializer(serializers.Serializer):
@@ -225,8 +224,74 @@ REPORT_RESPONSES = {
     (200, EXCEL_CONTENT_TYPE): OpenApiTypes.BINARY,
     (200, "text/tab-separated-values"): OpenApiTypes.BINARY,
     400: ExceptionSerializer,
-    401: ExceptionSerializer,
     403: ExceptionSerializer,
     404: OpenApiResponse(description="Report unavailable for the platform."),
     503: ExceptionSerializer,
 }
+
+
+def apply_access_policy(result, generator, request, public):
+    """Describe the running mode without duplicating policy on every view."""
+    required = settings.COUNTER_API_ACCESS_MODE == "key_required"
+    result["info"]["description"] += (
+        f" Current access mode: {settings.COUNTER_API_ACCESS_MODE}. "
+        f"Fixed-window quotas: {settings.COUNTER_API_ANONYMOUS_QUOTA} anonymous / "
+        f"{settings.COUNTER_API_KEY_QUOTA} per key, across all data routes, per "
+        f"{settings.COUNTER_API_RATE_WINDOW_SECONDS} seconds. "
+        "Redis failures deny data access with HTTP 503 / COUNTER 1000."
+    )
+
+    result["components"].setdefault("securitySchemes", {})["CounterAPIKey"] = {
+        "type": "apiKey",
+        "in": "query",
+        "name": "api_key",
+        "description": (
+            "Required in key_required mode; optional in public mode for the higher "
+            "quota. A supplied key must be nonempty, active and unexpired. "
+            "Use HTTPS and redact query strings from logs. Status ignores keys."
+        ),
+    }
+
+    error_schema = {
+        "type": "object",
+        "required": ["Code", "Message"],
+        "properties": {
+            "Code": {"type": "integer"},
+            "Message": {"type": "string"},
+            "Data": {"type": "string"},
+        },
+    }
+
+    for path, operations in result["paths"].items():
+        if not path.startswith("/r51/") or "get" not in operations:
+            continue
+
+        operation = operations["get"]
+        if path == "/r51/status":
+            operation["security"] = []
+            operation["description"] = "Always public, ignores keys, no rate limit."
+            continue
+
+        operation["security"] = [{"CounterAPIKey": []}]
+        if not required:
+            operation["security"].append({})
+
+        for code, description in (
+            ("401", "COUNTER 2020: missing required key or supplied invalid key."),
+            ("429", "COUNTER 1020: rate quota exhausted. Retry after the window."),
+            ("503", "COUNTER 1000: service or shared rate limiter unavailable."),
+        ):
+            response = {
+                "description": description,
+                "content": {"application/json": {"schema": error_schema}},
+            }
+            if code == "429":
+                response["headers"] = {
+                    "Retry-After": {
+                        "description": "Seconds until the fixed window expires.",
+                        "schema": {"type": "integer", "minimum": 1},
+                    }
+                }
+            operation["responses"][code] = response
+
+    return result
