@@ -27,6 +27,7 @@ class RankingQueryTests(TestCase):
                 date(2025, 1, 1),
                 date(2025, 12, 31),
                 {
+                    "coverage_policy": "strict",
                     "entity_type": "journals",
                     "parent_type": "collection",
                     "parent_id": "scl",
@@ -92,6 +93,7 @@ class RankingQueryTests(TestCase):
                 "parent_type": "journal",
                 "parent_id": "Print_ISSN:1234-5678",
                 "group_by": "country,language",
+                "coverage_policy": "strict",
                 "limit": "1",
             },
         )
@@ -165,6 +167,7 @@ class RankingQueryTests(TestCase):
                 "parent_type": "collection",
                 "parent_id": "scl",
                 "subject_area": "Health",
+                "coverage_policy": "strict",
                 "yop": "2020|2022-2023",
             },
         )
@@ -236,6 +239,7 @@ class RankingQueryTests(TestCase):
                 "parent_id": "Print_ISSN:1234-5678",
                 "group_by": "country",
                 "yop": "2020-2023",
+                "coverage_policy": "strict",
             },
         )
 
