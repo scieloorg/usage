@@ -36,6 +36,16 @@ jobs:
       - name: Run DB Migrations
         run:  docker compose -f local.yml run --rm django python manage.py migrate
 
+      - name: Check Celery Redis Transport
+        run: |
+          docker compose -f local.yml run --rm django python -c '
+          from config.celery_app import app
+
+          with app.connection_for_write() as connection:
+              connection.ensure_connection(max_retries=0)
+              connection.channel()
+          '
+
       - name: Run Django Tests
         run:  docker compose -f local.yml run django pytest
 
