@@ -1,4 +1,5 @@
 import csv
+import json
 from io import StringIO
 from tempfile import SpooledTemporaryFile
 
@@ -38,6 +39,17 @@ def build_export(payload, kind, output_format):
             for bucket in payload["buckets"]
         )
 
+    metadata = None
+    if "coverage" in payload:
+        metadata = [
+            json.dumps(payload["coverage"], separators=(",", ":")),
+            json.dumps(payload["warnings"]),
+            payload.get("total", ""),
+        ]
+        if output_format == "csv":
+            headings.extend(["Coverage", "Warnings", "Total"])
+            rows = (row + metadata for row in rows)
+
     output = SpooledTemporaryFile(max_size=SPOOL_SIZE)
     if output_format == "csv":
         line = StringIO(newline="")
@@ -47,11 +59,17 @@ def build_export(payload, kind, output_format):
         line.seek(0)
         line.truncate(0)
 
+        has_rows = False
         for row in rows:
+            has_rows = True
             writer.writerow(row)
             output.write(line.getvalue().encode("utf-8"))
             line.seek(0)
             line.truncate(0)
+
+        if metadata is not None and not has_rows:
+            writer.writerow([""] * (len(headings) - len(metadata)) + metadata)
+            output.write(line.getvalue().encode("utf-8"))
     else:
         workbook = Workbook(write_only=True)
         sheet = workbook.create_sheet(title=kind.capitalize())
@@ -68,6 +86,11 @@ def build_export(payload, kind, output_format):
                 output.close()
                 raise insufficient_information()
             sheet.append(row)
+
+        if metadata is not None:
+            coverage_sheet = workbook.create_sheet(title="Coverage")
+            coverage_sheet.append(["Coverage", "Warnings", "Total"])
+            coverage_sheet.append(metadata)
 
         workbook.save(output)
 

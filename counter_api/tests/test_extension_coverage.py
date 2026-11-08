@@ -1,13 +1,18 @@
+import csv
+import json
 from datetime import date
+from io import StringIO
 from time import monotonic
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from openpyxl import load_workbook
 
 from counter_api.exceptions import CounterAPIError
 from counter_api.extensions.coverage import resolve_coverage
 from counter_api.extensions.distribution import DistributionQuery
+from counter_api.extensions.exports import build_export
 from counter_api.extensions.ranking import RankingQuery
 
 PLATFORM = SimpleNamespace(acron3="scl", collection_type="journals")
@@ -138,3 +143,31 @@ def test_default_queries_share_confirmed_sum_across_pages(kind):
             "days": {"2023-01": ["01"]},
         }
         assert "Missing daily_metrics" in script["source"]
+
+
+@pytest.mark.parametrize("output_format", ["csv", "xlsx"])
+def test_empty_export_preserves_coverage_metadata(output_format):
+    payload = {
+        "dimension": "yop",
+        "buckets": [],
+        "total": 0,
+        "coverage": {"status": "partial", "included_months": ["2023-03"]},
+        "warnings": ["Only confirmed days are included."],
+    }
+
+    with build_export(payload, "distribution", output_format) as output:
+        if output_format == "csv":
+            rows = list(csv.DictReader(StringIO(output.read().decode())))
+            assert len(rows) == 1
+            metadata = rows[0]
+            assert metadata["Yop"] == metadata["Count"] == ""
+        else:
+            workbook = load_workbook(output, read_only=True)
+            assert list(workbook["Distribution"].values) == [("Yop", "Count")]
+            headings, values = list(workbook["Coverage"].values)
+            metadata = dict(zip(headings, values))
+            workbook.close()
+
+    assert json.loads(metadata["Coverage"]) == payload["coverage"]
+    assert json.loads(metadata["Warnings"]) == payload["warnings"]
+    assert int(metadata["Total"]) == 0
