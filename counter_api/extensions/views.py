@@ -53,7 +53,10 @@ COVERAGE_PARAMETER = OpenApiParameter(
     OpenApiTypes.STR,
     enum=["strict", "allow_partial"],
     default="allow_partial",
-    description="Allow confirmed days of partial months. Incomplete country/language periods remain unsupported.",
+    description=(
+        "Use confirmed days for monthly counts and available annual totals for "
+        "country/language. Use strict to require complete coverage."
+    ),
 )
 
 

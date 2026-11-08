@@ -74,16 +74,8 @@ def test_unusable_or_inconsistent_coverage_fails(response):
         resolve(client)
 
 
-def test_annual_partial_rejected_and_strict_skips_markers():
+def test_strict_skips_markers_and_invalid_policy_fails():
     client = Mock()
-    client.search.return_value = markers(**{"01": 1})
-
-    with pytest.raises(CounterAPIError) as error:
-        resolve(client, segmented=True)
-
-    assert "country/language" in error.value.data
-
-    client.reset_mock()
 
     assert resolve_coverage(client, PLATFORM, BEGIN, END, "strict", False, 0) is None
 
@@ -143,6 +135,38 @@ def test_default_queries_share_confirmed_sum_across_pages(kind):
             "days": {"2023-01": ["01"]},
         }
         assert "Missing daily_metrics" in script["source"]
+
+
+@pytest.mark.parametrize("response", [markers(), markers(**{"01": 1})])
+def test_annual_totals_do_not_depend_on_confirmed_days(response):
+    client = Mock()
+    client.search.side_effect = [
+        response,
+        {
+            "aggregations": {
+                "rows": {
+                    "buckets": [{"key": {"country": "BR"}, "count": {"value": 15}}]
+                }
+            }
+        },
+    ]
+
+    payload = DistributionQuery(Mock(client=client)).run(
+        PLATFORM,
+        BEGIN,
+        END,
+        {"entity_type": "collection", "entity_id": "scl", "dimension": "country"},
+    )
+
+    assert payload["total"] == 15
+    assert payload["coverage"]["status"] == "partial"
+    assert payload["coverage"]["basis"] == "available_annual_totals"
+    assert payload["coverage"]["included_months"] is None
+    assert "informative" in payload["warnings"][0]
+
+    body = client.search.call_args.kwargs["body"]
+    assert {"terms": {"year": ["2023"]}} in body["query"]["bool"]["filter"]
+    assert body["aggs"]["rows"]["aggs"]["count"]["sum"] == {"field": "total_requests"}
 
 
 @pytest.mark.parametrize("output_format", ["csv", "xlsx"])

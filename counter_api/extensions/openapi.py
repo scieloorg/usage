@@ -26,7 +26,14 @@ class CoverageMonthSerializer(serializers.Serializer):
 class CoverageSerializer(serializers.Serializer):
     policy = serializers.CharField()
     status = serializers.ChoiceField(choices=["complete", "partial"])
-    included_months = serializers.ListField(child=serializers.CharField())
+    basis = serializers.ChoiceField(
+        choices=["confirmed_days", "available_annual_totals"]
+    )
+    included_months = serializers.ListField(
+        child=serializers.CharField(),
+        allow_null=True,
+        help_text="Null for annual totals: coverage is informative, not a day filter.",
+    )
     months = CoverageMonthSerializer(many=True)
 
 

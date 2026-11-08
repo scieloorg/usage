@@ -110,11 +110,12 @@ arquivos de configuração de ambiente que contenham credenciais.
 ## Cobertura parcial nas extensões
 
 Ranking e distribuição usam `coverage_policy=allow_partial` por padrão:
-contam somente dias confirmados, sem estimar dias ausentes ou desconhecidos.
+contam dias confirmados no mensal e os totais disponíveis no anual de país/idioma.
 JSON, CSV e XLSX preservam a cobertura e os avisos, inclusive sem resultados.
 Use `coverage_policy=strict` para exigir cobertura completa, como antes.
-País/idioma exigem anos completos e cobertura completa, pois usam totais anuais.
-Períodos sem dias confirmados e marcadores inconsistentes retornam erro, não zero.
+País/idioma exigem intervalos de anos inteiros; seus valores podem ser atualizados
+com novas cargas. A cobertura anual é informativa, não um filtro dos totais.
+Consultas mensais sem dias confirmados e marcadores inconsistentes retornam erro.
 Relatórios COUNTER padrão não mudam. Consulte o OpenAPI para o contrato completo.
 
 ## API COUNTER e política de acesso

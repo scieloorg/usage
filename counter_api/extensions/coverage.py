@@ -80,18 +80,14 @@ def resolve_coverage(client, platform, begin, end, policy, segmented, deadline):
     included = [item["month"] for item in details if item["confirmed_days"]]
     complete = all(item["status"] == "complete" for item in details)
 
-    if segmented and not complete:
-        raise service_unavailable(
-            "Incomplete country/language coverage cannot be calculated from annual totals"
-        )
-
-    if not included:
+    if not segmented and not included:
         raise service_unavailable("No confirmed usage days in requested period")
 
     return {
         "policy": policy,
         "status": "complete" if complete else "partial",
-        "included_months": included,
+        "basis": "available_annual_totals" if segmented else "confirmed_days",
+        "included_months": None if segmented else included,
         "months": details,
     }
 
@@ -100,16 +96,19 @@ def coverage_fields(coverage):
     if coverage is None:
         return {}
 
-    return {
-        "coverage": coverage,
-        "warnings": (
-            [
-                "Partial coverage: counts include only confirmed days; missing or unknown days are not zero usage."
-            ]
-            if coverage["status"] != "complete"
-            else []
-        ),
-    }
+    warnings = []
+
+    if coverage["basis"] == "available_annual_totals":
+        warnings.append(
+            "Available annual totals may change as data arrives or processing completes. "
+            "Coverage is informative and does not restrict the days included in these totals."
+        )
+    elif coverage["status"] != "complete":
+        warnings.append(
+            "Partial coverage: counts include only confirmed days; missing or unknown days are not zero usage."
+        )
+
+    return {"coverage": coverage, "warnings": warnings}
 
 
 def metric_sum(metric, coverage):
