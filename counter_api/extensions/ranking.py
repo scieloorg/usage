@@ -6,6 +6,7 @@ from django.conf import settings
 from counter_api.constants import METADATA_BATCH_SIZE, METRICS
 from counter_api.exceptions import insufficient_information
 from counter_api.extensions.contracts import RANKING_ENTITIES, RANKING_GROUPS
+from counter_api.extensions.coverage import coverage_fields, resolve_coverage
 from counter_api.extensions.query import (
     metric_composite_body,
     require_complete_period,
@@ -43,7 +44,18 @@ class RankingQuery:
             metric_type,
             segmented,
         ) = self._parameters(platform, begin, end, params)
-        require_complete_period(platform, begin, end)
+
+        coverage = resolve_coverage(
+            self.client,
+            platform,
+            begin,
+            end,
+            params.get("coverage_policy", "allow_partial"),
+            segmented,
+            deadline,
+        )
+        if coverage is None:
+            require_complete_period(platform, begin, end)
 
         parent_key = self._parent_key(platform, parent_type, parent_id)
         key_batches = self._key_batches(platform, params, deadline)
@@ -60,6 +72,7 @@ class RankingQuery:
             limit,
             deadline,
             segmented,
+            coverage,
         )
 
         return {
@@ -71,6 +84,7 @@ class RankingQuery:
             "entity_type": params["entity_type"],
             "metric_type": metric_type,
             "groups": self._result_groups(groups, relation, group_by, deadline),
+            **coverage_fields(coverage),
         }
 
     def _parameters(self, platform, begin, end, params):
@@ -162,6 +176,7 @@ class RankingQuery:
         limit,
         deadline,
         segmented,
+        coverage=None,
     ):
         groups = {}
 
@@ -178,6 +193,7 @@ class RankingQuery:
                 params,
                 source_keys,
                 segmented,
+                coverage,
             )
 
             for buckets in composite_pages(self.client, index_name, body, deadline):
@@ -288,6 +304,7 @@ class RankingQuery:
         params,
         source_keys,
         segmented,
+        coverage=None,
     ):
         index_name, filters = usage_scope(
             platform,
@@ -295,6 +312,7 @@ class RankingQuery:
             end,
             segmented,
             data_type,
+            included_months=coverage["included_months"] if coverage else None,
         )
 
         if parent_key:
@@ -328,6 +346,7 @@ class RankingQuery:
             sources,
             metric_type,
             RANKING_PAGE_SIZE,
+            coverage=None if segmented else coverage,
         )
 
         return index_name, body

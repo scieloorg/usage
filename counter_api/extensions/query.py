@@ -9,13 +9,14 @@ from counter_api.exceptions import (
     service_unavailable,
 )
 from counter_api.extensions.contracts import SEGMENT_DIMENSIONS
+from counter_api.extensions.coverage import metric_sum
 from metrics.opensearch.names import (
     generate_analytics_index_name,
     generate_month_index_name,
 )
 
 
-def metric_composite_body(filters, sources, metric_type, page_size):
+def metric_composite_body(filters, sources, metric_type, page_size, coverage=None):
     return {
         "size": 0,
         "track_total_hits": False,
@@ -23,7 +24,7 @@ def metric_composite_body(filters, sources, metric_type, page_size):
         "aggs": {
             "rows": {
                 "composite": {"size": page_size, "sources": sources},
-                "aggs": {"count": {"sum": {"field": METRICS[metric_type]}}},
+                "aggs": {"count": {"sum": metric_sum(METRICS[metric_type], coverage)}},
             }
         },
     }
@@ -49,7 +50,7 @@ def validate_segmented_period(begin, end, dimensions, metric_type):
     return True
 
 
-def usage_scope(platform, begin, end, segmented, data_type=None):
+def usage_scope(platform, begin, end, segmented, data_type=None, included_months=None):
     if segmented:
         index_name = generate_analytics_index_name(
             settings.OPENSEARCH_INDEX_NAME,
@@ -62,7 +63,11 @@ def usage_scope(platform, begin, end, segmented, data_type=None):
             settings.OPENSEARCH_INDEX_NAME,
             platform.acron3,
         )
-        periods = [month.strftime("%Y-%m") for month in iter_months(begin, end)]
+        periods = (
+            included_months
+            if included_months is not None
+            else [month.strftime("%Y-%m") for month in iter_months(begin, end)]
+        )
         filters = [{"terms": {"month": periods}}]
 
     filters.extend(

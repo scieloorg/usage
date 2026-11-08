@@ -12,7 +12,37 @@ class RankingGroupSerializer(serializers.Serializer):
     items = RankingItemSerializer(many=True)
 
 
-class RankingSerializer(serializers.Serializer):
+class CoverageMonthSerializer(serializers.Serializer):
+    month = serializers.CharField()
+    status = serializers.ChoiceField(
+        choices=["complete", "partial", "unavailable", "unknown"]
+    )
+    confirmed_days = serializers.ListField(child=serializers.IntegerField())
+    missing_days = serializers.ListField(
+        child=serializers.IntegerField(), allow_null=True
+    )
+
+
+class CoverageSerializer(serializers.Serializer):
+    policy = serializers.CharField()
+    status = serializers.ChoiceField(choices=["complete", "partial"])
+    basis = serializers.ChoiceField(
+        choices=["confirmed_days", "available_annual_totals"]
+    )
+    included_months = serializers.ListField(
+        child=serializers.CharField(),
+        allow_null=True,
+        help_text="Null for annual totals: coverage is informative, not a day filter.",
+    )
+    months = CoverageMonthSerializer(many=True)
+
+
+class CoverageResponseSerializer(serializers.Serializer):
+    coverage = CoverageSerializer(required=False)
+    warnings = serializers.ListField(child=serializers.CharField(), required=False)
+
+
+class RankingSerializer(CoverageResponseSerializer):
     platform = serializers.CharField()
     begin_date = serializers.DateField()
     end_date = serializers.DateField()
@@ -29,7 +59,7 @@ class DistributionBucketSerializer(serializers.Serializer):
     count = serializers.IntegerField()
 
 
-class DistributionSerializer(serializers.Serializer):
+class DistributionSerializer(CoverageResponseSerializer):
     platform = serializers.CharField()
     begin_date = serializers.DateField()
     end_date = serializers.DateField()
