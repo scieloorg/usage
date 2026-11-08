@@ -107,6 +107,16 @@ make format_check   # confere Black e isort
 Os alvos aceitam `compose=<arquivo>`; o padrão é `local.yml`. Não publique
 arquivos de configuração de ambiente que contenham credenciais.
 
+## Cobertura parcial nas extensões
+
+Ranking e distribuição usam `coverage_policy=allow_partial` por padrão:
+contam somente dias confirmados, sem estimar dias ausentes ou desconhecidos.
+JSON, CSV e XLSX preservam a cobertura e os avisos, inclusive sem resultados.
+Use `coverage_policy=strict` para exigir cobertura completa, como antes.
+País/idioma exigem anos completos e cobertura completa, pois usam totais anuais.
+Períodos sem dias confirmados e marcadores inconsistentes retornam erro, não zero.
+Relatórios COUNTER padrão não mudam. Consulte o OpenAPI para o contrato completo.
+
 ## API COUNTER e política de acesso
 
 As rotas GET sob `/r51/` oferecem descoberta, relatórios COUNTER R5.1 e
