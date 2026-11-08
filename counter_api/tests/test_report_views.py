@@ -6,6 +6,7 @@ from django.test import TestCase
 from openpyxl import load_workbook
 
 from collection.models import Collection
+from counter_api.exceptions import service_unavailable
 from counter_api.models import APIKey
 from counter_api.openapi import EXCEL_CONTENT_TYPE
 from counter_api.reports import build_report
@@ -21,7 +22,6 @@ class ReportViewTests(TestCase):
             collection_type="journals",
             is_active=True,
         )
-        _key, self.api_key = APIKey.issue("tests")
 
     def test_title_report_omits_facts_without_source_metadata(self):
         records = [
@@ -132,7 +132,6 @@ class ReportViewTests(TestCase):
         response = self.client.get(
             "/r51/reports/pr",
             {
-                "api_key": self.api_key,
                 "platform": "books",
                 "begin_date": "2025-08",
                 "end_date": "2025-08",
@@ -179,12 +178,22 @@ class ReportViewTests(TestCase):
         ]
         query_class.return_value.deadline = float("inf")
         params = {
-            "api_key": self.api_key,
             "platform": "scl",
             "begin_date": "2024-01",
             "end_date": "2024-02",
         }
 
+        key, value = APIKey.issue("legacy-client")
+        for api_key in (None, value):
+            with self.subTest(with_key=api_key is not None):
+                request_params = dict(params)
+                if api_key is not None:
+                    request_params["api_key"] = api_key
+                self.assert_report_formats(query_class, request_params)
+        key.refresh_from_db()
+        self.assertIsNotNone(key.last_used_at)
+
+    def assert_report_formats(self, query_class, params):
         response = self.client.get("/r51/reports/tr_j3", params)
         payload = response.json()
         item = payload["Report_Items"][0]
@@ -249,6 +258,7 @@ class ReportViewTests(TestCase):
             self.assertEqual(workbook.active["G15"].value, "Print_ISSN")
             self.assertEqual(workbook.active["G16"].value, "1234-5678")
             self.assertNotIn("Begin_Date", workbook.active["B7"].value)
+            workbook.close()
 
         params["format"] = "tsv"
         response = self.client.get("/r51/reports/tr_j3", params)
@@ -260,3 +270,20 @@ class ReportViewTests(TestCase):
         self.assertNotIn("Metric_Type", lines[6])
         self.assertEqual(lines[14].split("\t")[-2:], ["Jan-2024", "Feb-2024"])
         self.assertEqual(lines[15].split("\t")[6], "1234-5678")
+
+    @patch("counter_api.views.generate_report")
+    def test_public_report_failures_are_not_empty_successes(self, generate_report):
+        generate_report.side_effect = service_unavailable()
+        for output_format in ("json", "tsv", "xlsx"):
+            with self.subTest(format=output_format):
+                response = self.client.get(
+                    "/r51/reports/tr",
+                    {
+                        "platform": "scl",
+                        "begin_date": "2024-01",
+                        "end_date": "2024-01",
+                        "format": output_format,
+                    },
+                )
+                self.assertEqual(response.status_code, 503)
+                self.assertEqual(response.json()["Code"], 1000)

@@ -1,10 +1,15 @@
+import csv
 from datetime import date
+from io import BytesIO, StringIO
 from unittest.mock import patch
 
 from django.test import TestCase
+from openpyxl import load_workbook
 
 from collection.models import Collection
+from counter_api.exceptions import service_unavailable
 from counter_api.models import APIKey
+from counter_api.openapi import EXCEL_CONTENT_TYPE
 
 
 class ExtensionViewTests(TestCase):
@@ -23,7 +28,7 @@ class ExtensionViewTests(TestCase):
 
         response = self.client.get(
             "/r51/extensions/capabilities",
-            {"api_key": self.api_key, "platform": "scl"},
+            {"platform": "scl"},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -36,31 +41,123 @@ class ExtensionViewTests(TestCase):
         )
         self.assertNotIn("coverage", response.json())
 
+    @patch("counter_api.extensions.views.DistributionQuery")
     @patch("counter_api.extensions.views.RankingQuery")
-    def test_extension_ranking_download_uses_same_result(self, query_class):
-        query_class.return_value.run.return_value = {
-            "groups": [
+    def test_public_extensions_preserve_values_in_all_formats(
+        self, ranking_class, distribution_class
+    ):
+        cases = (
+            (
+                "ranking",
+                ranking_class,
                 {
-                    "dimensions": {},
-                    "items": [{"id": "article-1", "title": "Artigo", "count": 12}],
-                }
-            ]
-        }
-        response = self.client.get(
-            "/r51/extensions/ranking",
-            {
-                "api_key": self.api_key,
-                "platform": "scl",
-                "begin_date": "2025-08",
-                "end_date": "2025-08",
-                "parent_type": "journal",
-                "parent_id": "Print_ISSN:1234-5678",
-                "entity_type": "articles",
-                "format": "csv",
-            },
+                    "parent_type": "journal",
+                    "parent_id": "Print_ISSN:1234-5678",
+                    "entity_type": "articles",
+                },
+                {
+                    "groups": [
+                        {
+                            "dimensions": {},
+                            "items": [
+                                {"id": "article-1", "title": "Artigo", "count": 12}
+                            ],
+                        }
+                    ]
+                },
+                ["Country", "Language", "Rank", "ID", "Title", "Count"],
+                [None, None, 1, "article-1", "Artigo", 12],
+            ),
+            (
+                "distribution",
+                distribution_class,
+                {"entity_type": "collection", "entity_id": "scl", "dimension": "yop"},
+                {
+                    "dimension": "yop",
+                    "total": 12,
+                    "buckets": [{"dimensions": {"yop": 2024}, "count": 12}],
+                },
+                ["Yop", "Count"],
+                [2024, 12],
+            ),
         )
+        for kind, query_class, filters, payload, headings, row in cases:
+            query_class.return_value.run.return_value = payload
+            for key_state, key in (
+                ("absent", None),
+                ("valid", self.api_key),
+            ):
+                for output_format in ("json", "csv", "xlsx"):
+                    with self.subTest(kind=kind, key=key_state, format=output_format):
+                        params = {
+                            "platform": "scl",
+                            "begin_date": "2024-01",
+                            "end_date": "2024-01",
+                            "format": output_format,
+                            **filters,
+                        }
+                        if key is not None:
+                            params["api_key"] = key
+                        response = self.client.get(f"/r51/extensions/{kind}", params)
+                        self.assertEqual(response.status_code, 200)
+                        if output_format == "json":
+                            self.assertEqual(response.json(), payload)
+                            continue
+                        content = b"".join(response.streaming_content)
+                        if output_format == "csv":
+                            self.assertEqual(response["Content-Type"], "text/csv")
+                            rows = list(csv.reader(StringIO(content.decode("utf-8"))))
+                            self.assertEqual(
+                                rows,
+                                [headings, ["" if v is None else str(v) for v in row]],
+                            )
+                        else:
+                            self.assertEqual(
+                                response["Content-Type"], EXCEL_CONTENT_TYPE
+                            )
+                            workbook = load_workbook(BytesIO(content), read_only=True)
+                            self.assertEqual(
+                                list(workbook.active.values),
+                                [tuple(headings), tuple(row)],
+                            )
+                            workbook.close()
 
-        lines = b"".join(response.streaming_content).decode("utf-8").splitlines()
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "text/csv")
-        self.assertEqual(lines[1], ",,1,article-1,Artigo,12")
+    @patch("counter_api.extensions.views.DistributionQuery")
+    @patch("counter_api.extensions.views.RankingQuery")
+    def test_public_extensions_do_not_turn_failures_into_empty_success(
+        self, ranking_class, distribution_class
+    ):
+        for kind, query_class in (
+            ("ranking", ranking_class),
+            ("distribution", distribution_class),
+        ):
+            query_class.return_value.run.side_effect = service_unavailable()
+            for output_format in ("json", "csv", "xlsx"):
+                with self.subTest(kind=kind, format=output_format):
+                    response = self.client.get(
+                        f"/r51/extensions/{kind}",
+                        {
+                            "platform": "scl",
+                            "begin_date": "2024-01",
+                            "end_date": "2024-01",
+                            "format": output_format,
+                        },
+                    )
+                    self.assertEqual(response.status_code, 503)
+                    self.assertEqual(response.json()["Code"], 1000)
+
+    @patch("counter_api.extensions.views.DistributionQuery")
+    @patch("counter_api.extensions.views.RankingQuery")
+    def test_public_extensions_still_reject_current_and_future_months(
+        self, ranking_class, distribution_class
+    ):
+        for month in (date.today().strftime("%Y-%m"), "9999-12"):
+            for kind in ("ranking", "distribution"):
+                with self.subTest(kind=kind, month=month):
+                    response = self.client.get(
+                        f"/r51/extensions/{kind}",
+                        {"platform": "scl", "begin_date": month, "end_date": month},
+                    )
+                    self.assertEqual(response.status_code, 400)
+        ranking_class.return_value.run.assert_not_called()
+        distribution_class.return_value.run.assert_not_called()
