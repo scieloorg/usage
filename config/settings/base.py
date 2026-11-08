@@ -339,6 +339,10 @@ LOGGING = {
     "root": {"level": "INFO", "handlers": ["console"]},
 }
 
+# Redis
+# ------------------------------------------------------------------------------
+REDIS_URL = env.str("REDIS_URL")
+
 # Celery
 # ------------------------------------------------------------------------------
 if USE_TZ:
@@ -539,6 +543,15 @@ COUNTER_REGISTRY_URL = env("COUNTER_REGISTRY_URL", default="")
 COUNTER_CUSTOMER_ID = env("COUNTER_CUSTOMER_ID", default="0000000000000000")
 COUNTER_INSTITUTION_NAME = env("COUNTER_INSTITUTION_NAME", default="The World")
 COUNTER_CREATED_BY = env("COUNTER_CREATED_BY", default="SciELO")
+
+COUNTER_API_ACCESS_MODE = env.str("COUNTER_API_ACCESS_MODE", default="public")
+COUNTER_API_ANONYMOUS_QUOTA = env.int("COUNTER_API_ANONYMOUS_QUOTA", default=30)
+COUNTER_API_KEY_QUOTA = env.int("COUNTER_API_KEY_QUOTA", default=300)
+COUNTER_API_RATE_WINDOW_SECONDS = env.int("COUNTER_API_RATE_WINDOW_SECONDS", default=60)
+
+if COUNTER_API_ACCESS_MODE not in {"public", "key_required"}:
+    raise ValueError("COUNTER_API_ACCESS_MODE must be public or key_required")
+
 COUNTER_QUERY_BUDGET_SECONDS = env.int(
     "COUNTER_QUERY_BUDGET_SECONDS",
     default=25,
