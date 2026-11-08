@@ -9,6 +9,7 @@ from counter_api.extensions.contracts import (
     DISTRIBUTION_DIMENSIONS,
     DISTRIBUTION_ENTITIES,
 )
+from counter_api.extensions.coverage import coverage_fields, resolve_coverage
 from counter_api.extensions.query import (
     metric_composite_body,
     require_complete_period,
@@ -37,7 +38,18 @@ class DistributionQuery:
             end,
             params,
         )
-        require_complete_period(platform, begin, end)
+
+        coverage = resolve_coverage(
+            self.client,
+            platform,
+            begin,
+            end,
+            params.get("coverage_policy", "allow_partial"),
+            segmented,
+            deadline,
+        )
+        if coverage is None:
+            require_complete_period(platform, begin, end)
 
         key_field, entity_key = self._entity_filter(
             platform,
@@ -54,6 +66,7 @@ class DistributionQuery:
             key_field,
             entity_key,
             segmented,
+            coverage,
         )
         total, buckets = self._buckets(
             index_name,
@@ -73,6 +86,7 @@ class DistributionQuery:
             "metric_type": metric_type,
             "total": total,
             "buckets": buckets,
+            **coverage_fields(coverage),
         }
 
     def _parameters(self, platform, begin, end, params):
@@ -137,6 +151,7 @@ class DistributionQuery:
         key_field,
         entity_key,
         segmented,
+        coverage=None,
     ):
         data_type = DISTRIBUTION_ENTITIES[entity_type].get("data_type")
         index_name, filters = usage_scope(
@@ -145,6 +160,7 @@ class DistributionQuery:
             end,
             segmented,
             data_type,
+            included_months=coverage["included_months"] if coverage else None,
         )
 
         if key_field:
@@ -168,7 +184,13 @@ class DistributionQuery:
                     }
                 }
             )
-        body = metric_composite_body(filters, sources, metric_type, PAGE_SIZE)
+        body = metric_composite_body(
+            filters,
+            sources,
+            metric_type,
+            PAGE_SIZE,
+            coverage=None if segmented else coverage,
+        )
 
         return index_name, body
 

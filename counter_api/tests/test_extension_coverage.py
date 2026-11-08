@@ -7,6 +7,7 @@ import pytest
 
 from counter_api.exceptions import CounterAPIError
 from counter_api.extensions.coverage import resolve_coverage
+from counter_api.extensions.distribution import DistributionQuery
 from counter_api.extensions.ranking import RankingQuery
 
 PLATFORM = SimpleNamespace(acron3="scl", collection_type="journals")
@@ -86,7 +87,7 @@ def test_annual_partial_rejected_and_strict_skips_markers():
     client.search.assert_not_called()
 
 
-@pytest.mark.parametrize("kind", ["ranking"])
+@pytest.mark.parametrize("kind", ["ranking", "distribution"])
 def test_default_queries_share_confirmed_sum_across_pages(kind):
     client = Mock()
     key = "source_key" if kind == "ranking" else "yop"
@@ -113,7 +114,7 @@ def test_default_queries_share_confirmed_sum_across_pages(kind):
         )
         if kind == "ranking"
         else (
-            None,
+            DistributionQuery,
             {"entity_type": "collection", "entity_id": "scl", "dimension": "yop"},
         )
     )

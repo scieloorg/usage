@@ -26,7 +26,12 @@ class DistributionQueryTests(TestCase):
                 platform,
                 date(2025, 2, 1),
                 date(2025, 2, 28),
-                {"entity_type": "collection", "entity_id": "scl", "dimension": "yop"},
+                {
+                    "entity_type": "collection",
+                    "entity_id": "scl",
+                    "dimension": "yop",
+                    "coverage_policy": "strict",
+                },
             )
 
         self.assertEqual(error.exception.status_code, 503)
@@ -70,6 +75,7 @@ class DistributionQueryTests(TestCase):
                 "entity_type": "collection",
                 "entity_id": "scl",
                 "dimension": "subject_area",
+                "coverage_policy": "strict",
             },
         )
 
@@ -139,6 +145,7 @@ class DistributionQueryTests(TestCase):
                 "entity_type": "collection",
                 "entity_id": "scl",
                 "dimension": "yop",
+                "coverage_policy": "strict",
             },
         )
 
@@ -189,6 +196,7 @@ class DistributionQueryTests(TestCase):
                 "entity_type": "collection",
                 "entity_id": "scl",
                 "dimension": "country,language",
+                "coverage_policy": "strict",
             },
         )
 
@@ -258,6 +266,7 @@ class DistributionQueryTests(TestCase):
                 "entity_type": "collection",
                 "entity_id": "scl",
                 "dimension": "country,yop",
+                "coverage_policy": "strict",
             },
         )
 
