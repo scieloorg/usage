@@ -116,7 +116,7 @@ class CounterViewTests(TestCase):
                 "/r51/extensions/ranking",
             },
         )
+        self.assertFalse(payload.get("security"))
         self.assertEqual(
-            payload["components"]["securitySchemes"]["CounterAPIKey"],
-            {"type": "apiKey", "in": "query", "name": "api_key"},
+            payload["components"]["securitySchemes"]["CounterAPIKey"]["name"], "api_key"
         )

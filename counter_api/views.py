@@ -12,7 +12,6 @@ from counter_api.dates import parse_period
 from counter_api.exceptions import CounterAPIError, service_unavailable
 from counter_api.generation import generate_report
 from counter_api.openapi import (
-    COUNTER_AUTH,
     EXCEL_CONTENT_TYPE,
     MEMBER_PARAMETERS,
     REPORT_CATALOG_PARAMETERS,
@@ -31,6 +30,7 @@ from counter_api.tabular import build_tsv, build_workbook
 
 class StatusView(CounterAPIView):
     access_exempt = True
+
     @extend_schema(
         tags=["Service"],
         auth=[],
@@ -54,13 +54,12 @@ class StatusView(CounterAPIView):
 class MembersView(CounterAPIView):
     @extend_schema(
         tags=["Discovery"],
-        auth=COUNTER_AUTH,
+        auth=[],
         operation_id="counter_members",
         summary="List COUNTER customers",
         parameters=MEMBER_PARAMETERS,
         responses={
             200: MemberSerializer(many=True),
-            401: ExceptionSerializer,
             403: ExceptionSerializer,
         },
     )
@@ -88,12 +87,11 @@ class MembersView(CounterAPIView):
 class PlatformsView(CounterAPIView):
     @extend_schema(
         tags=["Discovery"],
-        auth=COUNTER_AUTH,
+        auth=[],
         operation_id="counter_platforms",
         summary="List SciELO COUNTER platforms",
         responses={
             200: PlatformSerializer(many=True),
-            401: ExceptionSerializer,
         },
     )
     def get(self, request):
@@ -103,14 +101,13 @@ class PlatformsView(CounterAPIView):
 class ReportsView(CounterAPIView):
     @extend_schema(
         tags=["Discovery"],
-        auth=COUNTER_AUTH,
+        auth=[],
         operation_id="counter_reports",
         summary="List reports available for a platform",
         parameters=REPORT_CATALOG_PARAMETERS,
         responses={
             200: ReportDescriptorSerializer(many=True),
             400: ExceptionSerializer,
-            401: ExceptionSerializer,
             403: ExceptionSerializer,
             503: ExceptionSerializer,
         },
@@ -154,7 +151,7 @@ class ReportsView(CounterAPIView):
 class ReportView(CounterAPIView):
     @extend_schema(
         tags=["Reports"],
-        auth=COUNTER_AUTH,
+        auth=[],
         operation_id="counter_report",
         summary="Generate a COUNTER R5.1 report",
         description=(

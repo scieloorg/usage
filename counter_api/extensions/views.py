@@ -29,7 +29,6 @@ from counter_api.extensions.openapi import (
 from counter_api.extensions.ranking import RankingQuery
 from counter_api.openapi import (
     BEGIN_DATE_PARAMETER,
-    COUNTER_AUTH,
     END_DATE_PARAMETER,
     EXCEL_CONTENT_TYPE,
     PLATFORM_PARAMETER,
@@ -52,7 +51,7 @@ def _download_response(payload, kind, platform, output_format):
 class RankingView(CounterAPIView):
     @extend_schema(
         tags=["SciELO extensions"],
-        auth=COUNTER_AUTH,
+        auth=[],
         operation_id="extension_ranking",
         summary="Rank descendants of a collection, journal or book",
         parameters=[
@@ -109,7 +108,7 @@ class RankingView(CounterAPIView):
 class CapabilitiesView(CounterAPIView):
     @extend_schema(
         tags=["SciELO extensions"],
-        auth=COUNTER_AUTH,
+        auth=[],
         operation_id="extension_capabilities",
         summary="Discover SciELO extension capabilities for a platform",
         parameters=[PLATFORM_PARAMETER],
@@ -137,12 +136,12 @@ class CapabilitiesView(CounterAPIView):
                 "distribution_dimensions": list(DISTRIBUTION_CAPABILITIES),
                 "country_language_granularity": "year",
                 "other_granularity": "month",
-                "first_month_available": months[0].strftime("%Y-%m")
-                if months
-                else None,
-                "last_month_available": months[-1].strftime("%Y-%m")
-                if months
-                else None,
+                "first_month_available": (
+                    months[0].strftime("%Y-%m") if months else None
+                ),
+                "last_month_available": (
+                    months[-1].strftime("%Y-%m") if months else None
+                ),
             }
         )
 
@@ -150,7 +149,7 @@ class CapabilitiesView(CounterAPIView):
 class DistributionView(CounterAPIView):
     @extend_schema(
         tags=["SciELO extensions"],
-        auth=COUNTER_AUTH,
+        auth=[],
         operation_id="extension_distribution",
         summary="Distribute accesses by one dimension or a supported pair",
         parameters=[

@@ -472,9 +472,18 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "SciELO COUNTER API",
     "DESCRIPTION": (
         "COUNTER Project Release 5.1 API with SciELO extensions. "
+        "Access mode is configured as public (optional api_key for a higher quota) "
+        "or key_required. Supplied invalid, empty, expired or revoked keys are "
+        "rejected, except on status, which is always public and unmetered. "
+        "Anonymous access diverges from COUNTER R5.1 section 8.2; this API "
+        "description does not assert COUNTER certification. "
         "Report availability follows completed months in OpenSearch."
     ),
     "VERSION": "5.1",
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "counter_api.openapi.apply_access_policy",
+    ],
     "SERVE_INCLUDE_SCHEMA": False,
     "SERVE_AUTHENTICATION": [],
     "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
@@ -482,15 +491,6 @@ SPECTACULAR_SETTINGS = {
         "deepLinking": True,
         "displayOperationId": True,
         "persistAuthorization": False,
-    },
-    "APPEND_COMPONENTS": {
-        "securitySchemes": {
-            "CounterAPIKey": {
-                "type": "apiKey",
-                "in": "query",
-                "name": "api_key",
-            }
-        }
     },
 }
 

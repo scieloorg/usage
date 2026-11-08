@@ -37,6 +37,7 @@ def test_invalid_keys_rejected_on_every_data_route(
     revoked.active = False
     revoked.save()
     _, expired = APIKey.issue("expired", timezone.now() - timedelta(seconds=1))
+
     for path in DATA_PATHS:
         for value in ("", "invalid", revoked_value, expired):
             response = client.get(path, {"api_key": value})
@@ -44,6 +45,7 @@ def test_invalid_keys_rejected_on_every_data_route(
             assert response.json() == {"Code": 2020, "Message": "APIKey Invalid"}
         response = client.get(path, {"api_key": ["invalid", "other"]})
         assert response.status_code == 401
+
     counter_redis.eval.assert_not_called()
     assert not APIKey.objects.exclude(last_used_at=None).exists()
 
@@ -53,12 +55,14 @@ def test_invalid_keys_rejected_on_every_data_route(
 def test_mode_gate_and_admin_remain_separate(client, settings, mode, counter_redis):
     settings.COUNTER_API_ACCESS_MODE = mode
     key, value = APIKey.issue("client")
+
     for path in DATA_PATHS:
         response = client.get(path)
         assert (response.status_code == 401) == (mode == "key_required")
     assert client.get("/r51/platforms", {"api_key": value}).status_code == 200
     key.refresh_from_db()
     assert key.last_used_at is not None
+
     for name in ("admin:index", "wagtailadmin_home"):
         for params in ({}, {"api_key": value}):
             response = client.get(reverse(name), params)
@@ -73,10 +77,12 @@ def test_status_is_always_public_unmetered_and_ignores_keys(
 ):
     settings.COUNTER_API_ACCESS_MODE = mode
     counter_redis.eval.side_effect = ConnectionError("unavailable")
+
     with patch("counter_api.access.APIKey.authenticate") as authenticate:
         for params in ({}, {"api_key": ""}, {"api_key": "invalid"}):
             assert client.get("/r51/status", params).status_code == 200
         authenticate.assert_not_called()
+
     counter_redis.eval.assert_not_called()
     assert client.get("/r51/").status_code == 200
     assert client.get("/r51/schema/").status_code == 200
@@ -90,6 +96,7 @@ def test_redis_failures_deny_data(client, settings, counter_redis, mode, failure
     settings.COUNTER_API_ACCESS_MODE = mode
     _, value = APIKey.issue("client")
     counter_redis.eval.side_effect = failure("secret redis connection details")
+
     for path in DATA_PATHS:
         response = client.get(path, {"api_key": value})
         assert response.status_code == 503
@@ -128,6 +135,7 @@ def test_distinct_shared_quotas_hashing_and_untrusted_headers(
     assert response.json()["Code"] == 1020
     assert response["Retry-After"] == "9"
     assert len(counts) == 1
+
     assert client.get("/r51/platforms", REMOTE_ADDR="192.0.2.2").status_code == 200
     _, value = APIKey.issue("client")
     for address in ("192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4"):
@@ -139,13 +147,40 @@ def test_distinct_shared_quotas_hashing_and_untrusted_headers(
         )
     response = client.get("/r51/members", {"api_key": value})
     assert response.status_code == 429
+
     _, second_value = APIKey.issue("second-client")
     assert client.get("/r51/platforms", {"api_key": second_value}).status_code == 200
+
     for bucket in counts:
         assert bucket.startswith("counter:rate:v1:")
         assert len(bucket.rsplit(":", 1)[1]) == 64
         assert value not in bucket
         assert "192.0.2" not in bucket
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("mode", ["public", "key_required"])
+def test_schema_describes_running_mode(client, settings, mode):
+    settings.COUNTER_API_ACCESS_MODE = mode
+    schema = client.get("/r51/schema/", HTTP_ACCEPT="application/json").json()
+    assert f"Current access mode: {mode}" in schema["info"]["description"]
+    assert "certification" in schema["info"]["description"]
+
+    for path, operations in schema["paths"].items():
+        operation = operations["get"]
+        assert "api_key" not in [p["name"] for p in operation.get("parameters", [])]
+
+        if path == "/r51/status":
+            assert operation["security"] == []
+            assert "401" not in operation["responses"]
+            assert "429" not in operation["responses"]
+        else:
+            expected = [{"CounterAPIKey": []}]
+            if mode == "public":
+                expected.append({})
+            assert operation["security"] == expected
+            assert {"401", "429", "503"} <= operation["responses"].keys()
+            assert "Retry-After" in operation["responses"]["429"]["headers"]
 
 
 def test_invalid_mode_fails_startup():
@@ -211,8 +246,6 @@ def test_real_redis_http_quota_and_recovery(client, settings, mode):
     def connection(url):
         return redis
 
-    # Use the real script through the actual HTTP gate, overriding only the
-    # client factory used by the default unit-test isolation fixture.
     original_eval = redis.eval
 
     def evaluate(script, number_keys, bucket, *args):
@@ -225,11 +258,13 @@ def test_real_redis_http_quota_and_recovery(client, settings, mode):
                 for _ in range(2):
                     response = client.get("/r51/platforms", {"api_key": value})
                     assert response.status_code == 200
+
                 response = client.get("/r51/members", {"api_key": value})
                 assert response.status_code == 429
                 assert response.json()["Code"] == 1020
                 assert response["Retry-After"] == "1"
                 assert client.get("/r51/status").status_code == 200
+
                 time.sleep(1.05)
                 response = client.get("/r51/platforms", {"api_key": value})
                 assert response.status_code == 200
