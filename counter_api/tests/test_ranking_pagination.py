@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
+from counter_api.exceptions import CounterAPIError, service_unavailable
 from counter_api.extensions.ranking import RankingQuery
 
 
@@ -106,3 +107,139 @@ class RankingPaginationTests(TestCase):
         )
 
         self.assertIsNone(result["pagination"]["next_cursor"])
+
+    def test_subject_keys_are_one_filter_and_all_filters_apply_to_both_queries(self):
+        keys = ["source-" + str(i) for i in range(2500)]
+        with patch.object(self.query, "_source_keys", return_value=keys):
+            self.client.search.side_effect = [
+                page([{"country_code": "BR"}]),
+                items([]),
+            ]
+
+            self.run_query(
+                subject_area="Health", country="BR", language="pt", yop="2020"
+            )
+
+        self.assertEqual(self.client.search.call_count, 2)
+        for call in (0, 1):
+            filters = self.body(call)["query"]["bool"]["filter"]
+            for clause in (
+                {"terms": {"source_key": keys}},
+                {"term": {"source_key": "parent-key"}},
+                {"term": {"country_code": "BR"}},
+                {"term": {"content_language": "pt"}},
+                {"terms": {"year": ["2024"]}},
+            ):
+                self.assertIn(clause, filters)
+            self.assertNotIn("publication_year", str(filters))
+
+    def test_yop_filtered_page_keeps_cursor_and_metadata_filter(self):
+        self.client.search.side_effect = [
+            page([{"country_code": "BR"}], {"country_code": "BR"}),
+            items([({"country_code": "BR", "document_key": "old"}, 8)]),
+        ]
+        self.client.mget.return_value = {
+            "docs": [
+                {"_id": "old", "found": True, "_source": {"publication_year": 2019}},
+            ]
+        }
+
+        result = self.run_query(yop="2020", group_limit=1)
+
+        self.assertEqual(result["groups"], [])
+        self.assertIsNotNone(result["pagination"]["next_cursor"])
+
+    def test_invalid_cursor_and_scope_changes_fail_before_search(self):
+        self.client.search.side_effect = [
+            page([{"country_code": "BR"}], {"country_code": "BR"}),
+            items([]),
+        ]
+
+        cursor = self.run_query(group_limit=1)["pagination"]["next_cursor"]
+        self.client.reset_mock()
+
+        changes = [
+            {"country": "US"},
+            {"language": "en"},
+            {"yop": "2020"},
+            {"subject_area": "Health"},
+            {"parent_id": "other"},
+            {"group_by": "language"},
+            {"metric_type": "Total_Item_Investigations"},
+            {"coverage_policy": "allow_partial"},
+        ]
+        for change in changes:
+            with self.subTest(change=change), self.assertRaisesRegex(
+                CounterAPIError, "does not match"
+            ):
+                self.run_query(cursor=cursor, **change)
+
+        for invalid in ("", "garbage", cursor + "tampered"):
+            with self.subTest(cursor=invalid), self.assertRaisesRegex(
+                CounterAPIError, "Invalid ranking cursor"
+            ):
+                self.run_query(cursor=invalid)
+
+        with self.assertRaisesRegex(CounterAPIError, "does not match"):
+            self.query.run(
+                self.platform,
+                date(2023, 1, 1),
+                date(2023, 12, 31),
+                {**self.params, "cursor": cursor},
+            )
+
+        self.platform.acron3 = "other"
+        with self.assertRaisesRegex(CounterAPIError, "does not match"):
+            self.run_query(cursor=cursor)
+        self.client.search.assert_not_called()
+
+    def test_limits_and_ungrouped_contract(self):
+        for params, message in (
+            ({"group_limit": 0}, "between 1 and 20"),
+            ({"group_limit": 21}, "between 1 and 20"),
+            ({"group_limit": "x"}, "between 1 and 20"),
+            ({"group_limit": 20, "limit": 501}, "must not exceed 10000"),
+            ({"group_by": "", "group_limit": 1}, "require group_by"),
+            ({"group_by": "", "cursor": "x"}, "require group_by"),
+        ):
+            with self.subTest(params=params), self.assertRaisesRegex(
+                CounterAPIError, message
+            ):
+                self.run_query(**params)
+
+        self.client.search.assert_not_called()
+        self.client.search.return_value = items([])
+
+        result = self.run_query(group_by="")
+
+        self.assertNotIn("pagination", result)
+
+        self.client.search.return_value = page([])
+
+        result = self.run_query(group_limit=20, limit=500)
+
+        self.assertEqual(result["pagination"], {"group_limit": 20, "next_cursor": None})
+
+    def test_strict_daily_coverage_still_requires_complete_period(self):
+        with (
+            patch(
+                "counter_api.extensions.ranking.resolve_coverage",
+                return_value={},
+            ),
+            patch(
+                "counter_api.extensions.ranking.require_complete_period",
+                side_effect=service_unavailable(),
+            ) as complete,
+        ):
+            with self.assertRaises(CounterAPIError):
+                self.query.run(
+                    self.platform,
+                    date(2024, 1, 2),
+                    date(2024, 1, 6),
+                    {**self.params, "group_by": ""},
+                )
+
+        complete.assert_called_once_with(
+            self.platform, date(2024, 1, 2), date(2024, 1, 6)
+        )
+        self.client.search.assert_not_called()
