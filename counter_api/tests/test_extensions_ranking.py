@@ -134,6 +134,30 @@ class RankingQueryTests(TestCase):
             {"term": {"source_key": "journal-key"}}, body["query"]["bool"]["filter"]
         )
 
+        client.search.side_effect = [{"aggregations": {"rows": {"buckets": []}}}]
+
+        final = query.run(
+            platform,
+            date(2025, 1, 1),
+            date(2025, 12, 31),
+            {
+                **params,
+                "cursor": result["pagination"]["next_cursor"],
+                "group_limit": 2,
+                "limit": 7,
+                "format": "csv",
+            },
+        )
+
+        self.assertEqual(
+            client.search.call_args.kwargs["body"]["aggs"]["rows"]["composite"][
+                "after"
+            ],
+            after,
+        )
+        self.assertEqual(final["pagination"], {"group_limit": 2, "next_cursor": None})
+        self.assertEqual(final["groups"], [])
+
     def test_country_ranking_requires_complete_year(self):
         query = RankingQuery(Mock(client=Mock()))
         platform = SimpleNamespace(acron3="scl", collection_type="journals")
