@@ -48,7 +48,7 @@ class DistributionQuery:
             segmented,
             deadline,
         )
-        if coverage is None:
+        if coverage is None or params.get("coverage_policy") == "strict":
             require_complete_period(platform, begin, end)
 
         key_field, entity_key = self._entity_filter(

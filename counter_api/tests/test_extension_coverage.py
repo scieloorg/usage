@@ -135,6 +135,9 @@ def test_default_queries_share_confirmed_sum_across_pages(kind):
             "days": {"2023-01": ["01"]},
         }
         assert "Missing daily_metrics" in script["source"]
+        assert script["source"].strip().splitlines()[0] == (
+            "String month = doc['month'].value.toString().substring(0,7);"
+        )
 
 
 @pytest.mark.parametrize("response", [markers(), markers(**{"01": 1})])

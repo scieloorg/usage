@@ -54,7 +54,7 @@ class RankingQuery:
             segmented,
             deadline,
         )
-        if coverage is None:
+        if coverage is None or params.get("coverage_policy") == "strict":
             require_complete_period(platform, begin, end)
 
         parent_key = self._parent_key(platform, parent_type, parent_id)
