@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from counter_api.exceptions import CounterAPIError
+from counter_api.exceptions import CounterAPIError, service_unavailable
 from counter_api.extensions.distribution import DistributionQuery
 
 
@@ -14,6 +14,69 @@ class DistributionQueryTests(TestCase):
         )
         self.period = period.start()
         self.addCleanup(period.stop)
+
+    def _distribution_with_groups(self, count):
+        client = Mock()
+        client.search.return_value = {
+            "aggregations": {
+                "rows": {
+                    "buckets": [
+                        {"key": {"country": f"C{number}"}, "count": {"value": 1}}
+                        for number in range(count)
+                    ]
+                }
+            }
+        }
+        return DistributionQuery(Mock(client=client)).run(
+            SimpleNamespace(acron3="scl", collection_type="journals"),
+            date(2024, 1, 1),
+            date(2024, 12, 31),
+            {
+                "entity_type": "collection",
+                "entity_id": "scl",
+                "dimension": "country",
+                "coverage_policy": "strict",
+            },
+        )
+
+    def test_distribution_allows_more_than_1000_groups(self):
+        payload = self._distribution_with_groups(1001)
+
+        self.assertEqual(len(payload["buckets"]), 1001)
+        self.assertEqual(payload["total"], 1001)
+
+    @patch("counter_api.extensions.distribution.MAX_RESULTS", 2)
+    def test_distribution_limit_is_explicit_and_not_truncated(self):
+        with self.assertRaises(CounterAPIError) as error:
+            self._distribution_with_groups(3)
+
+        self.assertEqual(error.exception.status_code, 400)
+        self.assertIn("exceeds 2 groups", error.exception.data)
+
+    def test_strict_daily_cut_requires_complete_calendar_months(self):
+        with (
+            patch(
+                "counter_api.extensions.distribution.resolve_coverage", return_value={}
+            ),
+            patch(
+                "counter_api.extensions.distribution.require_complete_period",
+                side_effect=service_unavailable(),
+            ) as require_complete,
+        ):
+            with self.assertRaises(CounterAPIError):
+                DistributionQuery(Mock(client=Mock())).run(
+                    SimpleNamespace(acron3="scl", collection_type="journals"),
+                    date(2024, 1, 2),
+                    date(2024, 1, 6),
+                    {
+                        "entity_type": "collection",
+                        "entity_id": "scl",
+                        "dimension": "yop",
+                        "coverage_policy": "strict",
+                    },
+                )
+
+        require_complete.assert_called_once()
 
     def test_incomplete_month_does_not_query_metrics(self):
         client = Mock()

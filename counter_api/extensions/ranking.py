@@ -5,8 +5,18 @@ from django.conf import settings
 
 from counter_api.constants import METADATA_BATCH_SIZE, METRICS
 from counter_api.exceptions import insufficient_information
-from counter_api.extensions.contracts import RANKING_ENTITIES, RANKING_GROUPS
+from counter_api.extensions.contracts import (
+    MAX_RESULTS,
+    RANKING_ENTITIES,
+    RANKING_GROUPS,
+)
 from counter_api.extensions.coverage import coverage_fields, resolve_coverage
+from counter_api.extensions.pagination import (
+    cursor_scope,
+    next_cursor,
+    pagination_error,
+    read_cursor,
+)
 from counter_api.extensions.query import (
     metric_composite_body,
     require_complete_period,
@@ -22,8 +32,8 @@ from metrics.opensearch.names import generate_metadata_alias
 RANKING_PAGE_SIZE = 1000
 DEFAULT_LIMIT = 100
 MAX_LIMIT = 1000
-MAX_GROUPS = 20
-MAX_RESULTS = 10000
+DEFAULT_GROUP_LIMIT = 5
+MAX_GROUP_LIMIT = 20
 MAX_FILTER_KEYS = 10000
 
 
@@ -45,6 +55,10 @@ class RankingQuery:
             segmented,
         ) = self._parameters(platform, begin, end, params)
 
+        group_limit = self._group_limit(params, group_by, limit)
+        scope = cursor_scope(platform, begin, end, params)
+        after = read_cursor(params.get("cursor"), scope)
+
         coverage = resolve_coverage(
             self.client,
             platform,
@@ -54,12 +68,16 @@ class RankingQuery:
             segmented,
             deadline,
         )
-        if coverage is None:
+        if coverage is None or params.get("coverage_policy") == "strict":
             require_complete_period(platform, begin, end)
 
         parent_key = self._parent_key(platform, parent_type, parent_id)
-        key_batches = self._key_batches(platform, params, deadline)
-        groups = self._ranked_groups(
+        source_keys = (
+            self._source_keys(platform, params["subject_area"], deadline)
+            if params.get("subject_area")
+            else None
+        )
+        groups, after = self._ranked_groups(
             platform,
             begin,
             end,
@@ -68,14 +86,16 @@ class RankingQuery:
             parent_key,
             metric_type,
             group_by,
-            key_batches,
+            source_keys,
             limit,
             deadline,
             segmented,
             coverage,
+            group_limit,
+            after,
         )
 
-        return {
+        result = {
             "platform": platform.acron3,
             "begin_date": begin.isoformat(),
             "end_date": end.isoformat(),
@@ -86,6 +106,31 @@ class RankingQuery:
             "groups": self._result_groups(groups, relation, group_by, deadline),
             **coverage_fields(coverage),
         }
+        if group_by:
+            result["pagination"] = {
+                "group_limit": group_limit,
+                "next_cursor": next_cursor(after, scope),
+            }
+
+        return result
+
+    def _group_limit(self, params, group_by, limit):
+        if not group_by:
+            if "cursor" in params or "group_limit" in params:
+                raise pagination_error("cursor and group_limit require group_by")
+            return None
+
+        try:
+            group_limit = int(params.get("group_limit", DEFAULT_GROUP_LIMIT))
+        except (TypeError, ValueError):
+            raise pagination_error("group_limit must be between 1 and 20")
+
+        if not 1 <= group_limit <= MAX_GROUP_LIMIT:
+            raise pagination_error("group_limit must be between 1 and 20")
+        if group_limit * limit > MAX_RESULTS:
+            raise pagination_error("group_limit * limit must not exceed 10000")
+
+        return group_limit
 
     def _parameters(self, platform, begin, end, params):
         entity_type = params.get("entity_type")
@@ -150,18 +195,6 @@ class RankingQuery:
 
         return self.report_query.resolve_item_id(platform, "tr", parent_id)
 
-    def _key_batches(self, platform, params, deadline):
-        subject_area = params.get("subject_area")
-        if not subject_area:
-            return [None]
-
-        source_keys = self._source_keys(platform, subject_area, deadline)
-
-        return [
-            source_keys[start : start + METADATA_BATCH_SIZE]
-            for start in range(0, len(source_keys), METADATA_BATCH_SIZE)
-        ]
-
     def _ranked_groups(
         self,
         platform,
@@ -172,48 +205,100 @@ class RankingQuery:
         parent_key,
         metric_type,
         group_by,
-        key_batches,
+        source_keys,
         limit,
         deadline,
         segmented,
-        coverage=None,
+        coverage,
+        group_limit,
+        after,
     ):
         groups = {}
+        if source_keys == []:
+            return groups, None
 
-        for source_keys in key_batches:
-            index_name, body = self._query_body(
-                platform,
-                begin,
-                end,
-                relation["key_field"],
-                relation.get("data_type"),
-                parent_key,
-                metric_type,
-                group_by,
-                params,
-                source_keys,
-                segmented,
-                coverage,
+        index_name, body = self._query_body(
+            platform,
+            begin,
+            end,
+            relation["key_field"],
+            relation.get("data_type"),
+            parent_key,
+            metric_type,
+            group_by,
+            params,
+            source_keys,
+            segmented,
+            coverage,
+        )
+
+        next_after = None
+        if group_by:
+            selected, next_after = self._select_groups(
+                index_name,
+                body,
+                group_limit,
+                after,
+                deadline,
+            )
+            if not selected:
+                return groups, next_after
+
+            clauses = []
+            for key in selected:
+                filters = []
+                for field, value in key.items():
+                    if value is None:
+                        clause = {"bool": {"must_not": [{"exists": {"field": field}}]}}
+                    else:
+                        clause = {"term": {field: value}}
+                    filters.append(clause)
+                clauses.append({"bool": {"filter": filters}})
+
+            body["query"]["bool"]["filter"].append(
+                {"bool": {"should": clauses, "minimum_should_match": 1}}
             )
 
-            for buckets in composite_pages(self.client, index_name, body, deadline):
-                yop_keys = self._yop_keys(
-                    buckets,
-                    relation["key_field"],
-                    params,
-                    deadline,
-                    segmented,
-                )
+        for buckets in composite_pages(self.client, index_name, body, deadline):
+            yop_keys = self._yop_keys(
+                buckets,
+                relation["key_field"],
+                params,
+                deadline,
+                segmented,
+            )
+            self._collect_groups(
+                groups,
+                buckets,
+                relation["key_field"],
+                limit,
+                yop_keys,
+            )
 
-                self._collect_groups(
-                    groups,
-                    buckets,
-                    relation["key_field"],
-                    limit,
-                    yop_keys,
-                )
+        return groups, next_after
 
-        return groups
+    def _select_groups(self, index_name, body, group_limit, after, deadline):
+        item_composite = body["aggs"]["rows"]["composite"]
+        composite = {
+            "size": group_limit,
+            "sources": item_composite["sources"][:-1],
+        }
+        if after is not None:
+            composite["after"] = after
+
+        group_body = {
+            **body,
+            "query": {"bool": {"filter": list(body["query"]["bool"]["filter"])}},
+            "aggs": {"rows": {"composite": composite}},
+        }
+
+        page = search(self.client, index_name, group_body, deadline)["aggregations"][
+            "rows"
+        ]
+        buckets = page.get("buckets", [])
+        next_after = page.get("after_key") if len(buckets) == group_limit else None
+
+        return [bucket["key"] for bucket in buckets], next_after
 
     def _collect_groups(self, groups, buckets, entity_key, limit, yop_keys):
         for bucket in buckets:
@@ -230,9 +315,6 @@ class RankingQuery:
                 if dimension in bucket["key"]
             )
             winners = groups.setdefault(group, [])
-            if len(groups) > MAX_GROUPS or len(groups) * limit > MAX_RESULTS:
-                raise insufficient_information()
-
             inverted_key = bytes(255 - byte for byte in key.encode("utf-8"))
             candidate = (count, inverted_key, key)
             if len(winners) < limit:

@@ -15,9 +15,15 @@ class RankingGroupSerializer(serializers.Serializer):
 class CoverageMonthSerializer(serializers.Serializer):
     month = serializers.CharField()
     status = serializers.ChoiceField(
-        choices=["complete", "partial", "unavailable", "unknown"]
+        choices=["complete", "partial", "unavailable", "unknown", "ongoing", "future"]
     )
+    requested_days = serializers.ListField(child=serializers.IntegerField())
     confirmed_days = serializers.ListField(child=serializers.IntegerField())
+    future_days = serializers.ListField(child=serializers.IntegerField())
+    ongoing = serializers.BooleanField()
+    complete_month = serializers.BooleanField(
+        help_text="The entire month is selected and confirmed; daily cuts are not full months."
+    )
     missing_days = serializers.ListField(
         child=serializers.IntegerField(), allow_null=True
     )
@@ -25,7 +31,10 @@ class CoverageMonthSerializer(serializers.Serializer):
 
 class CoverageSerializer(serializers.Serializer):
     policy = serializers.CharField()
-    status = serializers.ChoiceField(choices=["complete", "partial"])
+    status = serializers.ChoiceField(
+        choices=["complete", "partial", "ongoing", "future"]
+    )
+    ongoing = serializers.BooleanField()
     basis = serializers.ChoiceField(
         choices=["confirmed_days", "available_annual_totals"]
     )
@@ -42,6 +51,14 @@ class CoverageResponseSerializer(serializers.Serializer):
     warnings = serializers.ListField(child=serializers.CharField(), required=False)
 
 
+class RankingPaginationSerializer(serializers.Serializer):
+    group_limit = serializers.IntegerField()
+    next_cursor = serializers.CharField(
+        allow_null=True,
+        help_text="Continue with this cursor even if groups is empty; null ends pagination.",
+    )
+
+
 class RankingSerializer(CoverageResponseSerializer):
     platform = serializers.CharField()
     begin_date = serializers.DateField()
@@ -51,6 +68,7 @@ class RankingSerializer(CoverageResponseSerializer):
     entity_type = serializers.CharField()
     metric_type = serializers.CharField()
     groups = RankingGroupSerializer(many=True)
+    pagination = RankingPaginationSerializer(required=False)
 
 
 class DistributionBucketSerializer(serializers.Serializer):
@@ -81,5 +99,11 @@ class CapabilitiesSerializer(serializers.Serializer):
     distribution_dimensions = serializers.ListField(child=serializers.CharField())
     country_language_granularity = serializers.CharField()
     other_granularity = serializers.CharField()
-    first_month_available = serializers.CharField(allow_null=True)
-    last_month_available = serializers.CharField(allow_null=True)
+    first_month_available = serializers.CharField(
+        allow_null=True,
+        help_text="First month with confirmed days, possibly incomplete.",
+    )
+    last_month_available = serializers.CharField(
+        allow_null=True,
+        help_text="Last month with confirmed days, including the current month.",
+    )

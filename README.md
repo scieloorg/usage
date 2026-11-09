@@ -109,12 +109,29 @@ arquivos de configuração de ambiente que contenham credenciais.
 
 ## Cobertura parcial nas extensões
 
-Ranking e distribuição usam `coverage_policy=allow_partial` por padrão:
-contam dias confirmados no mensal e os totais disponíveis no anual de país/idioma.
-JSON, CSV e XLSX preservam a cobertura e os avisos, inclusive sem resultados.
-Use `coverage_policy=strict` para exigir cobertura completa, como antes.
-País/idioma exigem intervalos de anos inteiros; seus valores podem ser atualizados
-com novas cargas. A cobertura anual é informativa, não um filtro dos totais.
+Ranking e distribuição aceitam cortes diários e o mês corrente. Use datas
+`YYYY-MM-DD` ou meses `YYYY-MM`; o mês corrente como fim termina em hoje.
+Datas diárias futuras são rejeitadas. `coverage_policy=allow_partial` conta
+somente dias confirmados dentro do intervalo; meses completos usam os totais
+mensais. A cobertura distingue dias solicitados, confirmados, ausentes e futuros.
+Use `coverage_policy=strict` para exigir os meses inteiros processados, mesmo
+quando a consulta corta apenas alguns dias.
+
+País/idioma continuam anuais: selecione janeiro–dezembro, inclusive do ano
+corrente, para obter os totais disponíveis. A cobertura é informativa, não um
+filtro desses totais; métricas `Unique` não são suportadas nesses recortes.
+A descoberta de disponibilidade das extensões inclui meses com dias confirmados.
+
+Rankings com `group_by` paginam os grupos: `group_limit=5` por padrão (máximo 20),
+com `limit=100` itens por grupo (máximo 1000). O produto dos limites não pode
+exceder 10000. Continue com `pagination.next_cursor` e os mesmos filtros/período,
+mesmo se a página estiver vazia; `null` encerra a navegação. Formato e limites
+podem mudar entre páginas. Distribuições retornam até 10000 grupos; consultas
+maiores falham explicitamente, sem truncamento.
+
+JSON, CSV e XLSX preservam cobertura, avisos e cursor, inclusive sem resultados.
+No XLSX, `Coverage` contém o resumo e `Coverage months` detalha um mês por linha,
+com a indicação `Included`, evitando o limite de texto por célula do Excel.
 Consultas mensais sem dias confirmados e marcadores inconsistentes retornam erro.
 Relatórios COUNTER padrão não mudam. Consulte o OpenAPI para o contrato completo.
 

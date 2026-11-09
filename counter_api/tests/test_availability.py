@@ -28,6 +28,24 @@ class AvailabilityTests(SimpleTestCase):
         self.assertIn({"term": {"collection": "scl"}}, filters)
         self.assertIn({"term": {"complete": True}}, filters)
 
+    @patch("counter_api.availability.OpenSearchUsageClient")
+    def test_analytics_discovery_includes_confirmed_current_month(self, client_class):
+        client = client_class.return_value.client
+        current = date.today().replace(day=1)
+        client.search.return_value = {
+            "aggregations": {
+                "months": {"buckets": [{"key": {"month": current.strftime("%Y-%m")}}]}
+            }
+        }
+
+        months = available_months(Mock(acron3="scl"), complete_only=False)
+
+        self.assertEqual(months, [current])
+        filters = client.search.call_args.kwargs["body"]["query"]["bool"]["filter"]
+        self.assertIn({"range": {"day_mask": {"gt": 0}}}, filters)
+        self.assertIn({"range": {"month": {"lte": current.strftime("%Y-%m")}}}, filters)
+        self.assertNotIn({"term": {"complete": True}}, filters)
+
     @patch("counter_api.availability.available_months")
     def test_splits_missing_months_without_treating_gaps_as_no_usage(self, months):
         months.return_value = [date(2024, 1, 1), date(2024, 3, 1)]
