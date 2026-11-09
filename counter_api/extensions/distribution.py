@@ -3,11 +3,12 @@ from time import monotonic
 from django.conf import settings
 
 from counter_api.constants import METRICS
-from counter_api.exceptions import insufficient_information
+from counter_api.exceptions import insufficient_information, invalid_filter
 from counter_api.extensions.contracts import (
     DISTRIBUTION_CROSSES,
     DISTRIBUTION_DIMENSIONS,
     DISTRIBUTION_ENTITIES,
+    MAX_RESULTS,
 )
 from counter_api.extensions.coverage import coverage_fields, resolve_coverage
 from counter_api.extensions.query import (
@@ -21,7 +22,6 @@ from counter_api.query import ReportQuery
 from counter_api.search import composite_pages
 
 PAGE_SIZE = 1000
-MAX_BUCKETS = 1000
 
 
 class DistributionQuery:
@@ -210,8 +210,10 @@ class DistributionQuery:
                 for combination in self._combinations(bucket, dimensions, metadata):
                     totals[combination] = totals.get(combination, 0) + count
 
-                if len(totals) > MAX_BUCKETS:
-                    raise insufficient_information()
+                if len(totals) > MAX_RESULTS:
+                    raise invalid_filter(
+                        f"Distribution exceeds {MAX_RESULTS} groups; narrow the period or entity."
+                    )
 
         buckets = [
             {
