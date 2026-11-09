@@ -1,16 +1,17 @@
 import csv
 import json
+from calendar import monthrange
 from datetime import date
 from io import StringIO
 from time import monotonic
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from openpyxl import load_workbook
 
 from counter_api.exceptions import CounterAPIError
-from counter_api.extensions.coverage import resolve_coverage
+from counter_api.extensions.coverage import metric_sum, resolve_coverage
 from counter_api.extensions.distribution import DistributionQuery
 from counter_api.extensions.exports import build_export
 from counter_api.extensions.ranking import RankingQuery
@@ -198,3 +199,113 @@ def test_empty_export_preserves_coverage_metadata(output_format):
     assert json.loads(metadata["Coverage"]) == payload["coverage"]
     assert json.loads(metadata["Warnings"]) == payload["warnings"]
     assert int(metadata["Total"]) == 0
+
+
+def daily_coverage(begin, end, month_masks, segmented=False):
+    client = Mock()
+    client.search.return_value = {
+        "hits": {
+            "hits": [
+                {
+                    "_source": {
+                        "collection": "scl",
+                        "month": month,
+                        "day_mask": mask,
+                        "complete": mask
+                        == (1 << monthrange(*map(int, month.split("-")))[1]) - 1,
+                    }
+                }
+                for month, mask in month_masks.items()
+            ]
+        }
+    }
+
+    with patch("counter_api.extensions.coverage.date", wraps=date) as clock:
+        clock.today.return_value = date(2024, 3, 15)
+        coverage = resolve_coverage(
+            client, PLATFORM, begin, end, "allow_partial", segmented, monotonic() + 30
+        )
+
+    client.search.assert_called_once()
+    return coverage
+
+
+def test_confirmed_cut_is_complete_without_using_full_month_totals():
+    coverage = daily_coverage(
+        date(2024, 2, 28), date(2024, 2, 29), {"2024-02": (1 << 27) | (1 << 28)}
+    )
+
+    month = coverage["months"][0]
+    params = metric_sum("total_requests", coverage)["script"]["params"]
+
+    assert coverage["status"] == "complete"
+    assert month["requested_days"] == month["confirmed_days"] == [28, 29]
+    assert month["missing_days"] == []
+    assert not month["complete_month"]
+    assert params == {
+        "metric": "total_requests",
+        "complete": [],
+        "days": {"2024-02": ["28", "29"]},
+    }
+
+
+def test_month_edges_with_complete_middle_month():
+    coverage = daily_coverage(
+        date(2024, 1, 31),
+        date(2024, 3, 2),
+        {"2024-01": (1 << 31) - 1, "2024-02": (1 << 29) - 1, "2024-03": 3},
+    )
+
+    params = metric_sum("total_requests", coverage)["script"]["params"]
+
+    assert params["complete"] == ["2024-02"]
+    assert params["days"] == {"2024-01": ["31"], "2024-03": ["01", "02"]}
+
+
+def test_full_selected_month_uses_field():
+    coverage = daily_coverage(
+        date(2024, 2, 1), date(2024, 2, 29), {"2024-02": (1 << 29) - 1}
+    )
+
+    assert metric_sum("total_requests", coverage) == {"field": "total_requests"}
+
+
+def test_middle_gap_is_not_summed():
+    coverage = daily_coverage(date(2024, 2, 1), date(2024, 2, 3), {"2024-02": 5})
+
+    assert coverage["months"][0]["missing_days"] == [2]
+    assert metric_sum("total_requests", coverage)["script"]["params"]["days"] == {
+        "2024-02": ["01", "03"]
+    }
+
+
+def test_current_annual_coverage_separates_future_from_missing():
+    coverage = daily_coverage(
+        date(2024, 1, 1),
+        date(2024, 12, 31),
+        {"2024-01": (1 << 31) - 1, "2024-02": (1 << 29) - 1, "2024-03": (1 << 15) - 1},
+        segmented=True,
+    )
+
+    assert coverage["basis"] == "available_annual_totals"
+    assert coverage["status"] == "ongoing"
+    assert coverage["ongoing"]
+    march, april = coverage["months"][2:4]
+    assert march["missing_days"] == []
+    assert march["future_days"] == list(range(16, 32))
+    assert april["status"] == "future"
+    assert april["missing_days"] == april["confirmed_days"] == []
+    assert april["future_days"] == april["requested_days"] == list(range(1, 31))
+    assert metric_sum("total_requests", coverage) == {"field": "total_requests"}
+
+
+def test_cut_without_confirmed_requested_days_fails():
+    with pytest.raises(CounterAPIError) as raised:
+        daily_coverage(date(2024, 2, 2), date(2024, 2, 3), {"2024-02": 1})
+
+    assert raised.value.status_code == 503
+
+
+def test_cut_still_validates_full_month_marker():
+    with pytest.raises(CounterAPIError):
+        daily_coverage(date(2024, 2, 1), date(2024, 2, 2), {"2024-02": 1 << 29})
