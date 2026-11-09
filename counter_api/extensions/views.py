@@ -8,7 +8,6 @@ from rest_framework.response import Response
 from counter_api.access import CounterAPIView
 from counter_api.availability import available_months
 from counter_api.constants import METRICS
-from counter_api.dates import parse_period
 from counter_api.exceptions import (
     CounterAPIError,
     insufficient_information,
@@ -19,6 +18,7 @@ from counter_api.extensions.contracts import (
     DOWNLOAD_FORMATS,
     RANKING_ENTITIES,
 )
+from counter_api.extensions.dates import parse_analytics_period
 from counter_api.extensions.distribution import DistributionQuery
 from counter_api.extensions.exports import build_export
 from counter_api.extensions.openapi import (
@@ -26,27 +26,30 @@ from counter_api.extensions.openapi import (
     DistributionSerializer,
     RankingSerializer,
 )
-from counter_api.extensions.ranking import RankingQuery
+from counter_api.extensions.ranking import DEFAULT_GROUP_LIMIT, RankingQuery
 from counter_api.openapi import (
-    BEGIN_DATE_PARAMETER,
-    END_DATE_PARAMETER,
     EXCEL_CONTENT_TYPE,
     PLATFORM_PARAMETER,
     ExceptionSerializer,
 )
 from counter_api.platforms import get_platform
 
-
-def _download_response(payload, kind, platform, output_format):
-    content = build_export(payload, kind, output_format)
-    content_type = "text/csv" if output_format == "csv" else EXCEL_CONTENT_TYPE
-    response = FileResponse(content, content_type=content_type)
-    response[
-        "Content-Disposition"
-    ] = f'attachment; filename="{kind}_{platform.acron3}.{output_format}"'
-
-    return response
-
+BEGIN_DATE_PARAMETER = OpenApiParameter(
+    "begin_date",
+    OpenApiTypes.STR,
+    required=True,
+    description="First day (YYYY-MM-DD) or month (YYYY-MM). Country/language must start in January.",
+)
+END_DATE_PARAMETER = OpenApiParameter(
+    "end_date",
+    OpenApiTypes.STR,
+    required=True,
+    description=(
+        "Last day (YYYY-MM-DD) or month (YYYY-MM). The current month ends today; "
+        "explicit future days are rejected. Country/language must end in December "
+        "and may select the current year for provisional annual totals."
+    ),
+)
 
 COVERAGE_PARAMETER = OpenApiParameter(
     "coverage_policy",
@@ -58,6 +61,17 @@ COVERAGE_PARAMETER = OpenApiParameter(
         "country/language. Use strict to require complete coverage."
     ),
 )
+
+
+def _download_response(payload, kind, platform, output_format):
+    content = build_export(payload, kind, output_format)
+    content_type = "text/csv" if output_format == "csv" else EXCEL_CONTENT_TYPE
+    response = FileResponse(content, content_type=content_type)
+    response[
+        "Content-Disposition"
+    ] = f'attachment; filename="{kind}_{platform.acron3}.{output_format}"'
+
+    return response
 
 
 class RankingView(CounterAPIView):
@@ -80,7 +94,29 @@ class RankingView(CounterAPIView):
             OpenApiParameter("language", OpenApiTypes.STR, required=False),
             OpenApiParameter("yop", OpenApiTypes.STR, required=False),
             OpenApiParameter("subject_area", OpenApiTypes.STR, required=False),
-            OpenApiParameter("limit", OpenApiTypes.INT, required=False),
+            OpenApiParameter(
+                "limit",
+                OpenApiTypes.INT,
+                required=False,
+                default=100,
+                description="Items per group (1–1000), ranked after aggregating the full period.",
+            ),
+            OpenApiParameter(
+                "group_limit",
+                OpenApiTypes.INT,
+                required=False,
+                default=DEFAULT_GROUP_LIMIT,
+                description="Groups per page (1–20), only with group_by. group_limit × limit must not exceed 10000.",
+            ),
+            OpenApiParameter(
+                "cursor",
+                OpenApiTypes.STR,
+                required=False,
+                description=(
+                    "Opaque next_cursor from a grouped ranking, with the same filters and period. "
+                    "Follow it even if a page has no visible groups. Limits and output format may change."
+                ),
+            ),
             OpenApiParameter("format", OpenApiTypes.STR, required=False),
         ],
         responses={
@@ -98,7 +134,7 @@ class RankingView(CounterAPIView):
                 raise insufficient_information()
 
             platform = get_platform(request.query_params.get("platform"))
-            begin, end = parse_period(request.query_params)
+            begin, end = parse_analytics_period(request.query_params)
             payload = RankingQuery().run(platform, begin, end, request.query_params)
 
             if output_format != "json":
@@ -191,7 +227,7 @@ class DistributionView(CounterAPIView):
                 raise insufficient_information()
 
             platform = get_platform(request.query_params.get("platform"))
-            begin, end = parse_period(request.query_params)
+            begin, end = parse_analytics_period(request.query_params)
             payload = DistributionQuery().run(
                 platform, begin, end, request.query_params
             )

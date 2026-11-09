@@ -195,16 +195,54 @@ class ExtensionViewTests(TestCase):
 
     @patch("counter_api.extensions.views.DistributionQuery")
     @patch("counter_api.extensions.views.RankingQuery")
-    def test_public_extensions_still_reject_current_and_future_months(
+    def test_public_extensions_reject_future_months(
         self, ranking_class, distribution_class
     ):
-        for month in (date.today().strftime("%Y-%m"), "9999-12"):
-            for kind in ("ranking", "distribution"):
-                with self.subTest(kind=kind, month=month):
-                    response = self.client.get(
-                        f"/r51/extensions/{kind}",
-                        {"platform": "scl", "begin_date": month, "end_date": month},
-                    )
-                    self.assertEqual(response.status_code, 400)
+        for kind in ("ranking", "distribution"):
+            with self.subTest(kind=kind):
+                response = self.client.get(
+                    f"/r51/extensions/{kind}",
+                    {"platform": "scl", "begin_date": "9999-12", "end_date": "9999-12"},
+                )
+
+                self.assertEqual(response.status_code, 400)
+
         ranking_class.return_value.run.assert_not_called()
         distribution_class.return_value.run.assert_not_called()
+
+    @patch("counter_api.extensions.dates.date", wraps=date)
+    @patch("counter_api.extensions.views.DistributionQuery")
+    @patch("counter_api.extensions.views.RankingQuery")
+    def test_recent_days_and_current_annual_totals_reach_queries(
+        self, ranking_class, distribution_class, clock
+    ):
+        clock.today.return_value = date(2026, 11, 8)
+
+        for kind, query_class in (
+            ("ranking", ranking_class),
+            ("distribution", distribution_class),
+        ):
+            query_class.return_value.run.return_value = {}
+            for params, expected in (
+                (
+                    {"begin_date": "2026-11", "end_date": "2026-11"},
+                    (date(2026, 11, 1), date(2026, 11, 8)),
+                ),
+                (
+                    {
+                        "begin_date": "2026-01",
+                        "end_date": "2026-12",
+                        "group_by" if kind == "ranking" else "dimension": "country",
+                    },
+                    (date(2026, 1, 1), date(2026, 12, 31)),
+                ),
+            ):
+                with self.subTest(kind=kind, params=params):
+                    response = self.client.get(
+                        f"/r51/extensions/{kind}", {"platform": "scl", **params}
+                    )
+
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(
+                        query_class.return_value.run.call_args.args[1:3], expected
+                    )
