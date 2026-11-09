@@ -11,7 +11,12 @@ from counter_api.extensions.contracts import (
     RANKING_GROUPS,
 )
 from counter_api.extensions.coverage import coverage_fields, resolve_coverage
-from counter_api.extensions.pagination import pagination_error
+from counter_api.extensions.pagination import (
+    cursor_scope,
+    next_cursor,
+    pagination_error,
+    read_cursor,
+)
 from counter_api.extensions.query import (
     metric_composite_body,
     require_complete_period,
@@ -27,7 +32,6 @@ from metrics.opensearch.names import generate_metadata_alias
 RANKING_PAGE_SIZE = 1000
 DEFAULT_LIMIT = 100
 MAX_LIMIT = 1000
-MAX_GROUPS = 20
 DEFAULT_GROUP_LIMIT = 5
 MAX_GROUP_LIMIT = 20
 MAX_FILTER_KEYS = 10000
@@ -51,6 +55,10 @@ class RankingQuery:
             segmented,
         ) = self._parameters(platform, begin, end, params)
 
+        group_limit = self._group_limit(params, group_by, limit)
+        scope = cursor_scope(platform, begin, end, params)
+        after = read_cursor(params.get("cursor"), scope)
+
         coverage = resolve_coverage(
             self.client,
             platform,
@@ -69,7 +77,7 @@ class RankingQuery:
             if params.get("subject_area")
             else None
         )
-        groups = self._ranked_groups(
+        groups, after = self._ranked_groups(
             platform,
             begin,
             end,
@@ -83,9 +91,11 @@ class RankingQuery:
             deadline,
             segmented,
             coverage,
+            group_limit,
+            after,
         )
 
-        return {
+        result = {
             "platform": platform.acron3,
             "begin_date": begin.isoformat(),
             "end_date": end.isoformat(),
@@ -96,6 +106,13 @@ class RankingQuery:
             "groups": self._result_groups(groups, relation, group_by, deadline),
             **coverage_fields(coverage),
         }
+        if group_by:
+            result["pagination"] = {
+                "group_limit": group_limit,
+                "next_cursor": next_cursor(after, scope),
+            }
+
+        return result
 
     def _group_limit(self, params, group_by, limit):
         if not group_by:
@@ -192,11 +209,13 @@ class RankingQuery:
         limit,
         deadline,
         segmented,
-        coverage=None,
+        coverage,
+        group_limit,
+        after,
     ):
         groups = {}
         if source_keys == []:
-            return groups
+            return groups, None
 
         index_name, body = self._query_body(
             platform,
@@ -212,6 +231,33 @@ class RankingQuery:
             segmented,
             coverage,
         )
+
+        next_after = None
+        if group_by:
+            selected, next_after = self._select_groups(
+                index_name,
+                body,
+                group_limit,
+                after,
+                deadline,
+            )
+            if not selected:
+                return groups, next_after
+
+            clauses = []
+            for key in selected:
+                filters = []
+                for field, value in key.items():
+                    if value is None:
+                        clause = {"bool": {"must_not": [{"exists": {"field": field}}]}}
+                    else:
+                        clause = {"term": {field: value}}
+                    filters.append(clause)
+                clauses.append({"bool": {"filter": filters}})
+
+            body["query"]["bool"]["filter"].append(
+                {"bool": {"should": clauses, "minimum_should_match": 1}}
+            )
 
         for buckets in composite_pages(self.client, index_name, body, deadline):
             yop_keys = self._yop_keys(
@@ -229,7 +275,7 @@ class RankingQuery:
                 yop_keys,
             )
 
-        return groups
+        return groups, next_after
 
     def _select_groups(self, index_name, body, group_limit, after, deadline):
         item_composite = body["aggs"]["rows"]["composite"]
@@ -269,9 +315,6 @@ class RankingQuery:
                 if dimension in bucket["key"]
             )
             winners = groups.setdefault(group, [])
-            if len(groups) > MAX_GROUPS or len(groups) * limit > MAX_RESULTS:
-                raise insufficient_information()
-
             inverted_key = bytes(255 - byte for byte in key.encode("utf-8"))
             candidate = (count, inverted_key, key)
             if len(winners) < limit:

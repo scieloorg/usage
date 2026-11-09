@@ -39,8 +39,19 @@ class RankingQueryTests(TestCase):
         client.search.assert_not_called()
 
     def test_ranking_reads_all_pages_and_breaks_ties_by_item_key(self):
+        after = {"country_code": "CA", "content_language": "en"}
         client = Mock()
         client.search.side_effect = [
+            {
+                "aggregations": {
+                    "rows": {
+                        "buckets": [
+                            {"key": {"country_code": "BR", "content_language": "pt"}}
+                        ],
+                        "after_key": after,
+                    }
+                }
+            },
             {
                 "aggregations": {
                     "rows": {
@@ -84,18 +95,21 @@ class RankingQueryTests(TestCase):
         platform = SimpleNamespace(acron3="scl", collection_type="journals")
 
         query.report_query.resolve_item_id.return_value = "journal-key"
+        params = {
+            "entity_type": "articles",
+            "parent_type": "journal",
+            "parent_id": "Print_ISSN:1234-5678",
+            "group_by": "country,language",
+            "coverage_policy": "strict",
+            "group_limit": 1,
+            "limit": 1,
+        }
+
         result = query.run(
             platform,
             date(2025, 1, 1),
             date(2025, 12, 31),
-            {
-                "entity_type": "articles",
-                "parent_type": "journal",
-                "parent_id": "Print_ISSN:1234-5678",
-                "group_by": "country,language",
-                "coverage_policy": "strict",
-                "limit": "1",
-            },
+            params,
         )
 
         self.assertEqual(
@@ -105,8 +119,16 @@ class RankingQueryTests(TestCase):
             result["groups"][0]["items"],
             [{"id": "item-a", "title": "Article A", "count": 10}],
         )
-        self.assertEqual(client.search.call_count, 2)
+        self.assertEqual(client.search.call_count, 3)
         body = client.search.call_args_list[0].kwargs["body"]
+        self.assertEqual(body["aggs"]["rows"]["composite"]["size"], 1)
+        self.assertEqual(
+            [
+                next(iter(source))
+                for source in body["aggs"]["rows"]["composite"]["sources"]
+            ],
+            ["country_code", "content_language"],
+        )
         self.assertIn({"terms": {"year": ["2025"]}}, body["query"]["bool"]["filter"])
         self.assertIn(
             {"term": {"source_key": "journal-key"}}, body["query"]["bool"]["filter"]
@@ -196,7 +218,7 @@ class RankingQueryTests(TestCase):
 
     def test_country_ranking_filters_yop_with_document_metadata(self):
         client = Mock()
-        client.search.return_value = {
+        item_page = {
             "aggregations": {
                 "rows": {
                     "buckets": [
@@ -226,6 +248,10 @@ class RankingQueryTests(TestCase):
                 },
             ]
         }
+        client.search.side_effect = [
+            {"aggregations": {"rows": {"buckets": [{"key": {"country_code": "BR"}}]}}},
+            item_page,
+        ]
         query = RankingQuery(Mock(client=client))
         platform = SimpleNamespace(acron3="scl", collection_type="journals")
 
