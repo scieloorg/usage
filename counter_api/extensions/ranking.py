@@ -58,7 +58,11 @@ class RankingQuery:
             require_complete_period(platform, begin, end)
 
         parent_key = self._parent_key(platform, parent_type, parent_id)
-        key_batches = self._key_batches(platform, params, deadline)
+        source_keys = (
+            self._source_keys(platform, params["subject_area"], deadline)
+            if params.get("subject_area")
+            else None
+        )
         groups = self._ranked_groups(
             platform,
             begin,
@@ -68,7 +72,7 @@ class RankingQuery:
             parent_key,
             metric_type,
             group_by,
-            key_batches,
+            source_keys,
             limit,
             deadline,
             segmented,
@@ -150,18 +154,6 @@ class RankingQuery:
 
         return self.report_query.resolve_item_id(platform, "tr", parent_id)
 
-    def _key_batches(self, platform, params, deadline):
-        subject_area = params.get("subject_area")
-        if not subject_area:
-            return [None]
-
-        source_keys = self._source_keys(platform, subject_area, deadline)
-
-        return [
-            source_keys[start : start + METADATA_BATCH_SIZE]
-            for start in range(0, len(source_keys), METADATA_BATCH_SIZE)
-        ]
-
     def _ranked_groups(
         self,
         platform,
@@ -172,46 +164,46 @@ class RankingQuery:
         parent_key,
         metric_type,
         group_by,
-        key_batches,
+        source_keys,
         limit,
         deadline,
         segmented,
         coverage=None,
     ):
         groups = {}
+        if source_keys == []:
+            return groups
 
-        for source_keys in key_batches:
-            index_name, body = self._query_body(
-                platform,
-                begin,
-                end,
+        index_name, body = self._query_body(
+            platform,
+            begin,
+            end,
+            relation["key_field"],
+            relation.get("data_type"),
+            parent_key,
+            metric_type,
+            group_by,
+            params,
+            source_keys,
+            segmented,
+            coverage,
+        )
+
+        for buckets in composite_pages(self.client, index_name, body, deadline):
+            yop_keys = self._yop_keys(
+                buckets,
                 relation["key_field"],
-                relation.get("data_type"),
-                parent_key,
-                metric_type,
-                group_by,
                 params,
-                source_keys,
+                deadline,
                 segmented,
-                coverage,
             )
-
-            for buckets in composite_pages(self.client, index_name, body, deadline):
-                yop_keys = self._yop_keys(
-                    buckets,
-                    relation["key_field"],
-                    params,
-                    deadline,
-                    segmented,
-                )
-
-                self._collect_groups(
-                    groups,
-                    buckets,
-                    relation["key_field"],
-                    limit,
-                    yop_keys,
-                )
+            self._collect_groups(
+                groups,
+                buckets,
+                relation["key_field"],
+                limit,
+                yop_keys,
+            )
 
         return groups
 
