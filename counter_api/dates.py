@@ -4,7 +4,7 @@ from datetime import date
 from counter_api.exceptions import insufficient_information, invalid_dates
 
 
-def parse_period(params):
+def parse_period_inputs(params):
     begin_value = params.get("begin_date")
     end_value = params.get("end_date")
     if not begin_value or not end_value:
@@ -14,6 +14,11 @@ def parse_period(params):
     end = _parse_date(end_value, first=False)
     if begin > end:
         raise invalid_dates("end_date must not be earlier than begin_date")
+    return begin, end
+
+
+def parse_period(params):
+    begin, end = parse_period_inputs(params)
     if begin.day != 1:
         raise invalid_dates("begin_date must be the first day of a month")
     if end.day != calendar.monthrange(end.year, end.month)[1]:
