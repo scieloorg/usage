@@ -40,6 +40,8 @@ class ExtensionViewTests(TestCase):
             ],
         )
         self.assertNotIn("coverage", response.json())
+        self.assertEqual(response.json()["other_granularity"], "day")
+        available_months.assert_called_once_with(self.platform, complete_only=False)
 
     @patch("counter_api.extensions.distribution.ReportQuery")
     def test_default_http_request_includes_partial_coverage(self, report_query):

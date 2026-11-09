@@ -130,7 +130,7 @@ class CapabilitiesView(CounterAPIView):
     def get(self, request):
         try:
             platform = get_platform(request.query_params.get("platform"))
-            months = available_months(platform)
+            months = available_months(platform, complete_only=False)
         except CounterAPIError as error:
             return Response(error.as_dict(), status=error.status_code)
 
@@ -148,7 +148,7 @@ class CapabilitiesView(CounterAPIView):
                 "download_formats": list(DOWNLOAD_FORMATS),
                 "distribution_dimensions": list(DISTRIBUTION_CAPABILITIES),
                 "country_language_granularity": "year",
-                "other_granularity": "month",
+                "other_granularity": "day",
                 "first_month_available": (
                     months[0].strftime("%Y-%m") if months else None
                 ),

@@ -12,11 +12,26 @@ from metrics.opensearch.names import generate_month_status_index_name
 PAGE_SIZE = 1000
 
 
-def available_months(platform):
+def available_months(platform, complete_only=True):
     index_name = generate_month_status_index_name(settings.OPENSEARCH_INDEX_NAME)
     client = OpenSearchUsageClient().client
     deadline = monotonic() + settings.COUNTER_QUERY_BUDGET_SECONDS
     current_month = date.today().strftime("%Y-%m")
+    filters = [{"term": {"collection": platform.acron3}}]
+    if complete_only:
+        filters.extend(
+            [
+                {"term": {"complete": True}},
+                {"range": {"month": {"lt": current_month}}},
+            ]
+        )
+    else:
+        filters.extend(
+            [
+                {"range": {"day_mask": {"gt": 0}}},
+                {"range": {"month": {"lte": current_month}}},
+            ]
+        )
     months = []
     after = None
 
@@ -24,15 +39,7 @@ def available_months(platform):
         body = {
             "size": 0,
             "track_total_hits": False,
-            "query": {
-                "bool": {
-                    "filter": [
-                        {"term": {"collection": platform.acron3}},
-                        {"term": {"complete": True}},
-                        {"range": {"month": {"lt": current_month}}},
-                    ]
-                }
-            },
+            "query": {"bool": {"filter": filters}},
             "aggs": {
                 "months": {
                     "composite": {
