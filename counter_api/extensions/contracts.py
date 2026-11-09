@@ -1,3 +1,4 @@
+MAX_RESULTS = 10000
 DOWNLOAD_FORMATS = ("json", "csv", "xlsx")
 SEGMENT_DIMENSIONS = {"country", "language"}
 RANKING_GROUPS = {"", "country", "language", "country,language"}
