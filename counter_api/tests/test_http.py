@@ -114,6 +114,7 @@ class CounterViewTests(TestCase):
                 "/r51/extensions/capabilities",
                 "/r51/extensions/distribution",
                 "/r51/extensions/ranking",
+                "/r51/extensions/reports/{report_id}",
             },
         )
         self.assertFalse(payload.get("security"))

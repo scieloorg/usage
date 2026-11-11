@@ -24,6 +24,7 @@ DATA_PATHS = (
     "/r51/extensions/capabilities",
     "/r51/extensions/ranking",
     "/r51/extensions/distribution",
+    "/r51/extensions/reports/tr",
 )
 
 
