@@ -135,6 +135,25 @@ com a indicação `Included`, evitando o limite de texto por célula do Excel.
 Consultas mensais sem dias confirmados e marcadores inconsistentes retornam erro.
 Relatórios COUNTER padrão não mudam. Consulte o OpenAPI para o contrato completo.
 
+## Relatórios provisórios com cobertura parcial
+
+`GET /r51/extensions/reports/<report_id>` oferece `pr`, `tr`, `tr_j3`, `tr_b3`
+e `ir` como relatórios **provisórios, não conformes ao COUNTER**. As rotas
+COUNTER padrão permanecem inalteradas.
+
+A rota sempre inclui dias confirmados de meses incompletos, sem exigir
+`coverage_policy`; `strict` é rejeitado. Para meses completos, use a rota
+COUNTER oficial. Consulte meses inteiros; meses futuros do ano corrente
+aparecem somente na cobertura, sem valores estimados.
+
+JSON inclui `coverage` e `warnings`; Excel acrescenta a aba `Coverage` e TSV,
+a seção `Usage_Coverage` após os dados. Filtros, formatos e regras estão no
+OpenAPI em `/r51/`.
+
+```text
+/r51/extensions/reports/tr?platform=scl&begin_date=2025-01&end_date=2025-12
+```
+
 ## API COUNTER e política de acesso
 
 As rotas GET sob `/r51/` oferecem descoberta, relatórios COUNTER R5.1 e

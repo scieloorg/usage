@@ -2,9 +2,24 @@ from calendar import monthrange
 from datetime import date
 
 from counter_api.dates import parse_period_inputs
-from counter_api.exceptions import invalid_dates
+from counter_api.exceptions import insufficient_information, invalid_dates
 from counter_api.extensions.contracts import SEGMENT_DIMENSIONS
 from counter_api.extensions.query import validate_segmented_period
+
+
+def parse_provisional_period(params):
+    if params.get("coverage_policy", "allow_partial") != "allow_partial":
+        raise insufficient_information("Provisional reports only support allow_partial")
+
+    begin, end = parse_period_inputs(params)
+    if begin.day != 1 or end.day != monthrange(end.year, end.month)[1]:
+        raise invalid_dates("Provisional reports require full calendar months")
+
+    today = date.today()
+    if begin > today or end.year > today.year:
+        raise invalid_dates("Period must start by today and end by the current year")
+
+    return begin, end
 
 
 def parse_analytics_period(params):

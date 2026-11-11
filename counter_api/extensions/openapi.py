@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from counter_api.openapi import CounterReportSerializer
+
 
 class RankingItemSerializer(serializers.Serializer):
     id = serializers.CharField()
@@ -44,6 +46,12 @@ class CoverageSerializer(serializers.Serializer):
         help_text="Null for annual totals: coverage is informative, not a day filter.",
     )
     months = CoverageMonthSerializer(many=True)
+
+
+class ProvisionalReportSerializer(CounterReportSerializer):
+    provisional = serializers.BooleanField()
+    coverage = CoverageSerializer()
+    warnings = serializers.ListField(child=serializers.CharField())
 
 
 class CoverageResponseSerializer(serializers.Serializer):

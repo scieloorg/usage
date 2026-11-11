@@ -149,6 +149,10 @@ class ReportsView(CounterAPIView):
 
 
 class ReportView(CounterAPIView):
+    period_parser = None
+    report_generator = None
+    filename_prefix = ""
+
     @extend_schema(
         tags=["Reports"],
         auth=[],
@@ -166,6 +170,7 @@ class ReportView(CounterAPIView):
         try:
             validate_customer(request.query_params)
             platform = get_platform(request.query_params.get("platform"))
+
             definition = REPORTS.get(report_id)
             if (
                 not definition
@@ -173,8 +178,10 @@ class ReportView(CounterAPIView):
             ):
                 return Response({}, status=404)
 
-            begin, end = parse_period(request.query_params)
-            payload, deadline = generate_report(
+            period_parser = self.period_parser or parse_period
+            report_generator = self.report_generator or generate_report
+            begin, end = period_parser(request.query_params)
+            payload, deadline = report_generator(
                 report_id,
                 platform,
                 begin,
@@ -193,8 +200,8 @@ class ReportView(CounterAPIView):
 
                 response = FileResponse(content, content_type=content_type)
                 filename = (
-                    f"{report_id}_{platform.acron3}_{begin:%Y%m}_{end:%Y%m}."
-                    f"{output_format}"
+                    f"{self.filename_prefix}{report_id}_{platform.acron3}_"
+                    f"{begin:%Y%m}_{end:%Y%m}.{output_format}"
                 )
                 response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
