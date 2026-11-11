@@ -5,6 +5,7 @@ from opensearchpy import NotFoundError
 
 from counter_api.constants import COMPOSITE_PAGE_SIZE
 from counter_api.exceptions import incongruous_filter, invalid_filter
+from counter_api.extensions.coverage import metric_sum
 from counter_api.identifiers import ITEM_ID_FIELDS
 from counter_api.metadata import fetch_metadata
 from counter_api.search import composite_pages, search
@@ -237,14 +238,13 @@ class ReportQuery:
                 "rows": {
                     "composite": composite,
                     "aggs": {
-                        "total_requests": {"sum": {"field": "total_requests"}},
-                        "total_investigations": {
-                            "sum": {"field": "total_investigations"}
-                        },
-                        "unique_requests": {"sum": {"field": "unique_requests"}},
-                        "unique_investigations": {
-                            "sum": {"field": "unique_investigations"}
-                        },
+                        metric: {"sum": metric_sum(metric, params.get("coverage"))}
+                        for metric in (
+                            "total_requests",
+                            "total_investigations",
+                            "unique_requests",
+                            "unique_investigations",
+                        )
                     },
                 }
             },

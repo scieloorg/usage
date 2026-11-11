@@ -55,6 +55,29 @@ class ReportQueryTests(TestCase):
         self.assertIn("data_type", fields)
         self.assertIn("month", fields)
 
+    def test_partial_metrics_use_confirmed_days_without_changing_default_sums(self):
+        query = ReportQuery(Mock(client=Mock()))
+        months = [date(2024, 1, 1), date(2024, 2, 1)]
+
+        coverage = {
+            "basis": "confirmed_days",
+            "months": [
+                {"month": "2024-01", "complete_month": True, "confirmed_days": [1]},
+                {"month": "2024-02", "complete_month": False, "confirmed_days": [1, 3]},
+            ],
+        }
+
+        body = query._query_body(months, None, "tr", {"coverage": coverage})
+        for metric, aggregation in body["aggs"]["rows"]["aggs"].items():
+            params = aggregation["sum"]["script"]["params"]
+            self.assertEqual(params["metric"], metric)
+            self.assertEqual(params["complete"], ["2024-01"])
+            self.assertEqual(params["days"], {"2024-02": ["01", "03"]})
+
+        default = query._query_body(months, None, "tr")
+        for metric, aggregation in default["aggs"]["rows"]["aggs"].items():
+            self.assertEqual(aggregation, {"sum": {"field": metric}})
+
     def test_query_applies_access_filters_before_aggregation(self):
         query = ReportQuery(Mock(client=Mock()))
 
