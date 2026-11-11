@@ -1,7 +1,9 @@
 import csv
+import json
 from codecs import BOM_UTF8
 from datetime import date
 from io import StringIO
+from itertools import chain
 from tempfile import SpooledTemporaryFile
 from time import monotonic
 
@@ -57,6 +59,11 @@ def build_workbook(report, deadline=None):
 
         sheet.append(row)
 
+    if report.get("provisional"):
+        coverage_sheet = workbook.create_sheet(title="Coverage")
+        for row in _coverage_rows(report):
+            coverage_sheet.append(row)
+
     output = SpooledTemporaryFile(max_size=SPOOL_SIZE)
     if deadline and monotonic() >= deadline:
         workbook.close()
@@ -75,7 +82,7 @@ def build_tsv(report, deadline=None):
     line = StringIO(newline="")
     writer = csv.writer(line, delimiter="\t", lineterminator="\n")
 
-    for row in _report_rows(report):
+    for row in chain(_report_rows(report), _coverage_rows(report)):
         if deadline and monotonic() >= deadline:
             output.close()
             raise service_unavailable()
@@ -88,6 +95,50 @@ def build_tsv(report, deadline=None):
     output.seek(0)
 
     return output
+
+
+def _coverage_rows(report):
+    if not report.get("provisional"):
+        return
+
+    coverage = report["coverage"]
+    yield ()
+    yield ("Usage_Coverage", "Provisional, not a COUNTER-compliant report")
+    yield ("Policy", coverage["policy"])
+    yield ("Status", coverage["status"])
+    yield ("Basis", coverage["basis"])
+
+    for warning in report["warnings"]:
+        yield ("Warning", warning)
+
+    yield (
+        "Month",
+        "Status",
+        "Included",
+        "Complete_Month",
+        "Requested_Days",
+        "Confirmed_Days",
+        "Missing_Days",
+        "Future_Days",
+    )
+
+    included = set(coverage["included_months"])
+    for month in coverage["months"]:
+        yield (
+            month["month"],
+            month["status"],
+            month["month"] in included,
+            month["complete_month"],
+            *(
+                json.dumps(month[field], separators=(",", ":"))
+                for field in (
+                    "requested_days",
+                    "confirmed_days",
+                    "missing_days",
+                    "future_days",
+                )
+            ),
+        )
 
 
 def _report_rows(report):
